@@ -181,9 +181,9 @@ export default function SearchDesktop({
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">
-                                                {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
+                                                {isGroupBooking ? 'Group Adults (12+ yrs)' : 'Adults (12+ yrs)'}
                                             </p>
-                                            <p className="text-xs text-gray-500 mt-0.5">Ages 13+</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">Ages 12+</p>
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <button
@@ -212,9 +212,9 @@ export default function SearchDesktop({
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">
-                                                {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                                {isGroupBooking ? 'Group Children (2–12 yrs)' : 'Children (2–12 yrs)'}
                                             </p>
-                                            <p className="text-xs text-gray-500 mt-0.5">Ages 3–12</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">Ages 2–12</p>
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <button
@@ -243,7 +243,7 @@ export default function SearchDesktop({
                                     {children > 0 && !isGroupBooking && (
                                         <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/60 space-y-2.5 animate-in fade-in duration-200">
                                             <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
-                                                Select Age for Each Child (3–12 yrs)
+                                                Select Age for Each Child (2–12 yrs)
                                             </p>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {Array.from({ length: children }).map((_, idx) => (
@@ -256,7 +256,7 @@ export default function SearchDesktop({
                                                             onChange={(e) => setChildAge?.(idx, parseInt(e.target.value) || 5)}
                                                             className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs"
                                                         >
-                                                            {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                                                            {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
                                                                 <option key={age} value={age}>
                                                                     {age} years old {age <= 6 ? '(free)' : ''}
                                                                 </option>

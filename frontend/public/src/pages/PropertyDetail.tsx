@@ -1393,7 +1393,7 @@ export default function PropertyDetail() {
 
                                     <div className={clsx("grid gap-3", !isGroupBooking ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (12+)</label>
                                             <div className="relative">
                                                 <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                                                 <input

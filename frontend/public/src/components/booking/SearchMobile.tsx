@@ -335,9 +335,9 @@ export default function SearchMobile({
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">
-                                        {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
+                                        {isGroupBooking ? 'Group Adults (12+ yrs)' : 'Adults (12+ yrs)'}
                                     </h4>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 13+</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 12+</p>
                                 </div>
                                 <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                     <button
@@ -374,9 +374,9 @@ export default function SearchMobile({
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">
-                                        {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                        {isGroupBooking ? 'Group Children (2–12 yrs)' : 'Children (2–12 yrs)'}
                                     </h4>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 3–12</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 2–12</p>
                                 </div>
                                 <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                     <button
@@ -414,7 +414,7 @@ export default function SearchMobile({
                             {children > 0 && !isGroupBooking && (
                                 <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/70 space-y-2.5">
                                     <p className="text-[10px] font-black text-amber-900 uppercase tracking-wider">
-                                        Select Age for Each Child (3–12 yrs)
+                                        Select Age for Each Child (2–12 yrs)
                                     </p>
                                     <div className="grid grid-cols-2 gap-2">
                                         {Array.from({ length: children }).map((_, idx) => (
@@ -427,7 +427,7 @@ export default function SearchMobile({
                                                     onChange={(e) => setChildAge?.(idx, parseInt(e.target.value) || 5)}
                                                     className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary-500"
                                                 >
-                                                    {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                                                    {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
                                                         <option key={age} value={age}>
                                                             {age} yrs {age <= 6 ? '(free)' : ''}
                                                         </option>

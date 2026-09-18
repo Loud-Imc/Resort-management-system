@@ -945,6 +945,10 @@ export class AvailabilityService {
             totalRoomsOfType = await this.prisma.room.count({
                 where: { propertyId, roomTypeId, isEnabled: true }
             });
+        } else {
+            totalRoomsOfType = await this.prisma.room.count({
+                where: { propertyId, isEnabled: true }
+            });
         }
 
         const bookings = await this.prisma.booking.findMany({
@@ -1043,6 +1047,8 @@ export class AvailabilityService {
                         occupiedRooms += b.bookingRooms.filter((br: any) => 
                             br.room?.roomTypeId === roomTypeId
                         ).length;
+                    } else {
+                        occupiedRooms += b.bookingRooms.length;
                     }
                 }
             }

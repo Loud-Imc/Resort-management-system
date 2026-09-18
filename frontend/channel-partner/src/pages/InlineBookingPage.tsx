@@ -1134,7 +1134,7 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)' }}>
-                                        <Users size={12} /> {tempIsGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
+                                        <Users size={12} /> {tempIsGroupBooking ? 'Group Adults (12+ yrs)' : 'Adults (12+ yrs)'}
                                     </label>
                                     <input
                                         type="number"
@@ -1146,7 +1146,7 @@ const InlineBookingPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-dim)', display: 'block' }}>
-                                        {tempIsGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                        {tempIsGroupBooking ? 'Group Children (2–12 yrs)' : 'Children (2–12 yrs)'}
                                     </label>
                                     <input
                                         type="number"
@@ -1230,7 +1230,7 @@ const InlineBookingPage: React.FC = () => {
                                                     onChange={(e) => handleTempSetChildAge(idx, Number(e.target.value))}
                                                     style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}
                                                 >
-                                                    {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((a) => (
+                                                    {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((a) => (
                                                         <option key={a} value={a}>{a} yrs</option>
                                                     ))}
                                                 </select>
@@ -1345,7 +1345,7 @@ const InlineBookingPage: React.FC = () => {
                         <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: !isGroupBooking ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)' }}>
-                                    <Users size={14} /> {isGroupBooking ? 'Group Adults (13+ yrs)' : 'Adults (13+ yrs)'}
+                                    <Users size={14} /> {isGroupBooking ? 'Group Adults (12+ yrs)' : 'Adults (12+ yrs)'}
                                 </label>
                                 <input
                                     type="number"
@@ -1357,7 +1357,7 @@ const InlineBookingPage: React.FC = () => {
                             </div>
                             <div>
                                 <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-dim)', display: 'block' }}>
-                                    {isGroupBooking ? 'Group Children (3–12 yrs)' : 'Children (3–12 yrs)'}
+                                    {isGroupBooking ? 'Group Children (2–12 yrs)' : 'Children (2–12 yrs)'}
                                 </label>
                                 <input
                                     type="number"
@@ -1397,7 +1397,7 @@ const InlineBookingPage: React.FC = () => {
                         {children > 0 && (
                             <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.4)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)', marginBottom: '1.5rem' }}>
                                 <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                                    Child Ages (3–12 years)
+                                    Child Ages (2–12 years)
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
                                     {childAges.map((age, idx) => (
@@ -1408,7 +1408,7 @@ const InlineBookingPage: React.FC = () => {
                                                 onChange={(e) => handleSetChildAge(idx, Number(e.target.value))}
                                                 style={{ padding: '0.4rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)', background: '#fff', fontSize: '0.85rem', fontWeight: 600 }}
                                             >
-                                                {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((a) => (
+                                                {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((a) => (
                                                     <option key={a} value={a}>{a} yrs</option>
                                                 ))}
                                             </select>

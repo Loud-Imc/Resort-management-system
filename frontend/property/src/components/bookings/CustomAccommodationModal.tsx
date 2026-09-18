@@ -445,7 +445,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                             </span>
                             <p className="text-sm font-black text-foreground flex items-center gap-2">
                                 <Users className="h-4 w-4 text-primary" />
-                                {requiredAdults} Adults (13+ yrs), {requiredChildren} Children (3–12 yrs){requiredInfants > 0 ? `, ${requiredInfants} Infants (0–2 yrs)` : ''}
+                                {requiredAdults} Adults (12+ yrs), {requiredChildren} Children (2–12 yrs){requiredInfants > 0 ? `, ${requiredInfants} Infants (0–2 yrs)` : ''}
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -568,7 +568,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
                                         <div>
                                             <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                                                Adults (13+ yrs) (Cap: {maxPhysA})
+                                                Adults (12+ yrs) (Cap: {maxPhysA})
                                             </label>
                                             <input
                                                 type="number"
@@ -582,7 +582,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
 
                                         <div>
                                             <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                                                Children (3–12 yrs) (Cap: {maxPhysC})
+                                                Children (2–12 yrs) (Cap: {maxPhysC})
                                             </label>
                                             <input
                                                 type="number"
@@ -618,7 +618,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                                     {roomItem.children > 0 && (
                                         <div className="p-3 bg-muted/40 rounded-xl space-y-1.5">
                                             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                                                Child Ages (3–12 yrs)
+                                                Child Ages (2–12 yrs)
                                             </span>
                                             <div className="flex flex-wrap gap-2">
                                                 {Array.from({ length: roomItem.children }).map((_, cIdx) => (
@@ -633,7 +633,7 @@ export const CustomAccommodationModal: React.FC<CustomAccommodationModalProps> =
                                                             }}
                                                             className="border border-input bg-background rounded-md px-2 py-1 text-xs font-bold"
                                                         >
-                                                            {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                                                            {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
                                                                 <option key={age} value={age}>{age} yrs</option>
                                                             ))}
                                                         </select>

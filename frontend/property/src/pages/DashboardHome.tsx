@@ -129,7 +129,7 @@ export default function DashboardHome() {
                 startDate: dateStr,
                 endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd'),
                 roomsCount: selectedRoomIds.length,
-                adultsCount: selectedRoomIds.length,
+                adultsCount: Math.max(2, selectedRoomIds.length * 2),
             }
         });
     };
@@ -197,7 +197,7 @@ export default function DashboardHome() {
                 startDate: dateStr,
                 endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd'),
                 roomsCount: 1,
-                adultsCount: 1,
+                adultsCount: 2,
             } 
         });
     };

@@ -708,7 +708,7 @@ export default function CreateRoomType() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Max Physical Children <span className="text-[11px] font-normal text-slate-500">(Optional)</span></span>
-                                        <span className="text-[10px] text-slate-400 font-normal">Age 3–12</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Age 2–12</span>
                                     </label>
                                     <input
                                         type="number"

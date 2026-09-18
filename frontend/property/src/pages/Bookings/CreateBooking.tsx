@@ -21,13 +21,14 @@ import {
 import clsx from 'clsx';
 import AccommodationPackageCard from '../../components/bookings/AccommodationPackageCard';
 import RoomAssignmentSection from '../../components/bookings/RoomAssignmentSection';
-import PropertyInventoryReference from '../../components/bookings/PropertyInventoryReference';
+// import PropertyInventoryReference from '../../components/bookings/PropertyInventoryReference';
 import BookingSummarySidebar from '../../components/bookings/BookingSummarySidebar';
 import CustomAccommodationModal from '../../components/bookings/CustomAccommodationModal';
+import CreateBookingCalendarModal from '../../components/bookings/CreateBookingCalendarModal';
 import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
 import type { RoomType } from '../../types/room';
 import { useProperty } from '../../context/PropertyContext';
-import { canRoomTypeFitParty } from '../../utils/occupancy';
+// import { canRoomTypeFitParty } from '../../utils/occupancy';
 
 const bookingSchema = z.object({
     propertyId: z.string().min(1, 'Property is required'),
@@ -135,7 +136,7 @@ export default function CreateBooking() {
 
     const { selectedProperty } = useProperty();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
-    const [availableRoomTypesList, setAvailableRoomTypesList] = useState<any[] | null>(null);
+    // const [availableRoomTypesList, setAvailableRoomTypesList] = useState<any[] | null>(null);
     const [accommodationSolutions, setAccommodationSolutions] = useState<any[] | null>(null);
     const [selectedSolution, setSelectedSolution] = useState<any | null>(null);
     const [solutionRoomAssignments, setSolutionRoomAssignments] = useState<Record<number, string>>({});
@@ -145,6 +146,7 @@ export default function CreateBooking() {
     const [hasSearched, setHasSearched] = useState(false);
     const [showFullSolutionsModal, setShowFullSolutionsModal] = useState(false);
     const [showCustomSolutionModal, setShowCustomSolutionModal] = useState(false);
+    const [showCalendarModal, setShowCalendarModal] = useState(false);
     const [showInsufficientModal, setShowInsufficientModal] = useState(false);
     const [showMobileSummarySheet, setShowMobileSummarySheet] = useState(false);
     const [childAges, setChildAges] = useState<number[]>([]);
@@ -185,8 +187,8 @@ export default function CreateBooking() {
 
     const preSelectedStartDate = state?.startDate;
     const preSelectedEndDate = state?.endDate;
-    const preSelectedRoomsCount = state?.roomsCount || (preSelectedRoomIds.length > 0 ? preSelectedRoomIds.length : 1);
-    const preSelectedAdultsCount = state?.adultsCount || Math.max(1, preSelectedRoomsCount);
+    // const preSelectedRoomsCount = state?.roomsCount || (preSelectedRoomIds.length > 0 ? preSelectedRoomIds.length : 1);
+    const preSelectedAdultsCount = state?.adultsCount || (preSelectedRoomIds.length > 0 ? Math.max(2, preSelectedRoomIds.length * 2) : 2);
 
     const [filterRoomTypeIds, setFilterRoomTypeIds] = useState<string[]>(preSelectedRoomTypeIds);
     const [filterRoomIds, setFilterRoomIds] = useState<string[]>(preSelectedRoomIds);
@@ -203,7 +205,7 @@ export default function CreateBooking() {
             propertyId: selectedProperty?.id || '',
             checkInDate: preSelectedStartDate || format(new Date(), 'yyyy-MM-dd'),
             checkOutDate: preSelectedEndDate || format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-            roomsCount: preSelectedRoomsCount,
+            roomsCount: preSelectedRoomIds.length > 0 ? preSelectedRoomIds.length : (state?.roomsCount || undefined),
             adultsCount: preSelectedAdultsCount,
             childrenCount: 0,
             extraAdultsCount: 0, extraChildrenCount: 0,
@@ -358,17 +360,17 @@ export default function CreateBooking() {
         return Math.max(roomsByAdults, roomsByChildren, 1);
     }, [selectedRoomType, watch('adultsCount'), watch('childrenCount')]);
 
-    const sortedRoomTypesList = useMemo(() => {
-        if (!availableRoomTypesList) return [];
-        return [...availableRoomTypesList].sort((a, b) => {
-            const aSoldOut = Boolean(a.isSoldOut || (a.availableCount !== undefined && a.availableCount === 0));
-            const bSoldOut = Boolean(b.isSoldOut || (b.availableCount !== undefined && b.availableCount === 0));
+    // const sortedRoomTypesList = useMemo(() => {
+    //     if (!availableRoomTypesList) return [];
+    //     return [...availableRoomTypesList].sort((a, b) => {
+    //         const aSoldOut = Boolean(a.isSoldOut || (a.availableCount !== undefined && a.availableCount === 0));
+    //         const bSoldOut = Boolean(b.isSoldOut || (b.availableCount !== undefined && b.availableCount === 0));
 
-            if (aSoldOut && !bSoldOut) return 1;
-            if (!aSoldOut && bSoldOut) return -1;
-            return 0;
-        });
-    }, [availableRoomTypesList]);
+    //         if (aSoldOut && !bSoldOut) return 1;
+    //         if (!aSoldOut && bSoldOut) return -1;
+    //         return 0;
+    //     });
+    // }, [availableRoomTypesList]);
 
     const occupancyStats = useMemo(() => {
         if (!selectedRoomType) return null;
@@ -462,12 +464,12 @@ export default function CreateBooking() {
         setHasSearched(false);
         setSelectedSolution(null);
         setAccommodationSolutions(null);
-        setAvailableRoomTypesList(null);
+        // setAvailableRoomTypesList(null);
         setSolutionRoomAssignments({});
         setValue('selectedRoomIds', []);
         setValue('roomId', '');
         setValue('roomTypeId', '');
-        setValue('roomsCount', 1);
+        setValue('roomsCount', undefined);
         setPriceDetails(null);
         setOriginalPriceDetails(null);
         setAvailability(null);
@@ -482,7 +484,7 @@ export default function CreateBooking() {
             setValue('adultsCount', currentAdults);
             setValue('groupSize', currentAdults);
         } else {
-            setValue('adultsCount', 1);
+            setValue('adultsCount', 2);
             setValue('groupSize', undefined);
         }
     };
@@ -754,7 +756,9 @@ export default function CreateBooking() {
             } else {
                 const adults = Number(watchedAdults) || 1;
                 const children = Number(watchedChildren) || 0;
-                const rooms = Math.max(1, Number(watchedRoomsCount) || 1);
+                const rooms = (watchedRoomsCount !== undefined && watchedRoomsCount !== null && (watchedRoomsCount as any) !== '' && Number(watchedRoomsCount) > 0)
+                    ? Number(watchedRoomsCount)
+                    : undefined;
 
                 const searchRes = await bookingsService.searchRooms({
                     propertyId: selectedProperty.id,
@@ -783,27 +787,27 @@ export default function CreateBooking() {
                     setAvailability(null);
                 }
 
-                if (searchRes.availableRoomTypes && searchRes.availableRoomTypes.length > 0) {
-                    setAvailableRoomTypesList(searchRes.availableRoomTypes);
-                } else if (roomTypes && roomTypes.length > 0) {
-                    const fallbackList = roomTypes.map((rt: any) => {
-                        const physA = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
-                        const physC = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
-                        const nRooms = Math.max(
-                            Math.ceil(adults / Math.max(physA, 1)),
-                            children > 0 ? Math.ceil(children / Math.max(physC, 1)) : 0,
-                            rooms
-                        );
-                        const totalRooms = rt.rooms?.filter((r: any) => r.isEnabled)?.length ?? rt._count?.rooms ?? 1;
-                        return {
-                            ...rt,
-                            neededRooms: nRooms,
-                            availableCount: totalRooms,
-                            isSoldOut: totalRooms < nRooms,
-                        };
-                    });
-                    setAvailableRoomTypesList(fallbackList);
-                }
+                // if (searchRes.availableRoomTypes && searchRes.availableRoomTypes.length > 0) {
+                //     setAvailableRoomTypesList(searchRes.availableRoomTypes);
+                // } else if (roomTypes && roomTypes.length > 0) {
+                //     const fallbackList = roomTypes.map((rt: any) => {
+                //         const physA = rt.maxPhysicalAdults ?? rt.maxAdults ?? 2;
+                //         const physC = rt.maxPhysicalChildren ?? rt.maxChildren ?? 0;
+                //         const nRooms = Math.max(
+                //             Math.ceil(adults / Math.max(physA, 1)),
+                //             children > 0 ? Math.ceil(children / Math.max(physC, 1)) : 0,
+                //             rooms || 1
+                //         );
+                //         const totalRooms = rt.rooms?.filter((r: any) => r.isEnabled)?.length ?? rt._count?.rooms ?? 1;
+                //         return {
+                //             ...rt,
+                //             neededRooms: nRooms,
+                //             availableCount: totalRooms,
+                //             isSoldOut: totalRooms < nRooms,
+                //         };
+                //     });
+                //     setAvailableRoomTypesList(fallbackList);
+                // }
             }
         } catch (err) {
             console.error('Search failed:', err);
@@ -862,64 +866,64 @@ export default function CreateBooking() {
         }
     }, [selectedProperty?.id, preSelectedRoomIds.length, preSelectedRoomTypeIds.length, triggerSearch]);
 
-    const handleSelectRoomType = async (roomTypeId: string) => {
-        const rt = roomTypes?.find(r => r.id === roomTypeId);
-        if (rt) {
-            const canFit = canRoomTypeFitParty(rt, {
-                adults: Number(watch('adultsCount') || 1),
-                children: Number(watch('childrenCount') || 0),
-                infants: infantsCount || 0,
-            });
-            if (!canFit && accommodationSolutions && accommodationSolutions.length > 0) {
-                toast.error(`A single ${rt.name} cannot accommodate ${watch('adultsCount')} adults & ${watch('childrenCount') || 0} children. Please select an Accommodation Solution above.`, { duration: 5000 });
-                return;
-            }
-        }
-        setSelectedSolution(null);
-        setSolutionRoomAssignments({});
-        setValue('roomTypeId', roomTypeId);
-        setValue('roomId', '');
-        setValue('selectedRoomIds', []);
-        setValue('extraAdultsCount', 0);
-        setValue('extraChildrenCount', 0);
+    // const handleSelectRoomType = async (roomTypeId: string) => {
+    //     const rt = roomTypes?.find(r => r.id === roomTypeId);
+    //     if (rt) {
+    //         const canFit = canRoomTypeFitParty(rt, {
+    //             adults: Number(watch('adultsCount') || 1),
+    //             children: Number(watch('childrenCount') || 0),
+    //             infants: infantsCount || 0,
+    //         });
+    //         if (!canFit && accommodationSolutions && accommodationSolutions.length > 0) {
+    //             toast.error(`A single ${rt.name} cannot accommodate ${watch('adultsCount')} adults & ${watch('childrenCount') || 0} children. Please select an Accommodation Solution above.`, { duration: 5000 });
+    //             return;
+    //         }
+    //     }
+    //     setSelectedSolution(null);
+    //     setSolutionRoomAssignments({});
+    //     setValue('roomTypeId', roomTypeId);
+    //     setValue('roomId', '');
+    //     setValue('selectedRoomIds', []);
+    //     setValue('extraAdultsCount', 0);
+    //     setValue('extraChildrenCount', 0);
 
-        // Fetch direct room type availability
-        try {
-            setCheckingAvailability(true);
-            const avail = await bookingsService.checkAvailability({
-                roomTypeId,
-                roomTypeIds: [roomTypeId],
-                roomIds: filterRoomIds.length > 0 ? filterRoomIds : undefined,
-                checkInDate: watchedCheckInDate,
-                checkOutDate: watchedCheckOutDate,
-                propertyId: selectedProperty?.id,
-                isAdmin: true,
-            });
-            setAvailability(avail);
-            if (avail.available && avail.roomList && avail.roomList.length > 0) {
-                const preferredRoom = (filterRoomIds.length > 0 && avail.roomList.find((r: any) => filterRoomIds.includes(r.id))) || avail.roomList[0];
-                setValue('selectedRoomIds', [preferredRoom.id]);
-                setValue('roomId', preferredRoom.id);
+    //     // Fetch direct room type availability
+    //     try {
+    //         setCheckingAvailability(true);
+    //         const avail = await bookingsService.checkAvailability({
+    //             roomTypeId,
+    //             roomTypeIds: [roomTypeId],
+    //             roomIds: filterRoomIds.length > 0 ? filterRoomIds : undefined,
+    //             checkInDate: watchedCheckInDate,
+    //             checkOutDate: watchedCheckOutDate,
+    //             propertyId: selectedProperty?.id,
+    //             isAdmin: true,
+    //         });
+    //         setAvailability(avail);
+    //         if (avail.available && avail.roomList && avail.roomList.length > 0) {
+    //             const preferredRoom = (filterRoomIds.length > 0 && avail.roomList.find((r: any) => filterRoomIds.includes(r.id))) || avail.roomList[0];
+    //             setValue('selectedRoomIds', [preferredRoom.id]);
+    //             setValue('roomId', preferredRoom.id);
 
-                const priceParams = {
-                    roomTypeId,
-                    checkInDate: watchedCheckInDate,
-                    checkOutDate: watchedCheckOutDate,
-                    adultsCount: Number(watchedAdults) || 1,
-                    childrenCount: Number(watchedChildren) || 0,
-                    roomCount: 1,
-                    generalCode: getValues('appliedCode'),
-                };
-                const calcPrice = await (bookingsService as any).calculatePrice(priceParams);
-                setPriceDetails(calcPrice);
-                setOriginalPriceDetails(calcPrice);
-            }
-        } catch (e) {
-            console.error('Failed to select room type', e);
-        } finally {
-            setCheckingAvailability(false);
-        }
-    };
+    //             const priceParams = {
+    //                 roomTypeId,
+    //                 checkInDate: watchedCheckInDate,
+    //                 checkOutDate: watchedCheckOutDate,
+    //                 adultsCount: Number(watchedAdults) || 1,
+    //                 childrenCount: Number(watchedChildren) || 0,
+    //                 roomCount: 1,
+    //                 generalCode: getValues('appliedCode'),
+    //             };
+    //             const calcPrice = await (bookingsService as any).calculatePrice(priceParams);
+    //             setPriceDetails(calcPrice);
+    //             setOriginalPriceDetails(calcPrice);
+    //         }
+    //     } catch (e) {
+    //         console.error('Failed to select room type', e);
+    //     } finally {
+    //         setCheckingAvailability(false);
+    //     }
+    // };
 
     const handleAssignRoom = (roomIndex: number, roomId: string) => {
         setSolutionRoomAssignments(prev => {
@@ -1088,7 +1092,7 @@ export default function CreateBooking() {
             roomAllocations: roomAllocationsPayload,
             childAges: (!data.isGroupBooking && childAges.length > 0) ? childAges : undefined,
             infants: (!data.isGroupBooking && infantsCount > 0) ? infantsCount : undefined,
-            roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || 1)),
+            roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || (selectedSolution?.allocatedRooms?.length) || (data.selectedRoomIds?.length) || 1)),
             guestName: `${guestFirstName} ${guestLastName || ''}`.trim(),
             guestEmail: guestEmail || undefined,
             guestPhone: guestPhone,
@@ -1255,27 +1259,45 @@ export default function CreateBooking() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                         {/* Check-In Date */}
                                         <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center justify-between">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
+                                                </span>
+                                                <span className="text-[10px] text-primary font-bold">Pick on Calendar</span>
                                             </label>
-                                            <input 
-                                                type="date" 
-                                                {...register('checkInDate')} 
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
-                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowCalendarModal(true)}
+                                                className="w-full border border-input bg-background hover:border-primary/50 text-foreground rounded-xl shadow-xs h-11 px-3.5 flex items-center justify-between cursor-pointer transition-all text-left focus:ring-2 focus:ring-primary/20 focus:border-primary group" 
+                                            >
+                                                <span className="text-sm font-bold text-foreground">
+                                                    {watchedCheckInDate ? format(new Date(watchedCheckInDate), 'dd/MM/yyyy (EEE)') : 'Select Check-in Date'}
+                                                </span>
+                                                <Calendar className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            </button>
+                                            <input type="hidden" {...register('checkInDate')} />
                                             {errors.checkInDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkInDate.message}</p>}
                                         </div>
 
                                         {/* Check-Out Date */}
                                         <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center justify-between">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
+                                                </span>
+                                                <span className="text-[10px] text-primary font-bold">Pick on Calendar</span>
                                             </label>
-                                            <input 
-                                                type="date" 
-                                                {...register('checkOutDate')} 
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
-                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowCalendarModal(true)}
+                                                className="w-full border border-input bg-background hover:border-primary/50 text-foreground rounded-xl shadow-xs h-11 px-3.5 flex items-center justify-between cursor-pointer transition-all text-left focus:ring-2 focus:ring-primary/20 focus:border-primary group" 
+                                            >
+                                                <span className="text-sm font-bold text-foreground">
+                                                    {watchedCheckOutDate ? format(new Date(watchedCheckOutDate), 'dd/MM/yyyy (EEE)') : 'Select Check-out Date'}
+                                                </span>
+                                                <Calendar className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            </button>
+                                            <input type="hidden" {...register('checkOutDate')} />
                                             {errors.checkOutDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkOutDate.message}</p>}
                                         </div>
                                     </div>
@@ -1284,14 +1306,22 @@ export default function CreateBooking() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                                         {/* Rooms Count */}
                                         <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <BedDouble className="h-3.5 w-3.5 text-primary" /> Rooms
-                                            </label>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                    <BedDouble className="h-3.5 w-3.5 text-primary" /> Rooms
+                                                </label>
+                                                <span className="text-[10px] font-semibold text-muted-foreground">
+                                                    Optional
+                                                </span>
+                                            </div>
                                             <input 
                                                 type="number" 
                                                 min="1" 
-                                                {...register('roomsCount', { valueAsNumber: true })}
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-black focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                                                placeholder="Auto"
+                                                {...register('roomsCount', { 
+                                                    setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v))
+                                                })}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-black focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:font-normal placeholder:text-muted-foreground/60" 
                                             />
                                             {errors.roomsCount && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.roomsCount.message}</p>}
                                         </div>
@@ -1299,7 +1329,7 @@ export default function CreateBooking() {
                                         {/* Adults */}
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <Users className="h-3.5 w-3.5 text-primary" /> Adults (13+ yrs)
+                                                <Users className="h-3.5 w-3.5 text-primary" /> Adults (12+ yrs)
                                             </label>
                                             <input 
                                                 type="number" 
@@ -1313,7 +1343,7 @@ export default function CreateBooking() {
                                         {/* Children */}
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-                                                Children (3–12 yrs)
+                                                Children (2–12 yrs)
                                             </label>
                                             <input 
                                                 type="number" 
@@ -1356,7 +1386,7 @@ export default function CreateBooking() {
                                     {Number(watch('childrenCount') || 0) > 0 && (
                                         <div className="space-y-2 p-3.5 bg-muted/30 rounded-xl border border-border">
                                             <label className="block text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                                                Child Ages at Stay (3–12 yrs)
+                                                Child Ages at Stay (2–12 yrs)
                                             </label>
                                             <div className="flex flex-wrap gap-2">
                                                 {Array.from({ length: Number(watch('childrenCount') || 0) }).map((_, idx) => (
@@ -1374,7 +1404,7 @@ export default function CreateBooking() {
                                                             }}
                                                             className="h-7 text-xs font-black border border-input bg-background rounded px-1.5 focus:ring-1 focus:ring-primary cursor-pointer"
                                                         >
-                                                            {Array.from({ length: 10 }, (_, i) => i + 3).map(age => (
+                                                            {Array.from({ length: 11 }, (_, i) => i + 2).map(age => (
                                                                 <option key={age} value={age}>{age} yrs</option>
                                                             ))}
                                                         </select>
@@ -1391,27 +1421,45 @@ export default function CreateBooking() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                         {/* Check-In Date */}
                                         <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center justify-between">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Calendar className="h-3.5 w-3.5 text-primary" /> Check-in Date
+                                                </span>
+                                                <span className="text-[10px] text-primary font-bold">Pick on Calendar</span>
                                             </label>
-                                            <input 
-                                                type="date" 
-                                                {...register('checkInDate')} 
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
-                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowCalendarModal(true)}
+                                                className="w-full border border-input bg-background hover:border-primary/50 text-foreground rounded-xl shadow-xs h-11 px-3.5 flex items-center justify-between cursor-pointer transition-all text-left focus:ring-2 focus:ring-primary/20 focus:border-primary group" 
+                                            >
+                                                <span className="text-sm font-bold text-foreground">
+                                                    {watchedCheckInDate ? format(new Date(watchedCheckInDate), 'dd/MM/yyyy (EEE)') : 'Select Check-in Date'}
+                                                </span>
+                                                <Calendar className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            </button>
+                                            <input type="hidden" {...register('checkInDate')} />
                                             {errors.checkInDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkInDate.message}</p>}
                                         </div>
 
                                         {/* Check-Out Date */}
                                         <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center justify-between">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Calendar className="h-3.5 w-3.5 text-primary" /> Check-out Date
+                                                </span>
+                                                <span className="text-[10px] text-primary font-bold">Pick on Calendar</span>
                                             </label>
-                                            <input 
-                                                type="date" 
-                                                {...register('checkOutDate')} 
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
-                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowCalendarModal(true)}
+                                                className="w-full border border-input bg-background hover:border-primary/50 text-foreground rounded-xl shadow-xs h-11 px-3.5 flex items-center justify-between cursor-pointer transition-all text-left focus:ring-2 focus:ring-primary/20 focus:border-primary group" 
+                                            >
+                                                <span className="text-sm font-bold text-foreground">
+                                                    {watchedCheckOutDate ? format(new Date(watchedCheckOutDate), 'dd/MM/yyyy (EEE)') : 'Select Check-out Date'}
+                                                </span>
+                                                <Calendar className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            </button>
+                                            <input type="hidden" {...register('checkOutDate')} />
                                             {errors.checkOutDate && <p className="text-red-500 text-xs mt-1 font-semibold">{errors.checkOutDate.message}</p>}
                                         </div>
                                     </div>
@@ -1421,7 +1469,7 @@ export default function CreateBooking() {
                                         {/* Group Adults */}
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                                                <Users className="h-3.5 w-3.5 text-primary" /> Group Adults (13+ yrs)
+                                                <Users className="h-3.5 w-3.5 text-primary" /> Group Adults (12+ yrs)
                                             </label>
                                             <input 
                                                 type="number" 
@@ -1434,7 +1482,7 @@ export default function CreateBooking() {
                                         {/* Group Children */}
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-                                                Group Children (3–12 yrs)
+                                                Group Children (2–12 yrs)
                                             </label>
                                             <input 
                                                 type="number" 
@@ -1758,7 +1806,7 @@ export default function CreateBooking() {
                                                 </div>
                                             )}
 
-                                            {/* Secondary Fallback: Create Custom Accommodation Solution */}
+                                            {/* Secondary Fallback: Create Custom Accommodation Solution (Hidden/Commented)
                                             <div className="pt-2 border-t border-border/60">
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-muted/30 border border-border/80">
                                                     <div>
@@ -1781,6 +1829,7 @@ export default function CreateBooking() {
                                                     </button>
                                                 </div>
                                             </div>
+                                            */}
                                         </div>
                                     ) : (
                                         <div className="space-y-3.5">
@@ -1794,7 +1843,7 @@ export default function CreateBooking() {
                                                 </p>
                                             </div>
 
-                                            {/* Fallback Custom Solution Trigger when 0 solver solutions found */}
+                                            {/* Fallback Custom Solution Trigger when 0 solver solutions found (Hidden/Commented)
                                             <div className="pt-1">
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-muted/30 border border-border/80">
                                                     <div>
@@ -1817,10 +1866,11 @@ export default function CreateBooking() {
                                                     </button>
                                                 </div>
                                             </div>
+                                            */}
                                         </div>
                                     )}
 
-                                    {/* Secondary Room Inventory Reference Panel */}
+                                    {/* Secondary Room Inventory Reference Panel (Hidden/Commented)
                                     <div className="pt-2">
                                         <PropertyInventoryReference
                                             roomTypesList={sortedRoomTypesList}
@@ -1831,6 +1881,7 @@ export default function CreateBooking() {
                                             onSelectRoomType={handleSelectRoomType}
                                         />
                                     </div>
+                                    */}
                                 </>
                             ) : (
                                 /* Group Booking Mode Solutions */
@@ -2638,6 +2689,23 @@ export default function CreateBooking() {
                 requiredInfants={infantsCount}
                 requiredChildAges={childAges}
                 onApplyCustomSolution={handleApplyCustomSolution}
+            />
+
+            {/* Stay Dates Availability Calendar Modal */}
+            <CreateBookingCalendarModal
+                isOpen={showCalendarModal}
+                onClose={() => setShowCalendarModal(false)}
+                propertyId={selectedProperty?.id || ''}
+                roomTypeId={filterRoomTypeIds[0] || (roomTypes && roomTypes[0]?.id)}
+                roomTypeName={roomTypes?.find(rt => rt.id === (filterRoomTypeIds[0] || (roomTypes && roomTypes[0]?.id)))?.name}
+                isGroupBooking={isGroupMode}
+                initialCheckIn={watchedCheckInDate}
+                initialCheckOut={watchedCheckOutDate}
+                allowPastDates={Boolean(watch('isHistoricalEntry'))}
+                onApplyDates={(checkIn, checkOut) => {
+                    setValue('checkInDate', checkIn, { shouldValidate: true });
+                    setValue('checkOutDate', checkOut, { shouldValidate: true });
+                }}
             />
         </div>
     );
