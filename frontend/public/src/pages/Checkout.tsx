@@ -177,11 +177,31 @@ export default function Checkout() {
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['booking-price', roomId, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
+        queryKey: ['booking-price', roomId, selectedSolution?.id, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
         queryFn: async () => {
             console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
+            const allocations = selectedSolution?.allocatedRooms && selectedSolution.allocatedRooms.length > 0
+                ? selectedSolution.allocatedRooms.map((r: any) => ({
+                    roomTypeId: r.roomTypeId,
+                    adults: r.adults,
+                    children: r.children || 0,
+                    infants: r.infants || 0,
+                    childAges: r.childAges,
+                }))
+                : (selectedSolution?.rooms && selectedSolution.rooms.length > 0
+                    ? selectedSolution.rooms.map((r: any) => ({
+                        roomTypeId: r.roomTypeId,
+                        adults: r.adults,
+                        children: r.children || 0,
+                        infants: r.infants || 0,
+                        childAges: r.childAges,
+                    }))
+                    : undefined);
+
             const res = await bookingService.calculatePrice({
-                roomTypeId: roomId!,
+                propertyId: searchParams.get('propertyId') || selectedSolution?.propertyId || selectedRoom?.propertyId || undefined,
+                roomTypeId: !allocations ? (roomId || undefined) : undefined,
+                roomAllocations: allocations,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
                 adultsCount: Number(adults),
@@ -197,7 +217,7 @@ export default function Checkout() {
             console.log('[Checkout] Pricing result:', res);
             return res;
         },
-        enabled: !selectedSolution && !!roomId && !!appliedCode,
+        enabled: (!!selectedSolution || !!roomId) && !!appliedCode,
         retry: false,
     });
 
@@ -915,14 +935,14 @@ export default function Checkout() {
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'COUPON' && (effectivePricing?.couponDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-primary-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Coupon Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.grossCouponDiscountAmount ?? (effectivePricing?.isGstInclusive ? Number((effectivePricing.couponDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.couponDiscountAmount), selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 
                                     {appliedCode && !isPricingError && couponPricing?.appliedCodeType === 'REFERRAL' && (effectivePricing?.referralDiscountAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm text-green-600 font-bold border-t border-dashed border-gray-100 pt-2">
                                             <span>Referral Discount ({appliedCode})</span>
-                                            <span>-{formatPrice(effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount, selectedCurrency, rates)}</span>
+                                            <span>-{formatPrice(effectivePricing?.grossReferralDiscountAmount ?? (effectivePricing?.isGstInclusive ? Number((effectivePricing.referralDiscountAmount * (1 + (effectivePricing.taxRate || 0) / 100)).toFixed(2)) : effectivePricing.referralDiscountAmount), selectedCurrency, rates)}</span>
                                         </div>
                                     )}
 

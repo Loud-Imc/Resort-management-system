@@ -265,26 +265,7 @@ export class BookingsController {
         console.log(`[BookingsController] calculatePrice called with DTO:`, JSON.stringify(dto));
         // If referral code provided but invalid, count it as a failure for brute-force protection.
         // Valid codes: no penalty. No referral code: no tracking.
-        const result = await this.pricingService.calculatePrice(
-            dto.roomTypeId,
-            new Date(dto.checkInDate),
-            new Date(dto.checkOutDate),
-            dto.adultsCount,
-            dto.childrenCount,
-            dto.couponCode,
-            dto.referralCode,
-            dto.currency,
-            dto.isGroupBooking,
-            dto.groupSize,
-            dto.roomCount || dto.roomsCount,
-            dto.generalCode,
-            dto.overrideTotal,
-            dto.isOverrideInclusive ?? true,
-            dto.extraAdultsCount,
-            dto.extraChildrenCount,
-            dto.infantsCount || 0,
-            dto.childAges,
-        );
+        const result = await this.bookingsService.calculatePrice(dto);
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {
             await this.referralAbuseService.recordFailure(ip);

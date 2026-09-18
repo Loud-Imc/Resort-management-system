@@ -219,19 +219,26 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         {details.offerDiscountAmount > 0 && (
                             <div className="flex justify-between text-xs text-emerald-600 font-semibold">
                                 <span>Offer Discount</span>
-                                <span>-₹{details.offerDiscountAmount.toFixed(2)}</span>
+                                <span>-₹{(isInclusive ? (details.grossOfferDiscountAmount ?? details.offerDiscountAmount) : details.offerDiscountAmount).toFixed(2)}</span>
                             </div>
                         )}
                         {details.couponDiscountAmount > 0 && (
                             <div className="flex justify-between text-xs text-emerald-600 font-semibold">
                                 <span>Coupon Discount</span>
-                                <span>-₹{details.couponDiscountAmount.toFixed(2)}</span>
+                                <span>-₹{(isInclusive ? (details.grossCouponDiscountAmount ?? details.couponDiscountAmount) : details.couponDiscountAmount).toFixed(2)}</span>
                             </div>
                         )}
                         {details.referralDiscountAmount > 0 && (
                             <div className="flex justify-between text-xs text-emerald-600 font-semibold">
                                 <span>Referral Discount</span>
-                                <span>-₹{details.referralDiscountAmount.toFixed(2)}</span>
+                                <span>-₹{(isInclusive ? (details.grossReferralDiscountAmount ?? details.referralDiscountAmount) : details.referralDiscountAmount).toFixed(2)}</span>
+                            </div>
+                        )}
+
+                        {/* Tax Slab Transition Notice */}
+                        {originalPriceDetails && originalPriceDetails.taxRate !== details.taxRate && details.taxRate > 0 && (
+                            <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[11px] text-blue-700 dark:text-blue-300">
+                                <span className="font-bold">GST Slab Adjusted:</span> Rate lowered from {originalPriceDetails.taxRate}% to {details.taxRate}% (Net tariff &le; ₹7,500/night).
                             </div>
                         )}
 
@@ -307,7 +314,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 </span>
                                 {isInclusive && details.taxAmount > 0 && !overrideTotal && (
                                     <span className="text-[10px] text-emerald-600 font-semibold block">
-                                        Includes ₹{details.taxAmount.toFixed(2)} GST
+                                        Includes ₹{details.taxAmount.toFixed(2)} GST ({details.taxRate}%)
                                     </span>
                                 )}
                             </div>

@@ -20,8 +20,8 @@ export class SystemSettingsService implements OnModuleInit {
             {
                 key: 'GST_TIERS',
                 value: [
-                    { min: 0, max: 7500, rate: 12 },
-                    { min: 7501, max: null, rate: 18 }
+                    { min: 0, max: 7500, rate: 5 },
+                    { min: 7500, max: null, rate: 18 }
                 ],
                 description: 'GST tax tiers based on room tariff per night'
             },

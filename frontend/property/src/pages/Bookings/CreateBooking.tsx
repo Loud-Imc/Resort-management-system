@@ -552,18 +552,33 @@ export default function CreateBooking() {
         setPromoCodeMessage(null);
         setIsPromoCodeError(false);
         try {
-            const firstRoomTypeId = selectedSolution?.rooms?.[0]?.roomTypeId || (watch('roomTypeId') || undefined);
             const checkIn = watchedCheckInDate;
             const checkOut = watchedCheckOutDate;
             const adults = Number(watchedAdults) || 1;
             const children = Number(watchedChildren) || 0;
 
+            const allocations = selectedSolution?.allocatedRooms && selectedSolution.allocatedRooms.length > 0
+                ? selectedSolution.allocatedRooms.map((r: any) => ({
+                    roomTypeId: r.roomTypeId,
+                    adults: r.adults,
+                    children: r.children || 0,
+                    infants: r.infants || 0,
+                    childAges: r.childAges,
+                }))
+                : undefined;
+
+            const firstRoomTypeId = !allocations ? (watch('roomTypeId') || undefined) : undefined;
+
             const res = await bookingsService.calculatePrice({
+                propertyId: selectedProperty.id,
                 roomTypeId: firstRoomTypeId,
+                roomAllocations: allocations,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
                 adultsCount: adults,
                 childrenCount: children,
+                childAges: childAges.length > 0 ? childAges : undefined,
+                infantsCount: infantsCount > 0 ? infantsCount : undefined,
                 generalCode: code.trim(),
                 isGroupBooking: isGroupMode,
                 groupSize: isGroupMode ? (adults + children) : undefined,

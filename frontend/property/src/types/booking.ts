@@ -222,10 +222,12 @@ export interface CheckAvailabilityResult {
 
 export interface PriceCalculationDto {
     roomTypeId?: string;
+    propertyId?: string;
+    roomAllocations?: any[];
     checkInDate: string;
     checkOutDate: string;
-    adultsCount: number;
-    childrenCount: number;
+    adultsCount?: number;
+    childrenCount?: number;
     extraAdultsCount?: number;
     extraChildrenCount?: number;
     couponCode?: string;

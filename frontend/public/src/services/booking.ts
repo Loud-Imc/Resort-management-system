@@ -58,11 +58,13 @@ export const bookingService = {
     },
 
     calculatePrice: async (params: {
-        roomTypeId: string;
+        roomTypeId?: string;
+        propertyId?: string;
+        roomAllocations?: any[];
         checkInDate: string;
         checkOutDate: string;
-        adultsCount: number;
-        childrenCount: number;
+        adultsCount?: number;
+        childrenCount?: number;
         childAges?: number[];
         infantsCount?: number;
         roomsCount?: number;

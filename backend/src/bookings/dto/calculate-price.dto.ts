@@ -1,12 +1,25 @@
-import { IsString, IsNotEmpty, IsDateString, IsInt, Min, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsDateString, IsInt, Min, IsOptional, IsBoolean, IsArray, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { RoomAllocationItemDto } from './create-booking.dto';
 
 export class CalculatePriceDto {
-    @ApiProperty({ example: 'room-type-uuid' })
+    @ApiProperty({ example: 'room-type-uuid', required: false })
     @IsString()
-    @IsNotEmpty()
-    roomTypeId: string;
+    @IsOptional()
+    roomTypeId?: string;
+
+    @ApiProperty({ example: 'property-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    propertyId?: string;
+
+    @ApiProperty({ type: () => [RoomAllocationItemDto], required: false })
+    @IsArray()
+    @IsOptional()
+    @ValidateNested({ each: true })
+    @Type(() => RoomAllocationItemDto)
+    roomAllocations?: RoomAllocationItemDto[];
 
     @ApiProperty({ example: '2026-02-01' })
     @IsDateString()
@@ -18,17 +31,19 @@ export class CalculatePriceDto {
     @IsNotEmpty()
     checkOutDate: string;
 
-    @ApiProperty({ example: 2 })
+    @ApiProperty({ example: 2, required: false })
     @IsInt()
     @Min(1)
+    @IsOptional()
     @Type(() => Number)
-    adultsCount: number;
+    adultsCount?: number;
 
-    @ApiProperty({ example: 1 })
+    @ApiProperty({ example: 1, required: false })
     @IsInt()
     @Min(0)
+    @IsOptional()
     @Type(() => Number)
-    childrenCount: number;
+    childrenCount?: number;
 
     @ApiProperty({ example: 0, required: false })
     @IsInt()

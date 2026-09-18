@@ -8,6 +8,7 @@ import { ChannelPartnersService } from '../channel-partners/channel-partners.ser
 import { PaymentsService } from '../payments/payments.service';
 import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CalculatePriceDto } from './dto/calculate-price.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
@@ -77,6 +78,253 @@ export class BookingsService {
                 this.logger.error(`[Channex ARI Sync] Background push failed after internal booking action for property ${propertyId}: ${err.message}`);
             });
         }
+    }
+
+    /**
+     * Calculate price for single room or multi-room Accommodation Solution
+     */
+    async calculatePrice(dto: CalculatePriceDto) {
+        const checkIn = new Date(dto.checkInDate);
+        const checkOut = new Date(dto.checkOutDate);
+
+        if (dto.roomAllocations && dto.roomAllocations.length > 0) {
+            if (dto.roomAllocations.length === 1) {
+                const alloc = dto.roomAllocations[0];
+                return this.pricingService.calculatePrice(
+                    alloc.roomTypeId,
+                    checkIn,
+                    checkOut,
+                    alloc.adults,
+                    alloc.children || 0,
+                    dto.couponCode,
+                    dto.referralCode,
+                    dto.currency || 'INR',
+                    false,
+                    undefined,
+                    1,
+                    dto.generalCode,
+                    dto.overrideTotal,
+                    dto.isOverrideInclusive ?? true,
+                    dto.extraAdultsCount ?? alloc.extraAdults,
+                    dto.extraChildrenCount ?? alloc.extraChildren,
+                    dto.infantsCount || alloc.infants || 0,
+                    dto.childAges || alloc.childAges,
+                );
+            }
+
+            // Multi-room allocation: evaluate coupons and referral codes at aggregate booking level
+            const rawAllocPrices: any[] = [];
+            let combinedSubtotal = 0;
+            let accumulatedOfferDiscountAmount = 0;
+            let accumulatedExtraAdultAmount = 0;
+            let accumulatedExtraChildAmount = 0;
+            let accumulatedBaseAmount = 0;
+
+            for (const alloc of dto.roomAllocations) {
+                const rawPrice = await this.pricingService.calculatePrice(
+                    alloc.roomTypeId,
+                    checkIn,
+                    checkOut,
+                    alloc.adults,
+                    alloc.children || 0,
+                    undefined,
+                    undefined,
+                    dto.currency || 'INR',
+                    false,
+                    undefined,
+                    1,
+                    undefined,
+                    undefined,
+                    true,
+                    alloc.extraAdults,
+                    alloc.extraChildren,
+                    alloc.infants || 0,
+                    alloc.childAges,
+                );
+                rawAllocPrices.push(rawPrice);
+                accumulatedBaseAmount += rawPrice.baseAmount;
+                accumulatedExtraAdultAmount += rawPrice.extraAdultAmount;
+                accumulatedExtraChildAmount += rawPrice.extraChildAmount;
+                accumulatedOfferDiscountAmount += (rawPrice.offerDiscountAmount || 0);
+                const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                combinedSubtotal += Math.max(0, roomSubtotal);
+            }
+
+            let combinedReferralDiscount = 0;
+            let effectiveReferralPartnerId: string | undefined;
+            const resolvedCode = (dto.generalCode || dto.couponCode || dto.referralCode || '').trim().toUpperCase();
+
+            if (resolvedCode) {
+                const cp = await this.prisma.channelPartner.findFirst({
+                    where: { referralCode: resolvedCode, status: 'APPROVED' as any }
+                });
+                if (cp) {
+                    effectiveReferralPartnerId = cp.id;
+                    const rate = cp.referralDiscountRate ? Number(cp.referralDiscountRate) : 5.0;
+                    combinedReferralDiscount = Math.min(combinedSubtotal, (combinedSubtotal * rate) / 100);
+                }
+            }
+
+            let combinedCouponDiscount = 0;
+            if (resolvedCode && !effectiveReferralPartnerId) {
+                const coupon = await this.prisma.coupon.findUnique({
+                    where: { code: resolvedCode }
+                });
+                if (coupon) {
+                    if (!coupon.isActive) throw new BadRequestException('Coupon is no longer active');
+                    const now = new Date();
+                    if (now < coupon.validFrom || now > coupon.validUntil) throw new BadRequestException('Coupon has expired');
+                    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) throw new BadRequestException('Coupon usage limit reached');
+                    if (coupon.minBookingAmount && combinedSubtotal < Number(coupon.minBookingAmount)) {
+                        throw new BadRequestException(`Minimum booking amount for this coupon is ₹${coupon.minBookingAmount}`);
+                    }
+                    if (coupon.discountType === 'PERCENTAGE') {
+                        combinedCouponDiscount = (combinedSubtotal * Number(coupon.discountValue)) / 100;
+                    } else if (coupon.discountType === 'FIXED_AMOUNT') {
+                        combinedCouponDiscount = Number(coupon.discountValue);
+                    }
+                    combinedCouponDiscount = Math.min(combinedCouponDiscount, combinedSubtotal);
+                } else if (dto.couponCode || dto.generalCode) {
+                    throw new BadRequestException('Invalid coupon code');
+                }
+            }
+
+            const maxDiscountPctSetting = await this.systemSettings.getSetting('MAX_DISCOUNT_PCT');
+            const maxDiscountPct = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : 30) / 100;
+            const maxAllowedDiscount = (accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount) * maxDiscountPct;
+            let totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+
+            if (totalDiscount > maxAllowedDiscount) {
+                const overage = totalDiscount - maxAllowedDiscount;
+                let remainingOverage = overage;
+                if (combinedCouponDiscount > 0) {
+                    const couponTrim = Math.min(combinedCouponDiscount, remainingOverage);
+                    combinedCouponDiscount -= couponTrim;
+                    remainingOverage -= couponTrim;
+                }
+                if (remainingOverage > 0) {
+                    const referralTrim = Math.min(combinedReferralDiscount, remainingOverage);
+                    combinedReferralDiscount -= referralTrim;
+                }
+                totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+            }
+
+            const gstTiers = await this.systemSettings.getSetting('GST_TIERS') as any[];
+            let accumulatedTaxAmount = 0;
+            let accumulatedTotalAmount = 0;
+            let pricingRef: any = rawAllocPrices[0];
+
+            for (let i = 0; i < dto.roomAllocations.length; i++) {
+                const rawPrice = rawAllocPrices[i];
+                const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                const weight = combinedSubtotal > 0 ? (roomSubtotal / combinedSubtotal) : (1 / dto.roomAllocations.length);
+
+                const allocCouponDiscount = Number((combinedCouponDiscount * weight).toFixed(2));
+                const allocReferralDiscount = Number((combinedReferralDiscount * weight).toFixed(2));
+                const allocTotalDiscount = (rawPrice.offerDiscountAmount || 0) + allocCouponDiscount + allocReferralDiscount;
+
+                const netRoomSubtotal = Math.max(0, (rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount) - allocTotalDiscount);
+                const numberOfNights = rawPrice.numberOfNights || 1;
+                const netTariffPerNight = netRoomSubtotal / numberOfNights;
+
+                let allocTax = 0;
+                if (rawPrice.taxRate > 0 || rawPrice.isGstInclusive !== undefined) {
+                    const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
+                    allocTax = Number((taxPerNight * numberOfNights).toFixed(2));
+                }
+
+                const allocTotal = Number((netRoomSubtotal + allocTax).toFixed(2));
+                accumulatedTaxAmount += allocTax;
+                accumulatedTotalAmount += allocTotal;
+            }
+
+            const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
+            const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
+                ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
+                : (pricingRef?.taxRate || 0);
+
+            const result: any = {
+                ...pricingRef,
+                baseAmount: Number(accumulatedBaseAmount.toFixed(2)),
+                extraAdultAmount: Number(accumulatedExtraAdultAmount.toFixed(2)),
+                extraChildAmount: Number(accumulatedExtraChildAmount.toFixed(2)),
+                taxAmount: Number(accumulatedTaxAmount.toFixed(2)),
+                taxRate: effectiveTaxRate,
+                offerDiscountAmount: Number(accumulatedOfferDiscountAmount.toFixed(2)),
+                couponDiscountAmount: Number(combinedCouponDiscount.toFixed(2)),
+                referralDiscountAmount: Number(combinedReferralDiscount.toFixed(2)),
+                discountAmount: Number(totalDiscount.toFixed(2)),
+                totalAmount: Number(accumulatedTotalAmount.toFixed(2)),
+                convertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                roomCount: dto.roomAllocations.length,
+                appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
+                referralPartnerId: effectiveReferralPartnerId,
+            };
+
+            if (dto.overrideTotal !== undefined && dto.overrideTotal !== null) {
+                const totalRooms = dto.roomAllocations.length;
+                const numberOfNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                let overrideBreakdown: any;
+                if (dto.isOverrideInclusive ?? true) {
+                    overrideBreakdown = await this.pricingService.calculateReverseGST(
+                        dto.overrideTotal,
+                        numberOfNights,
+                        totalRooms,
+                        undefined,
+                        true
+                    );
+                } else {
+                    overrideBreakdown = await this.pricingService.calculateExclusiveGST(
+                        dto.overrideTotal,
+                        numberOfNights,
+                        totalRooms,
+                        undefined,
+                        true
+                    );
+                }
+                result.baseAmount = overrideBreakdown.baseAmount;
+                result.grossBaseAmount = (dto.isOverrideInclusive ?? true) ? dto.overrideTotal : overrideBreakdown.baseAmount;
+                result.taxAmount = overrideBreakdown.taxAmount;
+                result.taxRate = overrideBreakdown.taxRate;
+                result.totalAmount = result.baseAmount + result.taxAmount;
+                result.convertedTotal = result.totalAmount;
+                result.extraAdultAmount = 0;
+                result.extraChildAmount = 0;
+                result.offerDiscountAmount = 0;
+                result.couponDiscountAmount = 0;
+                result.referralDiscountAmount = 0;
+                result.discountAmount = 0;
+            }
+
+            return result;
+        }
+
+        if (!dto.roomTypeId) {
+            throw new BadRequestException('Either roomTypeId or roomAllocations must be provided');
+        }
+
+        return this.pricingService.calculatePrice(
+            dto.roomTypeId,
+            checkIn,
+            checkOut,
+            dto.adultsCount || 1,
+            dto.childrenCount || 0,
+            dto.couponCode,
+            dto.referralCode,
+            dto.currency || 'INR',
+            dto.isGroupBooking,
+            dto.groupSize,
+            dto.roomCount || dto.roomsCount,
+            dto.generalCode,
+            dto.overrideTotal,
+            dto.isOverrideInclusive ?? true,
+            dto.extraAdultsCount,
+            dto.extraChildrenCount,
+            dto.infantsCount || 0,
+            dto.childAges,
+        );
     }
 
     /**
@@ -352,19 +600,9 @@ export class BookingsService {
 
         if (!isGroupBooking) {
             if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
-                let accumulatedBaseAmount = 0;
-                let accumulatedExtraAdultAmount = 0;
-                let accumulatedExtraChildAmount = 0;
-                let accumulatedTaxAmount = 0;
-                let accumulatedOfferDiscountAmount = 0;
-                let accumulatedCouponDiscountAmount = 0;
-                let accumulatedReferralDiscountAmount = 0;
-                let accumulatedDiscountAmount = 0;
-                let accumulatedTotalAmount = 0;
-                let pricingRef: any = null;
-
-                for (const alloc of createBookingDto.roomAllocations) {
-                    const itemPrice = await this.pricingService.calculatePrice(
+                if (createBookingDto.roomAllocations.length === 1) {
+                    const alloc = createBookingDto.roomAllocations[0];
+                    pricing = await this.pricingService.calculatePrice(
                         alloc.roomTypeId,
                         checkIn,
                         checkOut,
@@ -377,47 +615,178 @@ export class BookingsService {
                         undefined,
                         1,
                         generalCode,
-                        undefined,
-                        true,
-                        undefined,
-                        undefined,
+                        overrideTotal,
+                        createBookingDto.isOverrideInclusive ?? true,
+                        createBookingDto.extraAdultsCount,
+                        createBookingDto.extraChildrenCount,
                         alloc.infants || 0,
-                        alloc.childAges
+                        alloc.childAges,
                     );
-                    accumulatedBaseAmount += itemPrice.baseAmount;
-                    accumulatedExtraAdultAmount += itemPrice.extraAdultAmount;
-                    accumulatedExtraChildAmount += itemPrice.extraChildAmount;
-                    accumulatedTaxAmount += itemPrice.taxAmount;
-                    accumulatedOfferDiscountAmount += (itemPrice.offerDiscountAmount || 0);
-                    accumulatedCouponDiscountAmount += (itemPrice.couponDiscountAmount || 0);
-                    accumulatedReferralDiscountAmount += (itemPrice.referralDiscountAmount || 0);
-                    accumulatedDiscountAmount += (itemPrice.discountAmount || 0);
-                    accumulatedTotalAmount += itemPrice.totalAmount;
-                    pricingRef = itemPrice;
-                    allocationPricingList.push(itemPrice);
+                    allocationPricingList.push(pricing);
+                } else {
+                    // Multi-room allocation: evaluate coupons and referral codes at aggregate booking level
+                    const rawAllocPrices: any[] = [];
+                    let combinedSubtotal = 0;
+                    let accumulatedOfferDiscountAmount = 0;
+                    let accumulatedExtraAdultAmount = 0;
+                    let accumulatedExtraChildAmount = 0;
+                    let accumulatedBaseAmount = 0;
+
+                    for (const alloc of createBookingDto.roomAllocations) {
+                        const rawPrice = await this.pricingService.calculatePrice(
+                            alloc.roomTypeId,
+                            checkIn,
+                            checkOut,
+                            alloc.adults,
+                            alloc.children || 0,
+                            undefined,
+                            undefined,
+                            createBookingDto.currency || 'INR',
+                            false,
+                            undefined,
+                            1,
+                            undefined,
+                            undefined,
+                            true,
+                            undefined,
+                            undefined,
+                            alloc.infants || 0,
+                            alloc.childAges,
+                        );
+                        rawAllocPrices.push(rawPrice);
+                        accumulatedBaseAmount += rawPrice.baseAmount;
+                        accumulatedExtraAdultAmount += rawPrice.extraAdultAmount;
+                        accumulatedExtraChildAmount += rawPrice.extraChildAmount;
+                        accumulatedOfferDiscountAmount += (rawPrice.offerDiscountAmount || 0);
+                        const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                        combinedSubtotal += Math.max(0, roomSubtotal);
+                    }
+
+                    let combinedReferralDiscount = 0;
+                    let effectiveReferralPartnerId: string | undefined;
+                    const resolvedCode = (generalCode || couponCode || referralCode || '').trim().toUpperCase();
+
+                    if (resolvedCode) {
+                        const cp = await this.prisma.channelPartner.findFirst({
+                            where: { referralCode: resolvedCode, status: 'APPROVED' as any }
+                        });
+                        if (cp) {
+                            effectiveReferralPartnerId = cp.id;
+                            const rate = cp.referralDiscountRate ? Number(cp.referralDiscountRate) : 5.0;
+                            combinedReferralDiscount = Math.min(combinedSubtotal, (combinedSubtotal * rate) / 100);
+                        }
+                    }
+
+                    let combinedCouponDiscount = 0;
+                    if (resolvedCode && !effectiveReferralPartnerId) {
+                        const coupon = await this.prisma.coupon.findUnique({
+                            where: { code: resolvedCode }
+                        });
+                        if (coupon) {
+                            if (!coupon.isActive) throw new BadRequestException('Coupon is no longer active');
+                            const now = new Date();
+                            if (now < coupon.validFrom || now > coupon.validUntil) throw new BadRequestException('Coupon has expired');
+                            if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) throw new BadRequestException('Coupon usage limit reached');
+                            if (coupon.minBookingAmount && combinedSubtotal < Number(coupon.minBookingAmount)) {
+                                throw new BadRequestException(`Minimum booking amount for this coupon is ₹${coupon.minBookingAmount}`);
+                            }
+                            if (coupon.discountType === 'PERCENTAGE') {
+                                combinedCouponDiscount = (combinedSubtotal * Number(coupon.discountValue)) / 100;
+                            } else if (coupon.discountType === 'FIXED_AMOUNT') {
+                                combinedCouponDiscount = Number(coupon.discountValue);
+                            }
+                            combinedCouponDiscount = Math.min(combinedCouponDiscount, combinedSubtotal);
+                        } else if (couponCode || generalCode) {
+                            throw new BadRequestException('Invalid coupon code');
+                        }
+                    }
+
+                    const maxDiscountPctSetting = await this.systemSettings.getSetting('MAX_DISCOUNT_PCT');
+                    const maxDiscountPct = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : 30) / 100;
+                    const maxAllowedDiscount = (accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount) * maxDiscountPct;
+                    let totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+
+                    if (totalDiscount > maxAllowedDiscount) {
+                        const overage = totalDiscount - maxAllowedDiscount;
+                        let remainingOverage = overage;
+                        if (combinedCouponDiscount > 0) {
+                            const couponTrim = Math.min(combinedCouponDiscount, remainingOverage);
+                            combinedCouponDiscount -= couponTrim;
+                            remainingOverage -= couponTrim;
+                        }
+                        if (remainingOverage > 0) {
+                            const referralTrim = Math.min(combinedReferralDiscount, remainingOverage);
+                            combinedReferralDiscount -= referralTrim;
+                        }
+                        totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+                    }
+
+                    const gstTiers = await this.systemSettings.getSetting('GST_TIERS') as any[];
+                    let accumulatedTaxAmount = 0;
+                    let accumulatedTotalAmount = 0;
+                    let pricingRef: any = rawAllocPrices[0];
+
+                    for (let i = 0; i < createBookingDto.roomAllocations.length; i++) {
+                        const rawPrice = rawAllocPrices[i];
+                        const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                        const weight = combinedSubtotal > 0 ? (roomSubtotal / combinedSubtotal) : (1 / createBookingDto.roomAllocations.length);
+
+                        const allocCouponDiscount = Number((combinedCouponDiscount * weight).toFixed(2));
+                        const allocReferralDiscount = Number((combinedReferralDiscount * weight).toFixed(2));
+                        const allocTotalDiscount = (rawPrice.offerDiscountAmount || 0) + allocCouponDiscount + allocReferralDiscount;
+
+                        const netRoomSubtotal = Math.max(0, (rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount) - allocTotalDiscount);
+                        const numberOfNights = rawPrice.numberOfNights || 1;
+                        const netTariffPerNight = netRoomSubtotal / numberOfNights;
+
+                        let allocTax = 0;
+                        if (rawPrice.taxRate > 0 || rawPrice.isGstInclusive !== undefined) {
+                            const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
+                            allocTax = Number((taxPerNight * numberOfNights).toFixed(2));
+                        }
+
+                        const allocTotal = Number((netRoomSubtotal + allocTax).toFixed(2));
+                        accumulatedTaxAmount += allocTax;
+                        accumulatedTotalAmount += allocTotal;
+
+                        const updatedAllocPrice = {
+                            ...rawPrice,
+                            couponDiscountAmount: allocCouponDiscount,
+                            referralDiscountAmount: allocReferralDiscount,
+                            discountAmount: allocTotalDiscount,
+                            taxAmount: allocTax,
+                            totalAmount: allocTotal,
+                            appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
+                            referralPartnerId: effectiveReferralPartnerId,
+                        };
+                        allocationPricingList.push(updatedAllocPrice);
+                        pricingRef = updatedAllocPrice;
+                    }
+
+                    const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
+                    const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
+                        ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
+                        : (pricingRef?.taxRate || 0);
+
+                    pricing = {
+                        ...pricingRef,
+                        baseAmount: Number(accumulatedBaseAmount.toFixed(2)),
+                        extraAdultAmount: Number(accumulatedExtraAdultAmount.toFixed(2)),
+                        extraChildAmount: Number(accumulatedExtraChildAmount.toFixed(2)),
+                        taxAmount: Number(accumulatedTaxAmount.toFixed(2)),
+                        taxRate: effectiveTaxRate,
+                        offerDiscountAmount: Number(accumulatedOfferDiscountAmount.toFixed(2)),
+                        couponDiscountAmount: Number(combinedCouponDiscount.toFixed(2)),
+                        referralDiscountAmount: Number(combinedReferralDiscount.toFixed(2)),
+                        discountAmount: Number(totalDiscount.toFixed(2)),
+                        totalAmount: Number(accumulatedTotalAmount.toFixed(2)),
+                        convertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                        originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                        originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                        appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
+                        referralPartnerId: effectiveReferralPartnerId,
+                    };
                 }
-
-                const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
-                const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
-                    ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
-                    : (pricingRef?.taxRate || 0);
-
-                pricing = {
-                    ...pricingRef,
-                    baseAmount: Number(accumulatedBaseAmount.toFixed(2)),
-                    extraAdultAmount: Number(accumulatedExtraAdultAmount.toFixed(2)),
-                    extraChildAmount: Number(accumulatedExtraChildAmount.toFixed(2)),
-                    taxAmount: Number(accumulatedTaxAmount.toFixed(2)),
-                    taxRate: effectiveTaxRate,
-                    offerDiscountAmount: Number(accumulatedOfferDiscountAmount.toFixed(2)),
-                    couponDiscountAmount: Number(accumulatedCouponDiscountAmount.toFixed(2)),
-                    referralDiscountAmount: Number(accumulatedReferralDiscountAmount.toFixed(2)),
-                    discountAmount: Number(accumulatedDiscountAmount.toFixed(2)),
-                    totalAmount: Number(accumulatedTotalAmount.toFixed(2)),
-                    convertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
-                    originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
-                    originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
-                };
             } else {
                 pricing = await this.pricingService.calculatePrice(
                     roomTypeId!,

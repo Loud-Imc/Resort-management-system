@@ -641,22 +641,10 @@ export class PricingService {
         }
 
         const gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
-        if (!gstTiers || !Array.isArray(gstTiers) || gstTiers.length === 0) {
-            throw new BadRequestException('GST tax tiers not configured in system settings');
-        }
-
         const divisor = (groupSize && groupSize > 0) ? groupSize : roomCount;
         const basePerUnitPerNight = overrideBase / (Math.max(1, numberOfNights) * Math.max(1, divisor));
 
-        const applicableTier = gstTiers.find(tier =>
-            basePerUnitPerNight >= tier.min &&
-            (tier.max === null || tier.max === undefined || basePerUnitPerNight <= tier.max)
-        );
-
-        if (!applicableTier) {
-            throw new BadRequestException(`No applicable GST tier found for base rate ₹${basePerUnitPerNight.toFixed(2)}`);
-        }
-
+        const applicableTier = this.getApplicableTier(basePerUnitPerNight, gstTiers);
         const targetTaxRate = applicableTier.rate / 100;
         const exactTaxAmount = overrideBase * targetTaxRate;
 
@@ -729,22 +717,47 @@ export class PricingService {
     }
 
     /**
-     * Calculate tax for a single tariff unit (one room for one night)
+     * Resolve applicable GST tier for a given room tariff per unit per night.
+     * Handles continuous boundaries and edge cases gracefully with zero gaps.
      */
-    public calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
+    public getApplicableTier(tariff: number, gstTiers: any[]): any {
         if (!gstTiers || !Array.isArray(gstTiers) || gstTiers.length === 0) {
             throw new BadRequestException('GST tax tiers not configured in system settings');
         }
 
-        const applicableTier = gstTiers.find(tier =>
+        const sortedTiers = [...gstTiers].sort((a, b) => a.min - b.min);
+
+        // 1. Direct match with inclusive bounds
+        const directMatch = sortedTiers.find(tier =>
             tariff >= tier.min &&
             (tier.max === null || tier.max === undefined || tariff <= tier.max)
         );
+        if (directMatch) return directMatch;
 
-        if (!applicableTier) {
-            throw new BadRequestException(`No applicable GST tier found for tariff ₹${tariff.toFixed(2)}`);
+        // 2. Check for fractional boundary gap (e.g. 7500.01 - 7500.99 between max 7500 and min 7501)
+        for (let i = 0; i < sortedTiers.length - 1; i++) {
+            const current = sortedTiers[i];
+            const next = sortedTiers[i + 1];
+            if (current.max !== null && current.max !== undefined && tariff > current.max && tariff < next.min) {
+                return next;
+            }
         }
 
+        // 3. Fallback if tariff exceeds highest defined tier
+        const lastTier = sortedTiers[sortedTiers.length - 1];
+        if (tariff >= lastTier.min) {
+            return lastTier;
+        }
+
+        // 4. Fallback if tariff is below lowest defined tier
+        return sortedTiers[0];
+    }
+
+    /**
+     * Calculate tax for a single tariff unit (one room for one night)
+     */
+    public calculateTaxForTariff(tariff: number, gstTiers: any[]): number {
+        const applicableTier = this.getApplicableTier(tariff, gstTiers);
         const taxRate = applicableTier.rate / 100;
         return tariff * taxRate;
     }
@@ -789,8 +802,6 @@ export class PricingService {
         const totalPerUnitPerNight = overrideTotal / (Math.max(1, numberOfNights) * Math.max(1, divisor));
 
         let targetTaxRate = 0;
-        let validTariff = 0;
-
         const sortedTiers = [...gstTiers].sort((a, b) => b.rate - a.rate);
 
         for (const tier of sortedTiers) {
@@ -799,21 +810,13 @@ export class PricingService {
 
             if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
                 targetTaxRate = tierRate;
-                validTariff = testTariff;
                 break;
             }
         }
 
-        if (validTariff === 0 && targetTaxRate === 0) {
-            const matchDirect = sortedTiers.find(tier =>
-                totalPerUnitPerNight >= tier.min &&
-                (tier.max === null || tier.max === undefined || totalPerUnitPerNight <= tier.max)
-            );
-            if (matchDirect) {
-                targetTaxRate = matchDirect.rate / 100;
-            } else {
-                throw new BadRequestException(`No applicable GST tier found for unit tariff ₹${totalPerUnitPerNight.toFixed(2)}`);
-            }
+        if (targetTaxRate === 0) {
+            const applicableTier = this.getApplicableTier(totalPerUnitPerNight, gstTiers);
+            targetTaxRate = applicableTier.rate / 100;
         }
 
         const exactTaxAmount = overrideTotal - (overrideTotal / (1 + targetTaxRate));
