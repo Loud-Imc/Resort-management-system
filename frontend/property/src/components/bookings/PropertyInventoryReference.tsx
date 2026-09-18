@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { canRoomTypeFitParty } from '../../utils/occupancy';
 
@@ -19,6 +19,7 @@ export const PropertyInventoryReference: React.FC<PropertyInventoryReferenceProp
     adultsCount,
     childrenCount,
     infantsCount,
+    onSelectRoomType,
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [warningId, setWarningId] = useState<string | null>(null);
@@ -135,15 +136,26 @@ export const PropertyInventoryReference: React.FC<PropertyInventoryReferenceProp
                                         <div className="text-xs font-bold text-foreground">
                                             ₹{Number(rt.basePrice || 0).toLocaleString()}<span className="text-[9px] text-muted-foreground font-normal">/nt</span>
                                         </div>
-                                        {(!canFitSingle || isSoldOut || isPartyIncompatible) && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setWarningId(prev => prev === rt.id ? null : rt.id)}
-                                                className="text-[10px] font-bold text-muted-foreground hover:text-foreground cursor-pointer underline"
-                                            >
-                                                {showWarning ? 'Hide Info' : 'Details'}
-                                            </button>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            {(!canFitSingle || isSoldOut || isPartyIncompatible) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWarningId(prev => prev === rt.id ? null : rt.id)}
+                                                    className="text-[10px] font-bold text-muted-foreground hover:text-foreground cursor-pointer underline"
+                                                >
+                                                    {showWarning ? 'Hide Info' : 'Details'}
+                                                </button>
+                                            )}
+                                            {onSelectRoomType && !isSoldOut && canFitSingle && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSelectRoomType(rt.id)}
+                                                    className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+                                                >
+                                                    Select
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             );

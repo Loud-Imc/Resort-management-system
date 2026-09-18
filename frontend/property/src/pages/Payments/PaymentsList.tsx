@@ -260,9 +260,9 @@ export default function PaymentsList() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        {payment.booking?.id ? (
+                                        {(payment.booking?.id || payment.bookingId) && payment.booking?.bookingNumber ? (
                                             <Link
-                                                to={`/bookings/${payment.booking.id}`}
+                                                to={`/bookings/${payment.booking?.id || payment.bookingId}`}
                                                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary border border-primary/25 hover:bg-primary/20 hover:border-primary/50 hover:shadow-xs transition-all group"
                                                 title="Click to view booking details"
                                             >

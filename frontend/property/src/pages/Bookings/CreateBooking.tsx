@@ -1583,6 +1583,7 @@ export default function CreateBooking() {
                                             adultsCount={Number(watch('adultsCount')) || 1}
                                             childrenCount={Number(watch('childrenCount')) || 0}
                                             infantsCount={infantsCount}
+                                            onSelectRoomType={handleSelectRoomType}
                                         />
                                     </div>
                                 </>
