@@ -2443,13 +2443,19 @@ export class BookingsService {
                         payment.id
                     );
 
+                    const commissionRate = Number(payment.commissionRate ?? 10);
+                    const refundPlatformFee = (Number(actualRefundAmount) * commissionRate) / 100;
+                    const refundNetAmount = Number(actualRefundAmount) - refundPlatformFee;
+
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
                             status: refundPercentage === 100 ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
                             refundAmount: actualRefundAmount,
                             refundDate: new Date(),
-                            refundReason: reason || `Booking cancellation (${refundPercentage}% refund)`
+                            refundReason: reason || `Booking cancellation (${refundPercentage}% refund)`,
+                            platformFee: { decrement: refundPlatformFee },
+                            netAmount: { decrement: refundNetAmount },
                         }
                     });
 
@@ -2463,13 +2469,19 @@ export class BookingsService {
                 } else if (payment.razorpayPaymentId) {
                     await this.paymentsService.requestRefund(user, payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
                 } else {
+                    const commissionRate = Number(payment.commissionRate ?? 10);
+                    const refundPlatformFee = (Number(actualRefundAmount) * commissionRate) / 100;
+                    const refundNetAmount = Number(actualRefundAmount) - refundPlatformFee;
+
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
                             status: refundPercentage === 100 ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
                             refundAmount: actualRefundAmount,
                             refundDate: new Date(),
-                            refundReason: reason || `Manual refund pending (${refundPercentage}% of ${payment.paymentMethod} payment)`
+                            refundReason: reason || `Manual refund pending (${refundPercentage}% of ${payment.paymentMethod} payment)`,
+                            platformFee: { decrement: refundPlatformFee },
+                            netAmount: { decrement: refundNetAmount },
                         }
                     });
 

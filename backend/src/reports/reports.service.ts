@@ -942,7 +942,7 @@ export class ReportsService {
 
         const platformFeeDetails = await this.prisma.payment.findMany({
             where: {
-                status: 'PAID',
+                status: { in: ['PAID', 'PARTIALLY_REFUNDED'] },
                 platformFee: { gt: 0 },
                 OR: [
                     {
@@ -1608,12 +1608,21 @@ export class ReportsService {
                                 headerRows: 1, widths: ['auto', 'auto', '*', 'auto'],
                                 body: [
                                     [ { text: 'DATE RECEIVED', style: 'tableHeader' }, { text: 'SOURCE', style: 'tableHeader' }, { text: 'DESCRIPTION', style: 'tableHeader' }, { text: 'AMOUNT', style: 'tableHeader', alignment: 'right' } ],
-                                    ...details.incomes.map((i: any) => [
-                                        { text: new Date(i.date).toLocaleDateString(), style: 'tableCell' },
-                                        { text: i.source.replace(/_/g, ' '), style: 'tableCellBold' },
-                                        { text: i.description + (i.booking ? ` (Booking #${i.booking.bookingNumber})` : ''), style: 'tableCell' },
-                                        { text: `₹${Number(i.amount).toLocaleString()}`, style: 'tableCellBold', alignment: 'right', color: '#059669' }
-                                    ])
+                                    ...details.incomes.map((i: any) => {
+                                        const amt = Number(i.amount || 0);
+                                        const isNegative = amt < 0;
+                                        return [
+                                            { text: new Date(i.date).toLocaleDateString(), style: 'tableCell' },
+                                            { text: i.source.replace(/_/g, ' '), style: 'tableCellBold' },
+                                            { text: i.description + (i.booking ? ` (Booking #${i.booking.bookingNumber})` : ''), style: 'tableCell' },
+                                            { 
+                                                text: `${isNegative ? '-' : ''}₹${Math.abs(amt).toLocaleString()}`, 
+                                                style: 'tableCellBold', 
+                                                alignment: 'right', 
+                                                color: isNegative ? '#ef4444' : '#059669' 
+                                            }
+                                        ];
+                                    })
                                 ]
                             },
                             layout: {

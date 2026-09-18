@@ -1345,6 +1345,7 @@ export class AvailabilityService {
                     }
                     return propResults;
                 })
+            );
             const flatGroupResults = groupResults.flat();
             if ((propertyId || includeFlexibleDates) && properties.length > 0) {
                 const targetProp = properties[0];

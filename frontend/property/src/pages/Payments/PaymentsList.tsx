@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { paymentsService } from '../../services/payments';
@@ -13,12 +14,13 @@ import {
     RefreshCcw,
     Download,
     Filter,
-    Info
+    Info,
+    Calendar,
+    ExternalLink
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { Payment } from '../../types/payment';
 import { useProperty } from '../../context/PropertyContext';
-import { Calendar } from 'lucide-react';
 
 export default function PaymentsList() {
     const [search, setSearch] = useState('');
@@ -57,10 +59,17 @@ export default function PaymentsList() {
     });
 
     const filteredPayments = payments?.filter(payment => {
-        const matchesSearch =
-            payment.booking?.bookingNumber.toLowerCase().includes(search.toLowerCase()) ||
-            payment.booking?.user.email.toLowerCase().includes(search.toLowerCase()) ||
-            payment.razorpayPaymentId?.toLowerCase().includes(search.toLowerCase());
+        const term = search.toLowerCase().trim();
+        const matchesSearch = !term || Boolean(
+            (payment.booking?.bookingNumber && payment.booking.bookingNumber.toLowerCase().includes(term)) ||
+            (payment.booking?.user?.email && payment.booking.user.email.toLowerCase().includes(term)) ||
+            (payment.booking?.user?.firstName && payment.booking.user.firstName.toLowerCase().includes(term)) ||
+            (payment.booking?.user?.lastName && payment.booking.user.lastName.toLowerCase().includes(term)) ||
+            (payment.razorpayPaymentId && payment.razorpayPaymentId.toLowerCase().includes(term)) ||
+            (payment.paymentMethod && payment.paymentMethod.toLowerCase().includes(term)) ||
+            (payment.id && payment.id.toLowerCase().includes(term)) ||
+            (payment.eventBooking?.ticketId && payment.eventBooking.ticketId.toLowerCase().includes(term))
+        );
 
         if (filter === 'ALL') return matchesSearch;
         return matchesSearch && payment.status === filter;
@@ -183,9 +192,10 @@ export default function PaymentsList() {
                     >
                         <option value="ALL">All Status</option>
                         <option value="PAID">Paid</option>
+                        <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
+                        <option value="REFUNDED">Refunded</option>
                         <option value="PENDING">Pending</option>
                         <option value="FAILED">Failed</option>
-                        <option value="REFUNDED">Refunded</option>
                     </select>
                 </div>
             </div>
@@ -249,18 +259,53 @@ export default function PaymentsList() {
                                             Ref: {payment.id.substring(0, 8)}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-sm font-medium text-primary">
-                                            {payment.booking?.bookingNumber || 'N/A'}
-                                        </div>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {payment.booking?.id ? (
+                                            <Link
+                                                to={`/bookings/${payment.booking.id}`}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary border border-primary/25 hover:bg-primary/20 hover:border-primary/50 hover:shadow-xs transition-all group"
+                                                title="Click to view booking details"
+                                            >
+                                                <span>{payment.booking.bookingNumber}</span>
+                                                <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                            </Link>
+                                        ) : payment.eventBooking?.id ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                                Event: {payment.eventBooking.ticketId || payment.eventBooking.id.substring(0, 8)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground font-mono">N/A</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                                         {format(new Date(payment.createdAt), 'MMM d, yyyy')}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="space-y-1">
-                                            <div className="text-xs text-muted-foreground">Total: ₹{Number(payment.amount).toFixed(2)}</div>
-                                            <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Earnings: ₹{Number(payment.netAmount || 0).toFixed(2)}</div>
+                                            {payment.status === 'REFUNDED' ? (
+                                                <>
+                                                    <div className="text-xs text-muted-foreground line-through">Gross: ₹{Number(payment.amount).toFixed(2)}</div>
+                                                    <div className="text-[11px] font-semibold text-rose-500">Refunded: ₹{Number(payment.refundAmount || payment.amount).toFixed(2)}</div>
+                                                    <div className="text-xs font-bold text-muted-foreground">Earnings: ₹0.00</div>
+                                                </>
+                                            ) : payment.status === 'PARTIALLY_REFUNDED' ? (
+                                                <>
+                                                    <div className="text-xs font-medium text-foreground">
+                                                        Realized: ₹{Number(payment.amount - (payment.refundAmount || 0)).toFixed(2)}
+                                                    </div>
+                                                    <div className="text-[10px] text-rose-500">
+                                                        Gross: ₹{Number(payment.amount).toFixed(2)} (-₹{Number(payment.refundAmount || 0).toFixed(2)} ref)
+                                                    </div>
+                                                    <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                                        Earnings: ₹{Number(payment.netAmount || 0).toFixed(2)}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-xs text-muted-foreground">Total: ₹{Number(payment.amount).toFixed(2)}</div>
+                                                    <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Earnings: ₹{Number(payment.netAmount || 0).toFixed(2)}</div>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
