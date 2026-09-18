@@ -136,7 +136,8 @@ export class AvailabilityService {
         roomTypeIds: string[],
         checkInDate: Date | string,
         checkOutDate: Date | string,
-        excludeBookingId?: string
+        excludeBookingId?: string,
+        allowedRoomIds?: string[]
     ): Promise<{
         availableCountMap: Map<string, number>;
         availableRoomsMap: Map<string, any[]>;
@@ -214,6 +215,9 @@ export class AvailabilityService {
             allPhysicalRooms = fetchedRoomsArrays.flat();
         }
 
+        if (allowedRoomIds && allowedRoomIds.length > 0) {
+            allPhysicalRooms = allPhysicalRooms.filter((r: any) => allowedRoomIds.includes(r.id));
+        }
 
         const allRoomIds = allPhysicalRooms.map((r: any) => r.id);
 
@@ -1103,6 +1107,8 @@ export class AvailabilityService {
         infants: number = 0,
         childAges?: number[],
         includeFlexibleDates: boolean = false,
+        roomTypeIds?: string[],
+        roomIds?: string[],
     ) {
         if (!isGroupBooking && children > 0) {
             validateChildAges(children, childAges);
@@ -1174,7 +1180,7 @@ export class AvailabilityService {
                     // Enablement check
                     OR: [
                         { allowsGroupBooking: true },
-                        { roomTypes: { some: { isAvailableForGroupBooking: true } } }
+                        { roomTypes: { some: { isAvailableForGroupBooking: true, ...(roomTypeIds && roomTypeIds.length > 0 ? { id: { in: roomTypeIds } } : {}) } } }
                     ],
                     // Property-wide capacity cap (if set)
                     AND: [
@@ -1194,14 +1200,17 @@ export class AvailabilityService {
                 },
                 include: {
                     roomTypes: {
-                        where: { isAvailableForGroupBooking: true },
+                        where: { 
+                            isAvailableForGroupBooking: true,
+                            ...(roomTypeIds && roomTypeIds.length > 0 ? { id: { in: roomTypeIds } } : {})
+                        },
                     },
                     _count: { select: { rooms: true } }
                 }
             });
 
             const allGroupTypeIds = properties.flatMap(p => p.roomTypes.map(rt => rt.id));
-            const { availableCountMap } = await this.getBatchRoomAvailability(allGroupTypeIds, checkInDate, checkOutDate);
+            const { availableCountMap } = await this.getBatchRoomAvailability(allGroupTypeIds, checkInDate, checkOutDate, undefined, roomIds);
 
             // Preload pricing context for group pricing
             const [globalGstTiers, allOffers, allPricingRules] = await Promise.all([
@@ -1407,14 +1416,22 @@ export class AvailabilityService {
                 ...(propertyId ? {
                     propertyId,
                     isPubliclyVisible: true,
+                    ...(roomTypeIds && roomTypeIds.length > 0 ? { id: { in: roomTypeIds } } : {}),
                     rooms: {
-                        some: { isEnabled: true }
+                        some: { 
+                            isEnabled: true,
+                            ...(roomIds && roomIds.length > 0 ? { id: { in: roomIds } } : {})
+                        }
                     },
                     ...occupancyCandidateFilter,
                 } : {
                     isPubliclyVisible: true,
+                    ...(roomTypeIds && roomTypeIds.length > 0 ? { id: { in: roomTypeIds } } : {}),
                     rooms: {
-                        some: { isEnabled: true }
+                        some: { 
+                            isEnabled: true,
+                            ...(roomIds && roomIds.length > 0 ? { id: { in: roomIds } } : {})
+                        }
                     },
                     ...occupancyCandidateFilter,
                     property: {
@@ -1436,7 +1453,7 @@ export class AvailabilityService {
         });
 
         const allSuitableTypeIds = suitableTypes.map(rt => rt.id);
-        const { availableCountMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate);
+        const { availableCountMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate, undefined, roomIds);
 
         // Preload global GST tiers, offers, and pricing rules once in parallel
         const [globalGstTiers, allOffers, allPricingRules] = await Promise.all([

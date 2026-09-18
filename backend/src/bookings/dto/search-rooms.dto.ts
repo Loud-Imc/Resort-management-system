@@ -1,4 +1,4 @@
-import { IsDateString, IsNotEmpty, IsNumber, Min, IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsNumber, Min, IsOptional, IsString, IsBoolean, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -105,6 +105,28 @@ export class SearchRoomsDto {
     @Min(1)
     @Type(() => Number)
     groupSize?: number;
+
+    @ApiProperty({ example: ['uuid-of-room-type'], required: false, type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    roomTypeIds?: string[];
+
+    @ApiProperty({ example: 'uuid-of-room-type', required: false })
+    @IsOptional()
+    @IsString()
+    roomTypeId?: string;
+
+    @ApiProperty({ example: ['uuid-of-room'], required: false, type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    roomIds?: string[];
+
+    @ApiProperty({ example: 'uuid-of-room', required: false })
+    @IsOptional()
+    @IsString()
+    roomId?: string;
 
     @ApiProperty({ example: true, required: false, description: 'Whether to include nearest flexible date rate summaries (Defaults to true when propertyId is provided)' })
     @IsOptional()

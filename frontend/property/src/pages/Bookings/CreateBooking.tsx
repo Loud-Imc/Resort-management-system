@@ -15,7 +15,8 @@ import { uploadService } from '../../services/uploads';
 import { 
     Loader2, Calendar, Users, UserPlus, CheckCircle, AlertCircle, 
     ArrowLeft, Briefcase, Camera, X, BedDouble, 
-    FileText, Sparkles, ChevronDown, ChevronUp, Search, Layers, SlidersHorizontal 
+    FileText, Sparkles, ChevronDown, ChevronUp, Search, Layers, SlidersHorizontal,
+    Check, RotateCcw, Building2, DoorClosed
 } from 'lucide-react';
 import clsx from 'clsx';
 import AccommodationPackageCard from '../../components/bookings/AccommodationPackageCard';
@@ -121,7 +122,16 @@ export default function CreateBooking() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const location = useLocation();
-    const state = location.state as { roomId?: string, roomTypeId?: string, startDate?: string, endDate?: string } | null;
+    const state = location.state as { 
+        roomId?: string; 
+        roomIds?: string[];
+        roomTypeId?: string; 
+        roomTypeIds?: string[];
+        roomsCount?: number;
+        adultsCount?: number;
+        startDate?: string; 
+        endDate?: string; 
+    } | null;
 
     const { selectedProperty } = useProperty();
     const [availability, setAvailability] = useState<{ available: boolean; availableRooms: number; roomList?: any[]; allocationPreview?: any[]; groupUnavailableReason?: string } | null>(null);
@@ -157,10 +167,32 @@ export default function CreateBooking() {
         errors: [],
     });
 
-    const preSelectedRoomId = state?.roomId || searchParams.get('roomId');
-    const preSelectedRoomTypeId = state?.roomTypeId || searchParams.get('roomTypeId');
+    const preSelectedRoomIds = useMemo(() => {
+        if (state?.roomIds && Array.isArray(state.roomIds) && state.roomIds.length > 0) {
+            return state.roomIds;
+        }
+        const rId = state?.roomId || searchParams.get('roomId');
+        return rId ? [rId] : [];
+    }, [state?.roomIds, state?.roomId, searchParams]);
+
+    const preSelectedRoomTypeIds = useMemo(() => {
+        if (state?.roomTypeIds && Array.isArray(state.roomTypeIds) && state.roomTypeIds.length > 0) {
+            return state.roomTypeIds;
+        }
+        const rtId = state?.roomTypeId || searchParams.get('roomTypeId');
+        return rtId ? [rtId] : [];
+    }, [state?.roomTypeIds, state?.roomTypeId, searchParams]);
+
     const preSelectedStartDate = state?.startDate;
     const preSelectedEndDate = state?.endDate;
+    const preSelectedRoomsCount = state?.roomsCount || (preSelectedRoomIds.length > 0 ? preSelectedRoomIds.length : 1);
+    const preSelectedAdultsCount = state?.adultsCount || Math.max(1, preSelectedRoomsCount);
+
+    const [filterRoomTypeIds, setFilterRoomTypeIds] = useState<string[]>(preSelectedRoomTypeIds);
+    const [filterRoomIds, setFilterRoomIds] = useState<string[]>(preSelectedRoomIds);
+    const [showRoomPreferences, setShowRoomPreferences] = useState<boolean>(
+        Boolean(preSelectedRoomTypeIds.length > 0 || preSelectedRoomIds.length > 0)
+    );
 
     const {
         register, control, handleSubmit, watch,
@@ -171,12 +203,13 @@ export default function CreateBooking() {
             propertyId: selectedProperty?.id || '',
             checkInDate: preSelectedStartDate || format(new Date(), 'yyyy-MM-dd'),
             checkOutDate: preSelectedEndDate || format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-            roomsCount: 1,
-            adultsCount: 1, childrenCount: 0,
+            roomsCount: preSelectedRoomsCount,
+            adultsCount: preSelectedAdultsCount,
+            childrenCount: 0,
             extraAdultsCount: 0, extraChildrenCount: 0,
-            roomTypeId: preSelectedRoomTypeId || '',
-            roomId: preSelectedRoomId || undefined,
-            selectedRoomIds: preSelectedRoomId ? [preSelectedRoomId] : [],
+            roomTypeId: preSelectedRoomTypeIds[0] || '',
+            roomId: preSelectedRoomIds[0] || undefined,
+            selectedRoomIds: preSelectedRoomIds,
             isManualBooking: true,
             isGroupBooking: false,
             groupSize: undefined,
@@ -441,6 +474,8 @@ export default function CreateBooking() {
         setChildAges([]);
         setInfantsCount(0);
         setValue('childrenCount', 0);
+        setFilterRoomTypeIds([]);
+        setFilterRoomIds([]);
 
         if (enableGroup) {
             const currentAdults = Math.max(2, Number(getValues('adultsCount')) || 2);
@@ -465,7 +500,8 @@ export default function CreateBooking() {
         const chosenRoomIds: string[] = [];
         allocatedRooms.forEach((ar: any, idx: number) => {
             const rt = roomTypes?.find(r => r.id === ar.roomTypeId);
-            const availableRoom = rt?.rooms?.find((r: any) => r.isEnabled && !chosenRoomIds.includes(r.id));
+            const availableRoom = rt?.rooms?.find((r: any) => r.isEnabled && !chosenRoomIds.includes(r.id) && (filterRoomIds.length === 0 || filterRoomIds.includes(r.id)))
+                || rt?.rooms?.find((r: any) => r.isEnabled && !chosenRoomIds.includes(r.id));
             if (availableRoom) {
                 initialAssignments[idx] = availableRoom.id;
                 chosenRoomIds.push(availableRoom.id);
@@ -640,6 +676,8 @@ export default function CreateBooking() {
                     isGroupBooking: true,
                     groupSize: totalGroupSize,
                     isAdmin: true,
+                    roomTypeIds: filterRoomTypeIds.length > 0 ? filterRoomTypeIds : undefined,
+                    roomIds: filterRoomIds.length > 0 ? filterRoomIds : undefined,
                 });
 
                 if (currentSearch !== searchRequestId.current) return;
@@ -728,6 +766,8 @@ export default function CreateBooking() {
                     infants: infantsCount > 0 ? infantsCount : undefined,
                     rooms,
                     includeSoldOut: true,
+                    roomTypeIds: filterRoomTypeIds.length > 0 ? filterRoomTypeIds : undefined,
+                    roomIds: filterRoomIds.length > 0 ? filterRoomIds : undefined,
                 });
 
                 if (currentSearch !== searchRequestId.current) return;
@@ -783,6 +823,8 @@ export default function CreateBooking() {
         infantsCount,
         isGroupMode,
         roomTypes,
+        filterRoomTypeIds,
+        filterRoomIds,
         getValues,
         setValue,
     ]);
@@ -806,8 +848,19 @@ export default function CreateBooking() {
         childAges,
         infantsCount,
         isGroupMode,
+        filterRoomTypeIds,
+        filterRoomIds,
         triggerSearch,
     ]);
+
+    // Auto-search on mount if pre-selected rooms or room types exist from Dashboard navigation
+    const hasAutoSearchedOnMount = useRef(false);
+    useEffect(() => {
+        if (!hasAutoSearchedOnMount.current && selectedProperty?.id && (preSelectedRoomIds.length > 0 || preSelectedRoomTypeIds.length > 0)) {
+            hasAutoSearchedOnMount.current = true;
+            triggerSearch(true);
+        }
+    }, [selectedProperty?.id, preSelectedRoomIds.length, preSelectedRoomTypeIds.length, triggerSearch]);
 
     const handleSelectRoomType = async (roomTypeId: string) => {
         const rt = roomTypes?.find(r => r.id === roomTypeId);
@@ -835,6 +888,8 @@ export default function CreateBooking() {
             setCheckingAvailability(true);
             const avail = await bookingsService.checkAvailability({
                 roomTypeId,
+                roomTypeIds: [roomTypeId],
+                roomIds: filterRoomIds.length > 0 ? filterRoomIds : undefined,
                 checkInDate: watchedCheckInDate,
                 checkOutDate: watchedCheckOutDate,
                 propertyId: selectedProperty?.id,
@@ -842,9 +897,9 @@ export default function CreateBooking() {
             });
             setAvailability(avail);
             if (avail.available && avail.roomList && avail.roomList.length > 0) {
-                const firstRoom = avail.roomList[0];
-                setValue('selectedRoomIds', [firstRoom.id]);
-                setValue('roomId', firstRoom.id);
+                const preferredRoom = (filterRoomIds.length > 0 && avail.roomList.find((r: any) => filterRoomIds.includes(r.id))) || avail.roomList[0];
+                setValue('selectedRoomIds', [preferredRoom.id]);
+                setValue('roomId', preferredRoom.id);
 
                 const priceParams = {
                     roomTypeId,
@@ -1406,6 +1461,196 @@ export default function CreateBooking() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* OPTIONAL PRE-FILTER: Room Type & Physical Room Preferences */}
+                            <div className="rounded-xl border border-border/70 bg-muted/20 overflow-hidden transition-all">
+                                <div 
+                                    className="p-3.5 flex flex-wrap items-center justify-between gap-2 cursor-pointer hover:bg-muted/40 transition-colors select-none"
+                                    onClick={() => setShowRoomPreferences(prev => !prev)}
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
+                                            <SlidersHorizontal className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                                                    Room Type & Particular Room Filter
+                                                </h4>
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                                    Optional
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground font-medium">
+                                                {filterRoomTypeIds.length === 0 && filterRoomIds.length === 0
+                                                    ? 'Searching all property room types & rooms by default'
+                                                    : `Filtering: ${filterRoomTypeIds.length > 0 ? `${filterRoomTypeIds.length} Room Type${filterRoomTypeIds.length > 1 ? 's' : ''}` : 'All Types'}${filterRoomIds.length > 0 ? `, ${filterRoomIds.length} Specific Room${filterRoomIds.length > 1 ? 's' : ''}` : ''}`}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {(filterRoomTypeIds.length > 0 || filterRoomIds.length > 0) && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setFilterRoomTypeIds([]);
+                                                    setFilterRoomIds([]);
+                                                    toast.success('Room filters cleared. Searching all inventory.');
+                                                }}
+                                                className="px-2.5 py-1 text-[11px] font-bold text-muted-foreground hover:text-rose-600 bg-background/80 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-border rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                                            >
+                                                <RotateCcw className="h-3 w-3" /> Clear Filters
+                                            </button>
+                                        )}
+                                        <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                                            {showRoomPreferences ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {showRoomPreferences && (
+                                    <div className="p-4 pt-2 border-t border-border/60 space-y-4 bg-card/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                                        {/* Room Types Multi-Select */}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                    <Building2 className="h-3.5 w-3.5 text-primary" /> Target Room Types
+                                                </label>
+                                                {filterRoomTypeIds.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFilterRoomTypeIds([]);
+                                                        }}
+                                                        className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                                                    >
+                                                        Reset to All Types
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFilterRoomTypeIds([])}
+                                                    className={clsx(
+                                                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                        filterRoomTypeIds.length === 0
+                                                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                                            : "bg-background hover:bg-muted text-muted-foreground border-border"
+                                                    )}
+                                                >
+                                                    {filterRoomTypeIds.length === 0 && <Check className="h-3.5 w-3.5" />}
+                                                    All Room Types ({roomTypes?.length || 0})
+                                                </button>
+                                                {roomTypes?.map((rt: any) => {
+                                                    const isSelected = filterRoomTypeIds.includes(rt.id);
+                                                    const roomCount = rt.rooms?.filter((r: any) => r.isEnabled)?.length ?? rt.rooms?.length ?? 0;
+                                                    return (
+                                                        <button
+                                                            key={rt.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFilterRoomTypeIds(prev => {
+                                                                    const next = prev.includes(rt.id)
+                                                                        ? prev.filter(id => id !== rt.id)
+                                                                        : [...prev, rt.id];
+                                                                    // Also clean up any filterRoomIds that belong to deselected type
+                                                                    if (prev.includes(rt.id) && rt.rooms) {
+                                                                        const typeRoomIds = rt.rooms.map((r: any) => r.id);
+                                                                        setFilterRoomIds(fRooms => fRooms.filter(rId => !typeRoomIds.includes(rId)));
+                                                                    }
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className={clsx(
+                                                                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                                isSelected
+                                                                    ? "bg-primary/10 text-primary border-primary font-black shadow-xs ring-1 ring-primary/20"
+                                                                    : "bg-background hover:bg-muted text-foreground border-border"
+                                                            )}
+                                                        >
+                                                            {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                                                            <span>{rt.name}</span>
+                                                            <span className={clsx(
+                                                                "text-[10px] px-1.5 py-0.5 rounded-md",
+                                                                isSelected ? "bg-primary/20 text-primary font-black" : "bg-muted text-muted-foreground font-semibold"
+                                                            )}>
+                                                                {roomCount} {roomCount === 1 ? 'room' : 'rooms'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Physical Rooms Multi-Select */}
+                                        <div className="space-y-2 pt-2 border-t border-border/50">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                    <DoorClosed className="h-3.5 w-3.5 text-primary" /> Target Specific Physical Rooms (Optional)
+                                                </label>
+                                                {filterRoomIds.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFilterRoomIds([])}
+                                                        className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                                                    >
+                                                        Reset Room Filter
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFilterRoomIds([])}
+                                                    className={clsx(
+                                                        "px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                        filterRoomIds.length === 0
+                                                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                                            : "bg-background hover:bg-muted text-muted-foreground border-border"
+                                                    )}
+                                                >
+                                                    {filterRoomIds.length === 0 && <Check className="h-3 w-3" />}
+                                                    Any Physical Room
+                                                </button>
+                                                {roomTypes
+                                                    ?.filter((rt: any) => filterRoomTypeIds.length === 0 || filterRoomTypeIds.includes(rt.id))
+                                                    .flatMap((rt: any) => (rt.rooms || []).filter((r: any) => r.isEnabled).map((r: any) => ({ ...r, roomTypeName: rt.name, roomTypeId: rt.id })))
+                                                    .map((room: any) => {
+                                                        const isSelected = filterRoomIds.includes(room.id);
+                                                        return (
+                                                            <button
+                                                                key={room.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setFilterRoomIds(prev =>
+                                                                        prev.includes(room.id)
+                                                                            ? prev.filter(id => id !== room.id)
+                                                                            : [...prev, room.id]
+                                                                    );
+                                                                }}
+                                                                className={clsx(
+                                                                    "px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                                    isSelected
+                                                                        ? "bg-primary/10 text-primary border-primary font-black shadow-xs ring-1 ring-primary/20"
+                                                                        : "bg-background hover:bg-muted text-foreground border-border"
+                                                                )}
+                                                            >
+                                                                {isSelected && <Check className="h-3 w-3 text-primary" />}
+                                                                <span>Room #{room.roomNumber}</span>
+                                                                <span className="text-[10px] text-muted-foreground font-normal">
+                                                                    ({room.roomTypeName})
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* THIRD ROW: Check Availability Button & Live Status */}
                             <div className="pt-3 border-t border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

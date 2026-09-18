@@ -200,6 +200,9 @@ export interface CreateBookingDto {
 
 export interface CheckAvailabilityDto {
     roomTypeId?: string;
+    roomTypeIds?: string[];
+    roomId?: string;
+    roomIds?: string[];
     checkInDate: string;
     checkOutDate: string;
     isGroupBooking?: boolean;
