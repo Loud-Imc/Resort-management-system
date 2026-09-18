@@ -1294,11 +1294,10 @@ const InlineBookingPage: React.FC = () => {
                             <LocationAutocomplete
                                 value={searchQuery}
                                 onChange={setSearchQuery}
-                                onSelect={(description) => {
-                                    const city = description.split(',')[0];
-                                    setSearchQuery(city);
+                                onSelect={(nameOrDesc) => {
+                                    setSearchQuery(nameOrDesc);
                                 }}
-                                placeholder="Where are you going?"
+                                placeholder="Search resort, city, or address..."
                                 wrapperStyle={{ width: '100%' }}
                                 inputStyle={{
                                     width: '100%', padding: '0.85rem 1rem', border: '1px solid var(--border-glass)',

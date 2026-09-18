@@ -914,21 +914,40 @@ export class PropertiesService {
             andConditions.push({
                 OR: [
                     { city: { contains: city, mode: 'insensitive' } },
-                    { address: { contains: city, mode: 'insensitive' } }
+                    { address: { contains: city, mode: 'insensitive' } },
+                    { state: { contains: city, mode: 'insensitive' } },
                 ]
             });
         }
 
         if (search) {
+            const trimmedSearch = search.trim();
+            const tokens = trimmedSearch.split(/[,\s]+/).filter(t => t.length > 1);
+
+            const searchFilters: Prisma.PropertyWhereInput[] = [
+                { name: { contains: trimmedSearch, mode: 'insensitive' } },
+                { city: { contains: trimmedSearch, mode: 'insensitive' } },
+                { address: { contains: trimmedSearch, mode: 'insensitive' } },
+                { state: { contains: trimmedSearch, mode: 'insensitive' } },
+                { pincode: { contains: trimmedSearch, mode: 'insensitive' } },
+                { phone: { contains: trimmedSearch, mode: 'insensitive' } },
+                { owner: { phone: { contains: trimmedSearch, mode: 'insensitive' } } },
+                { description: { contains: trimmedSearch, mode: 'insensitive' } },
+            ];
+
+            if (tokens.length > 1) {
+                tokens.forEach(token => {
+                    searchFilters.push(
+                        { name: { contains: token, mode: 'insensitive' } },
+                        { city: { contains: token, mode: 'insensitive' } },
+                        { address: { contains: token, mode: 'insensitive' } },
+                        { state: { contains: token, mode: 'insensitive' } },
+                    );
+                });
+            }
+
             andConditions.push({
-                OR: [
-                    { name: { contains: search, mode: 'insensitive' } },
-                    { city: { contains: search, mode: 'insensitive' } },
-                    { address: { contains: search, mode: 'insensitive' } },
-                    { phone: { contains: search, mode: 'insensitive' } },
-                    { owner: { phone: { contains: search, mode: 'insensitive' } } },
-                    { description: { contains: search, mode: 'insensitive' } },
-                ]
+                OR: searchFilters
             });
         }
 
@@ -1592,24 +1611,97 @@ export class PropertiesService {
         };
     }
 
-    // Google Places Autocomplete proxy — keeps API key server-side
+    // Hybrid Autocomplete proxy: Searches database properties and Google Places locations in parallel
     async getPlaceAutocomplete(input: string) {
+        if (!input || !input.trim()) return [];
+        const trimmedInput = input.trim();
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-        if (!apiKey) return [];
-        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=(cities)&key=${apiKey}`;
-        const res = await fetch(url);
-        const data: any = await res.json();
-        if (!data.predictions) return [];
-        return data.predictions.map((p: any) => ({
-            placeId: p.place_id,
-            description: p.description,
-            mainText: p.structured_formatting?.main_text || p.description,
-            secondaryText: p.structured_formatting?.secondary_text || '',
-        }));
+
+        // 1. Database Property Search (Fast local indexed lookup)
+        const dbPropertiesPromise = this.prisma.property.findMany({
+            where: {
+                isActive: true,
+                status: PropertyStatus.APPROVED,
+                OR: [
+                    { name: { contains: trimmedInput, mode: 'insensitive' } },
+                    { city: { contains: trimmedInput, mode: 'insensitive' } },
+                    { address: { contains: trimmedInput, mode: 'insensitive' } },
+                    { state: { contains: trimmedInput, mode: 'insensitive' } },
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                city: true,
+                state: true,
+                address: true,
+                latitude: true,
+                longitude: true,
+                slug: true,
+            },
+            take: 6,
+        }).then(props => props.map(p => ({
+            placeId: `prop_${p.id}`,
+            description: `${p.name}, ${p.city}${p.state ? ', ' + p.state : ''}`,
+            mainText: p.name,
+            secondaryText: `${p.city}${p.state ? ', ' + p.state : ''}`,
+            type: 'property' as const,
+            propertyId: p.id,
+            slug: p.slug,
+            lat: p.latitude ? Number(p.latitude) : null,
+            lng: p.longitude ? Number(p.longitude) : null,
+        }))).catch(err => {
+            console.error('[getPlaceAutocomplete] DB property lookup error:', err?.message || err);
+            return [];
+        });
+
+        // 2. Google Places search for cities & regions
+        const googlePlacesPromise = (async () => {
+            if (!apiKey) return [];
+            try {
+                const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(trimmedInput)}&key=${apiKey}`;
+                const res = await fetch(url);
+                const data: any = await res.json();
+                if (!data.predictions) return [];
+                return data.predictions.slice(0, 5).map((p: any) => ({
+                    placeId: p.place_id,
+                    description: p.description,
+                    mainText: p.structured_formatting?.main_text || p.description,
+                    secondaryText: p.structured_formatting?.secondary_text || '',
+                    type: 'location' as const,
+                }));
+            } catch (err: any) {
+                console.error('[getPlaceAutocomplete] Google Places lookup error:', err?.message || err);
+                return [];
+            }
+        })();
+
+        const [dbResults, googleResults] = await Promise.all([dbPropertiesPromise, googlePlacesPromise]);
+
+        // Place properties first for direct resort searches, followed by geographic locations
+        return [...dbResults, ...googleResults];
     }
 
-    // Google Places Details proxy — fetch lat/lng from placeId
+    // Google Places / Local Property Details proxy — fetch lat/lng from placeId
     async getPlaceDetails(placeId: string) {
+        if (!placeId) return null;
+
+        // If local property placeId
+        if (placeId.startsWith('prop_')) {
+            const propertyId = placeId.replace('prop_', '');
+            const prop = await this.prisma.property.findUnique({
+                where: { id: propertyId },
+                select: { latitude: true, longitude: true },
+            });
+            if (prop && prop.latitude !== null && prop.longitude !== null) {
+                return {
+                    lat: Number(prop.latitude),
+                    lng: Number(prop.longitude),
+                };
+            }
+            return null;
+        }
+
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
         if (!apiKey) return null;
         const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${apiKey}`;

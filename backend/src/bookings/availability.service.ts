@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PropertyStatus } from '@prisma/client';
+import { PropertyStatus, Prisma } from '@prisma/client';
 import { PricingService } from './pricing.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { format, eachDayOfInterval, differenceInDays } from 'date-fns';
@@ -1148,12 +1148,23 @@ export class AvailabilityService {
         const minAdultsPerRoom = Math.ceil(adults / Math.max(1, rooms));
         const minChildrenPerRoom = Math.ceil(children / Math.max(1, rooms));
 
-        const locationFilter = location ? [
-            { city: { contains: location, mode: 'insensitive' } },
-            { city: { startsWith: location.substring(0, Math.min(location.length, 6)), mode: 'insensitive' } },
-            { address: { contains: location, mode: 'insensitive' } },
-            { state: { contains: location, mode: 'insensitive' } },
-            { name: { contains: location, mode: 'insensitive' } },
+        const trimmedLoc = location ? location.trim() : '';
+        const locTokens = trimmedLoc ? trimmedLoc.split(/[,\s]+/).filter(t => t.length > 1) : [];
+
+        const locationFilter: Prisma.PropertyWhereInput[] = trimmedLoc ? [
+            { city: { contains: trimmedLoc, mode: 'insensitive' as const } },
+            { city: { startsWith: trimmedLoc.substring(0, Math.min(trimmedLoc.length, 6)), mode: 'insensitive' as const } },
+            { address: { contains: trimmedLoc, mode: 'insensitive' as const } },
+            { state: { contains: trimmedLoc, mode: 'insensitive' as const } },
+            { name: { contains: trimmedLoc, mode: 'insensitive' as const } },
+            { pincode: { contains: trimmedLoc, mode: 'insensitive' as const } },
+            { description: { contains: trimmedLoc, mode: 'insensitive' as const } },
+            ...(locTokens.length > 1 ? locTokens.flatMap(token => [
+                { name: { contains: token, mode: 'insensitive' as const } },
+                { city: { contains: token, mode: 'insensitive' as const } },
+                { address: { contains: token, mode: 'insensitive' as const } },
+                { state: { contains: token, mode: 'insensitive' as const } },
+            ]) : [])
         ] : [];
 
         const geoOrLocationFilter = () => {
@@ -1162,17 +1173,12 @@ export class AvailabilityService {
                 return {
                     OR: [
                         { id: { in: geoPropertyIds } },
-                        ...(location ? [{
-                            AND: [
-                                { latitude: null },
-                                { OR: locationFilter as any }
-                            ]
-                        }] : [])
+                        ...(locationFilter.length > 0 ? [{ OR: locationFilter }] : [])
                     ]
                 };
             }
-            if (location) {
-                return { OR: locationFilter as any };
+            if (locationFilter.length > 0) {
+                return { OR: locationFilter };
             }
             return {};
         };

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MapPin, Loader2, X } from 'lucide-react';
+import { MapPin, Building2, Loader2, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -8,18 +8,23 @@ interface Suggestion {
     description: string;
     mainText: string;
     secondaryText: string;
+    type?: 'property' | 'location';
+    propertyId?: string;
+    slug?: string;
+    lat?: number | null;
+    lng?: number | null;
 }
 
 interface Props {
     value: string;
     onChange: (value: string) => void;
-    onSelect?: (description: string) => void;
+    onSelect?: (description: string, item?: Suggestion) => void;
     placeholder?: string;
     inputStyle?: React.CSSProperties;
     wrapperStyle?: React.CSSProperties;
 }
 
-export default function LocationAutocomplete({ value, onChange, onSelect, placeholder = 'Search city or resort...', inputStyle, wrapperStyle }: Props) {
+export default function LocationAutocomplete({ value, onChange, onSelect, placeholder = 'Search city, resort, or address...', inputStyle, wrapperStyle }: Props) {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -44,12 +49,12 @@ export default function LocationAutocomplete({ value, onChange, onSelect, placeh
         const val = e.target.value;
         onChange(val);
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => fetchSuggestions(val), 300);
+        debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
     };
 
     const handleSelect = (s: Suggestion) => {
         onChange(s.mainText);
-        onSelect?.(s.description);
+        onSelect?.(s.mainText, s);
         setSuggestions([]); setIsOpen(false); setActiveIndex(-1);
     };
 
@@ -97,8 +102,9 @@ export default function LocationAutocomplete({ value, onChange, onSelect, placeh
             {isOpen && suggestions.length > 0 && (
                 <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '0.5rem', zIndex: 999,
-                    background: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--border-glass)',
-                    borderRadius: 'var(--radius-md)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden',
+                    background: 'var(--glass-bg, #ffffff)', backdropFilter: 'blur(20px)', border: '1px solid var(--border-glass, #e2e8f0)',
+                    borderRadius: 'var(--radius-md, 12px)', boxShadow: '0 20px 60px rgba(0,0,0,0.15)', overflow: 'hidden',
+                    maxHeight: '280px', overflowY: 'auto',
                 }}>
                     {suggestions.map((s, i) => (
                         <button
@@ -108,15 +114,30 @@ export default function LocationAutocomplete({ value, onChange, onSelect, placeh
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', textAlign: 'left',
                                 padding: '0.85rem 1rem', cursor: 'pointer', border: 'none', background: i === activeIndex ? 'rgba(8,71,78,0.08)' : 'transparent',
-                                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border-glass)' : 'none',
+                                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border-glass, #e2e8f0)' : 'none',
                                 transition: 'background 0.15s',
                             }}
                         >
-                            <MapPin size={14} style={{ flexShrink: 0, color: 'var(--primary-teal)' }} />
-                            <div>
-                                <p style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', margin: 0 }}>{s.mainText}</p>
+                            {s.type === 'property' ? (
+                                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(8,71,78,0.1)', color: '#08474e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Building2 size={15} />
+                                </div>
+                            ) : (
+                                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(0,0,0,0.05)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <MapPin size={15} />
+                                </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <p style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary, #0f172a)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.mainText}</p>
+                                    {s.type === 'property' && (
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(8,71,78,0.1)', color: '#08474e', flexShrink: 0 }}>
+                                            Resort
+                                        </span>
+                                    )}
+                                </div>
                                 {s.secondaryText && (
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: 0 }}>{s.secondaryText}</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-dim, #64748b)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.secondaryText}</p>
                                 )}
                             </div>
                         </button>
