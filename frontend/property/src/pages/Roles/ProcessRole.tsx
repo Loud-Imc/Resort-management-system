@@ -34,6 +34,7 @@ const PROPERTY_TABS = [
     { id: 'dashboard-reports', label: 'Dashboard & Reports', prefix: ['reports.'] },
     { id: 'property-rooms', label: 'Property & Rooms', prefix: ['properties.', 'rooms.', 'roomTypes.', 'assets.'] },
     { id: 'bookings-ops', label: 'Bookings & Operations', prefix: ['bookings.', 'bookingSources.'] },
+    { id: 'ota-messaging', label: 'OTA Messaging', prefix: ['otaMessaging.'] },
     { id: 'financials', label: 'Financials', prefix: ['payments.', 'income.', 'expenses.'] },
     { id: 'marketing', label: 'Marketing & Offers', prefix: ['marketing.'] },
     { id: 'team-access', label: 'Team & Access Control', prefix: ['users.', 'propertyStaff.', 'roles.'] },
@@ -81,8 +82,9 @@ export default function ProcessRole() {
         queryFn: rolesService.getPermissions,
     });
 
-    // Filter out global/admin-only permissions to prevent escalation
+    // Filter out global/admin-only permissions and bookings.delete to prevent escalation
     const filteredPermissions = (availablePermissions || []).filter(perm => {
+        if (perm.name === 'bookings.delete') return false;
         return getPermissionTabId(perm.name) !== undefined;
     });
 

@@ -106,8 +106,13 @@ export class PdfService {
 
   async generateBookingConfirmation(booking: any, recipientType: 'GUEST' | 'PARTNER' = 'GUEST'): Promise<Buffer> {
     const property = booking.property || booking.room?.property || booking.room?.roomType?.property;
-    const roomType = booking.roomType || booking.room?.roomType;
+    const roomType = booking.roomType || booking.room?.roomType || booking.bookingRooms?.[0]?.room?.roomType;
     const user = booking.user;
+
+    const hasAc = Array.isArray(roomType?.amenities) && roomType.amenities.some((a: string) =>
+      /air\s*conditioning|a\/c|\bac\b/i.test(String(a))
+    );
+    const acLabel = hasAc ? 'A/C' : 'Non-A/C';
 
     const isPartner = recipientType === 'PARTNER';
 
@@ -144,6 +149,7 @@ export class PdfService {
     }
     guestInstructions.push(...adminInstructions);
 
+    const isCancelled = booking.status === 'CANCELLED';
     const isCheckedIn = ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(booking.status);
     const isGstProperty = Boolean(property?.isGstApplicable && property?.gstNumber);
 
@@ -153,9 +159,25 @@ export class PdfService {
             : 0
     );
 
-    const docTitle = isGstProperty 
-      ? (isCheckedIn ? 'TAX INVOICE' : (isPartner ? 'PERFORMA INVOICE' : 'BOOKING CONFIRMATION'))
-      : (isCheckedIn ? 'BILL OF SUPPLY' : (isPartner ? 'BOOKING SUMMARY' : 'BOOKING CONFIRMATION'));
+    const docTitle = isCancelled
+      ? (isGstProperty ? 'CANCELLATION INVOICE' : 'CANCELLATION SUMMARY')
+      : isGstProperty 
+        ? (isCheckedIn ? 'TAX INVOICE' : (isPartner ? 'PERFORMA INVOICE' : 'BOOKING CONFIRMATION'))
+        : (isCheckedIn ? 'BILL OF SUPPLY' : (isPartner ? 'BOOKING SUMMARY' : 'BOOKING CONFIRMATION'));
+
+    // Payments history
+    const paymentsList = Array.isArray(booking.payments) ? booking.payments : [];
+    const totalOriginalPaid = paymentsList.length > 0
+        ? paymentsList.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
+        : (isCancelled ? totalAmount : paidAmount);
+
+    const totalRefunded = paymentsList.length > 0
+        ? paymentsList.reduce((acc: number, p: any) => acc + Number(p.refundAmount || 0), 0)
+        : (Array.isArray(booking.creditNotes) && booking.creditNotes.length > 0
+            ? booking.creditNotes.reduce((acc: number, cn: any) => acc + (Number(cn.creditedAmount || 0) + Number(cn.taxAmount || 0)), 0)
+            : (isCancelled ? totalOriginalPaid : 0));
+
+    const netRetained = Math.max(0, totalOriginalPaid - totalRefunded);
 
     const docDefinition: any = {
       pageSize: 'A4',
@@ -211,7 +233,7 @@ export class PdfService {
             {
               width: 'auto',
               stack: [
-                { text: docTitle, style: 'docTitle' },
+                { text: docTitle, style: 'docTitle', color: isCancelled ? '#dc2626' : '#0f172a' },
                 ...(booking.invoiceNumber ? [{ text: `Invoice No: ${booking.invoiceNumber}`, style: 'invoiceNo' }] : []),
                 { text: `Booking ID: #${booking.bookingNumber || 'N/A'}`, style: 'bookingId' },
                 { text: `Date: ${new Date(booking.invoiceDate || Date.now()).toLocaleDateString('en-IN')}`, style: 'docDate' },
@@ -230,7 +252,7 @@ export class PdfService {
               [
                 {
                   text: '',
-                  fillColor: '#227c8a',
+                  fillColor: isCancelled ? '#dc2626' : '#227c8a',
                   margin: [0, 0, 0, 0],
                   fontSize: 1,
                 },
@@ -240,6 +262,25 @@ export class PdfService {
           layout: 'noBorders',
           margin: [0, 4, 0, 12],
         },
+
+        ...(isCancelled ? [
+          {
+            table: {
+              widths: ['*'],
+              body: [
+                [
+                  {
+                    text: `BOOKING CANCELLED ${booking.cancelledAt ? 'ON ' + new Date(booking.cancelledAt).toLocaleDateString('en-IN') : ''}`,
+                    style: 'statusBanner',
+                    fillColor: '#dc2626',
+                  }
+                ]
+              ]
+            },
+            layout: 'noBorders',
+            margin: [0, 0, 0, 12]
+          }
+        ] : []),
 
         // Main info grid
         {
@@ -310,7 +351,8 @@ export class PdfService {
                 { text: 'ACCOMMODATION', style: 'sectionHeader', margin: [0, 15, 0, 0] },
                 {
                   stack: [
-                    { text: roomType?.name || 'Room Type', style: 'roomName' },
+                    { text: roomType?.name ? `${roomType.name} (${acLabel})` : `Room (${acLabel})`, style: 'roomName' },
+                    { text: `Category: ${hasAc ? 'A/C Accommodation' : 'Non-A/C Accommodation'}`, style: 'guestCount', margin: [0, 1, 0, 2] },
                     ...(booking.isGroupBooking ? [
                       { text: `Group Booking of ${booking.groupSize || 0} People`, style: 'groupBookingInfo', margin: [0, 0, 0, 4] }
                     ] : []),
@@ -377,7 +419,26 @@ export class PdfService {
                   { text: `₹${netInvestment.toLocaleString()}`, style: 'tableTotalValue', alignment: 'right', color: '#227c8a' },
                 ]
               ] : []),
-              ...(!isCheckedIn ? [
+              ...(isCancelled ? [
+                [
+                  { text: 'Total Amount Paid (Original)', style: 'tablePaidLabel' },
+                  { text: `₹${Number(totalOriginalPaid).toLocaleString('en-IN', { minimumFractionDigits: totalOriginalPaid % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tablePaidValue', alignment: 'right' },
+                ],
+                [
+                  { text: 'Total Amount Refunded', style: 'tableCell', color: '#dc2626' },
+                  { text: `-₹${Number(totalRefunded).toLocaleString('en-IN', { minimumFractionDigits: totalRefunded % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right', color: '#dc2626' },
+                ],
+                ...(netRetained > 0 ? [
+                  [
+                    { text: 'Cancellation Charges Retained', style: 'tableCell', color: '#b45309' },
+                    { text: `₹${Number(netRetained).toLocaleString('en-IN', { minimumFractionDigits: netRetained % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right', color: '#b45309' },
+                  ]
+                ] : []),
+                [
+                  { text: 'Remaining Balance Due', style: 'tableBalanceLabel' },
+                  { text: '₹0.00 (Cancelled - No Balance Due)', style: 'tableBalanceValue', alignment: 'right' },
+                ],
+              ] : !isCheckedIn ? [
                 [
                   { text: 'Total Amount Paid', style: 'tablePaidLabel' },
                   { text: `₹${Number(booking.paidAmount).toLocaleString()}`, style: 'tablePaidValue', alignment: 'right' },

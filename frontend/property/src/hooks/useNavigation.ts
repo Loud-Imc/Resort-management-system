@@ -49,6 +49,9 @@ export function useNavigation() {
                     path: '/bookings',
                     badge: unreadCount > 0 ? unreadCount : undefined
                 },
+            ] : []),
+
+            ...(hasPermission('otaMessaging.read') || user?.roles?.includes('PropertyOwner') || user?.roles?.includes('SuperAdmin') ? [
                 {
                     icon: MessageSquare,
                     label: 'OTA Messaging',

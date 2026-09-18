@@ -37,5 +37,9 @@ export const usersService = {
             responseType: 'blob'
         });
         return response.data;
+    },
+    sendGuestsWhatsapp: async (payload: { userIds: string[]; message: string; propertyId?: string }) => {
+        const { data } = await api.post('/users/guests/whatsapp', payload);
+        return data;
     }
 };

@@ -3698,6 +3698,22 @@ export class BookingsService {
 
         if (!booking) throw new NotFoundException('Booking not found');
 
+        const roles = user?.roles || [];
+        const isSuperAdmin = roles.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || roles.includes('Admin');
+        const isPropertyOwner = roles.includes('PropertyOwner');
+
+        const propId = booking.propertyId || (booking as any).room?.propertyId || (booking as any).property?.id;
+        const property = propId ? await this.prisma.property.findUnique({
+            where: { id: propId },
+            select: { ownerId: true }
+        }) : null;
+        const isOwnerOfThisProperty = property ? property.ownerId === user?.id : false;
+
+        if (!isGlobalAdmin && !(isPropertyOwner && isOwnerOfThisProperty)) {
+            throw new ForbiddenException('Only the property owner can delete bookings.');
+        }
+
         return {
             guests: booking.guests.length,
             payments: booking.payments.length,
@@ -3714,6 +3730,22 @@ export class BookingsService {
 
     async remove(id: string, user: any) {
         const booking = await this.findOne(id, user);
+
+        const roles = user?.roles || [];
+        const isSuperAdmin = roles.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || roles.includes('Admin');
+        const isPropertyOwner = roles.includes('PropertyOwner');
+
+        const propId = booking.propertyId || (booking as any).room?.propertyId || (booking as any).property?.id;
+        const property = propId ? await this.prisma.property.findUnique({
+            where: { id: propId },
+            select: { ownerId: true }
+        }) : null;
+        const isOwnerOfThisProperty = property ? property.ownerId === user?.id : false;
+
+        if (!isGlobalAdmin && !(isPropertyOwner && isOwnerOfThisProperty)) {
+            throw new ForbiddenException('Only the property owner can delete bookings.');
+        }
 
         if (['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status)) {
             throw new BadRequestException('Checked-in bookings cannot be deleted.');
@@ -4042,6 +4074,8 @@ export class BookingsService {
                         user: true,
                     },
                 },
+                payments: true,
+                creditNotes: true,
             },
         });
 
@@ -4082,6 +4116,8 @@ export class BookingsService {
                             user: true,
                         },
                     },
+                    payments: true,
+                    creditNotes: true,
                 },
             });
         }
@@ -4146,6 +4182,8 @@ export class BookingsService {
                         user: true,
                     },
                 },
+                payments: true,
+                creditNotes: true,
             },
         });
 
