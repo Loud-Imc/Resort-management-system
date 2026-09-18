@@ -1057,7 +1057,7 @@ export class PropertiesService {
     async getReadiness(propertyId: string) {
         const property = await this.prisma.property.findUnique({
             where: { id: propertyId },
-            select: { id: true, latitude: true, longitude: true, coverImage: true, images: true }
+            select: { id: true, latitude: true, longitude: true, coverImage: true, images: true, defaultCancellationPolicyId: true }
         });
 
         if (!property) throw new NotFoundException('Property not found');
@@ -1065,18 +1065,28 @@ export class PropertiesService {
         const hasCoordinates = !!property.latitude && !!property.longitude;
         const hasImages = !!property.coverImage && property.images.length > 0;
 
-        const [roomTypesCount, roomsCount, policiesCount] = await Promise.all([
+        const [roomTypesCount, roomsCount, policiesCount, roomTypesWithPolicyTextCount] = await Promise.all([
             this.prisma.roomType.count({ where: { propertyId } }),
             this.prisma.room.count({ where: { propertyId } }),
-            this.prisma.cancellationPolicy.count({ where: { propertyId } })
+            this.prisma.cancellationPolicy.count({ where: { propertyId } }),
+            this.prisma.roomType.count({
+                where: {
+                    propertyId,
+                    cancellationPolicyText: {
+                        not: null
+                    }
+                }
+            })
         ]);
+
+        const hasPolicies = policiesCount > 0 || roomTypesWithPolicyTextCount > 0 || !!property.defaultCancellationPolicyId;
 
         return {
             hasCoordinates,
             hasImages,
             hasRoomTypes: roomTypesCount > 0,
             hasRooms: roomsCount > 0,
-            hasPolicies: policiesCount > 0
+            hasPolicies
         };
     }
 

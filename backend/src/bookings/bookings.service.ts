@@ -2729,7 +2729,7 @@ export class BookingsService {
         const anyBooking = booking as any;
         const applicablePolicy = anyBooking.roomType?.cancellationPolicy || anyBooking.property?.defaultCancellationPolicy;
 
-        let refundPercentage = 100;
+        let refundPercentage = 0; // Default to 0% (zero refund if no policy or only text override is present)
         if (refundPercentageOverride !== undefined && refundPercentageOverride !== null) {
             refundPercentage = Math.max(0, Math.min(100, Number(refundPercentageOverride)));
         } else if (applicablePolicy) {
