@@ -142,7 +142,32 @@ export class RegisterPropertyDto {
     @IsString()
     referredById?: string;
 
+    @IsNotEmpty({ message: 'Platform commission percentage is required' })
+    @IsNumber({}, { message: 'Platform commission must be a valid number' })
+    platformCommission: number;
+
+    // Electronic Agreement fields
     @IsOptional()
-    @IsNumber()
-    platformCommission?: number;
+    @IsBoolean()
+    agreementAccepted?: boolean;
+
+    @IsOptional()
+    @IsString()
+    agreementAcceptedAt?: string;
+
+    @IsOptional()
+    @IsString()
+    agreementVersion?: string;
+
+    @IsOptional()
+    @IsString()
+    agreementDesignation?: string;
+
+    @IsOptional()
+    @IsString()
+    agreementSignatureName?: string;
+
+    @IsOptional()
+    @IsString()
+    agreementAuditId?: string;
 }

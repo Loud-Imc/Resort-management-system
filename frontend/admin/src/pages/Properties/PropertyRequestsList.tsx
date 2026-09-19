@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import {
     Shield, CheckCircle, XCircle, Loader2, Building2, MapPin,
     Phone, Mail, Clock, ChevronDown, ChevronUp, User, FileText,
-    Image, Tag, Info, Search, Filter
+    Image, Tag, Info, Search, Filter, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import propertyService from '../../services/properties';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../../utils/dateTime';
 import clsx from 'clsx';
+import AdminAgreementViewerModal from '../../components/AdminAgreementViewerModal';
 
 export default function PropertyRequestsList() {
     const [requests, setRequests] = useState<any[]>([]);
@@ -17,6 +18,7 @@ export default function PropertyRequestsList() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+    const [viewingAgreementData, setViewingAgreementData] = useState<any | null>(null);
 
     useEffect(() => {
         loadRequests();
@@ -34,12 +36,18 @@ export default function PropertyRequestsList() {
         }
     };
 
-    const handleApprove = async (id: string) => {
+    const handleApprove = async (request: any) => {
+        const details = request.details || {};
+        if (details.agreementAccepted !== true) {
+            toast.error('Cannot approve property: The property owner has not accepted the platform agreement yet.');
+            return;
+        }
+
         if (!confirm('Are you sure you want to approve this property? This will create the property, owner account, and roles automatically.')) return;
 
         try {
-            setProcessingId(id);
-            await propertyService.approveRequest(id);
+            setProcessingId(request.id);
+            await propertyService.approveRequest(request.id);
             toast.success('Property approved and onboarded successfully!');
             loadRequests();
         } catch (err: any) {
@@ -186,6 +194,52 @@ export default function PropertyRequestsList() {
                                     </div>
 
                                     <div className="flex items-center gap-3 shrink-0">
+                                        {/* Agreement Status Badge */}
+                                        {request.details?.agreementAccepted ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setViewingAgreementData({
+                                                    propertyName: request.name,
+                                                    propertyType: details.propertyType,
+                                                    address: details.address || request.location,
+                                                    city: details.city || '',
+                                                    state: details.state || '',
+                                                    country: details.country || 'India',
+                                                    pincode: details.pincode || '',
+                                                    propertyEmail: details.propertyEmail || request.ownerEmail,
+                                                    propertyPhone: details.propertyPhone || request.ownerPhone,
+                                                    ownerFirstName: details.ownerFirstName || request.name,
+                                                    ownerLastName: details.ownerLastName || '',
+                                                    ownerEmail: request.ownerEmail,
+                                                    ownerPhone: request.ownerPhone,
+                                                    platformCommission: details.platformCommission || 10,
+                                                    gstNumber: details.gstNumber,
+                                                    isGstApplicable: details.isGstApplicable,
+                                                    ownerAadhaarNumber: details.ownerAadhaarNumber,
+                                                    requestId: request.id,
+                                                    agreementAccepted: details.agreementAccepted,
+                                                    agreementAcceptedAt: details.agreementAcceptedAt,
+                                                    agreementVersion: details.agreementVersion,
+                                                    agreementDesignation: details.agreementDesignation,
+                                                    agreementSignatureName: details.agreementSignatureName,
+                                                    agreementAuditId: details.agreementAuditId
+                                                })}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors cursor-pointer"
+                                                title="View Signed Agreement"
+                                            >
+                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                                <span>✓ Agreement Signed</span>
+                                            </button>
+                                        ) : (
+                                            <span 
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg"
+                                                title="Property owner has not yet electronically accepted the listing agreement"
+                                            >
+                                                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                                                <span>Agreement Pending</span>
+                                            </span>
+                                        )}
+
                                         <span className={clsx(
                                             "px-2.5 py-1 text-xs font-bold rounded-lg shadow-sm uppercase tracking-wider",
                                             request.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
@@ -203,17 +257,25 @@ export default function PropertyRequestsList() {
                                         {request.status === 'PENDING' && (
                                             <div className="flex gap-1.5">
                                                 <button
-                                                    onClick={() => handleApprove(request.id)}
-                                                    disabled={processingId === request.id}
-                                                    className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50"
-                                                    title="Approve &amp; Onboard"
+                                                    onClick={() => handleApprove(request)}
+                                                    disabled={processingId === request.id || !request.details?.agreementAccepted}
+                                                    className={`p-2 rounded-lg transition-colors shadow-sm ${
+                                                        request.details?.agreementAccepted 
+                                                            ? 'bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer' 
+                                                            : 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed opacity-60'
+                                                    }`}
+                                                    title={
+                                                        request.details?.agreementAccepted 
+                                                            ? 'Approve & Onboard' 
+                                                            : 'Cannot approve: Agreement has not been accepted by property owner'
+                                                    }
                                                 >
                                                     {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                                                 </button>
                                                 <button
                                                     onClick={() => handleReject(request.id)}
                                                     disabled={processingId === request.id}
-                                                    className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50"
+                                                    className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                                                     title="Reject Request"
                                                 >
                                                     {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
@@ -223,7 +285,7 @@ export default function PropertyRequestsList() {
 
                                         <button
                                             onClick={() => toggleExpand(request.id)}
-                                            className="p-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                                            className="p-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors cursor-pointer"
                                             title={isExpanded ? 'Collapse' : 'View Details'}
                                         >
                                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -422,6 +484,73 @@ export default function PropertyRequestsList() {
                                             </div>
                                         </div>
 
+                                        {/* Electronic Agreement Section */}
+                                        <div className={`p-4 rounded-xl border ${
+                                            details.agreementAccepted 
+                                                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' 
+                                                : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
+                                        }`}>
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="flex items-start gap-3">
+                                                    {details.agreementAccepted ? (
+                                                        <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                                                    ) : (
+                                                        <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                                                    )}
+                                                    <div>
+                                                        <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                                                            Property Listing &amp; Platform Services Agreement
+                                                        </h4>
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            {details.agreementAccepted ? (
+                                                                <>
+                                                                    Electronically accepted ({details.agreementVersion || 'v1.0'}) by <strong className="text-foreground">{details.agreementSignatureName || details.ownerFirstName}</strong> ({details.agreementDesignation || 'Owner'}) on {details.agreementAcceptedAt ? formatDateTime(details.agreementAcceptedAt) : 'Registration'}.
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                                                                    ⚠️ The property owner has not accepted the platform agreement yet. Approval is locked until signed.
+                                                                </span>
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setViewingAgreementData({
+                                                        propertyName: request.name,
+                                                        propertyType: details.propertyType,
+                                                        address: details.address || request.location,
+                                                        city: details.city || '',
+                                                        state: details.state || '',
+                                                        country: details.country || 'India',
+                                                        pincode: details.pincode || '',
+                                                        propertyEmail: details.propertyEmail || request.ownerEmail,
+                                                        propertyPhone: details.propertyPhone || request.ownerPhone,
+                                                        ownerFirstName: details.ownerFirstName || request.name,
+                                                        ownerLastName: details.ownerLastName || '',
+                                                        ownerEmail: request.ownerEmail,
+                                                        ownerPhone: request.ownerPhone,
+                                                        platformCommission: details.platformCommission || 10,
+                                                        gstNumber: details.gstNumber,
+                                                        isGstApplicable: details.isGstApplicable,
+                                                        ownerAadhaarNumber: details.ownerAadhaarNumber,
+                                                        requestId: request.id,
+                                                        agreementAccepted: details.agreementAccepted,
+                                                        agreementAcceptedAt: details.agreementAcceptedAt,
+                                                        agreementVersion: details.agreementVersion,
+                                                        agreementDesignation: details.agreementDesignation,
+                                                        agreementSignatureName: details.agreementSignatureName,
+                                                        agreementAuditId: details.agreementAuditId
+                                                    })}
+                                                    className="px-3 py-1.5 text-xs font-bold bg-background hover:bg-muted border border-border text-foreground rounded-lg transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+                                                >
+                                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                                    <span>View Full Agreement</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         {/* Rejection Reason (if rejected) */}
                                         {request.status === 'REJECTED' && request.reason && (
                                             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -439,6 +568,13 @@ export default function PropertyRequestsList() {
                     })
                 )}
             </div>
+
+            {/* Admin Signed Agreement Modal Viewer */}
+            <AdminAgreementViewerModal
+                isOpen={!!viewingAgreementData}
+                onClose={() => setViewingAgreementData(null)}
+                data={viewingAgreementData || {}}
+            />
         </div>
     );
 }

@@ -26,7 +26,7 @@ export interface RegistrationDraftData {
         googleMapsLink: string;
         latitude: string;
         longitude: string;
-        platformCommission: number;
+        platformCommission: number | string;
     };
     step: number;
     isPhoneVerified: boolean;

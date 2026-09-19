@@ -3,11 +3,16 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🔄 Starting image URL migration from routeguide -> myoreedu...');
+  console.log('🔄 Starting image URL migration to api.oreedu.com...');
 
   const replaceDomain = (url?: string | null) => {
     if (!url) return url;
-    return url.replace(/routeguide\.in/g, 'myoreedu.com').replace(/myrouteguide\.com/g, 'myoreedu.com');
+    return url
+      .replace(/https?:\/\/(api\.)?myoreedu\.com/g, 'https://api.oreedu.com')
+      .replace(/https?:\/\/(api\.)?routeguide\.in/g, 'https://api.oreedu.com')
+      .replace(/https?:\/\/(api\.)?myrouteguide\.com/g, 'https://api.oreedu.com')
+      .replace(/https?:\/\/oreedu\.com\/uploads/g, 'https://api.oreedu.com/uploads')
+      .replace(/https?:\/\/localhost:\d+\/uploads/g, 'https://api.oreedu.com/uploads');
   };
 
   const replaceArray = (arr?: string[]) => {
@@ -60,7 +65,7 @@ async function main() {
   const users = await prisma.user.findMany({});
   let userUpdated = 0;
   for (const user of users) {
-    if (user.avatar && (user.avatar.includes('routeguide') || user.avatar.includes('myrouteguide'))) {
+    if (user.avatar) {
       await prisma.user.update({
         where: { id: user.id },
         data: { avatar: replaceDomain(user.avatar) },
@@ -70,7 +75,43 @@ async function main() {
   }
   console.log(`✅ Updated ${userUpdated} user avatars.`);
 
-  console.log('🎉 Image URL migration complete!');
+  // 4. Update Banners
+  try {
+    const banners = await prisma.banner.findMany({});
+    let bannerUpdated = 0;
+    for (const banner of banners) {
+      if (banner.imageUrl) {
+        await prisma.banner.update({
+          where: { id: banner.id },
+          data: { imageUrl: replaceDomain(banner.imageUrl)! },
+        });
+        bannerUpdated++;
+      }
+    }
+    console.log(`✅ Updated ${bannerUpdated} banners.`);
+  } catch (e) {
+    // Banner table optional
+  }
+
+  // 5. Update Property Requests (if any)
+  try {
+    const requests = await prisma.propertyRequest.findMany({});
+    let reqUpdated = 0;
+    for (const req of requests) {
+      await prisma.propertyRequest.update({
+        where: { id: req.id },
+        data: {
+          coverImage: replaceDomain(req.coverImage),
+          images: replaceArray(req.images),
+          documents: replaceArray(req.documents),
+        },
+      });
+      reqUpdated++;
+    }
+    console.log(`✅ Updated ${reqUpdated} property requests.`);
+  } catch (e) {}
+
+  console.log('🎉 Image URL migration complete! All image URLs point to https://api.oreedu.com');
 }
 
 main()

@@ -18,6 +18,7 @@ import {
     isDraftMeaningful 
 } from '../utils/registrationDraft';
 import { parseMapUrl, isShortOrExpandableMapLink } from '../utils/mapsLinkParser';
+import PropertyAgreementModal, { type AgreementAcceptancePayload } from '../components/PropertyAgreementModal';
 
 const mapSlugToPropertyType = (slug: string): string => {
     const s = slug.toUpperCase();
@@ -58,7 +59,7 @@ const initialFormData = {
     googleMapsLink: '',
     latitude: '',
     longitude: '',
-    platformCommission: 10
+    platformCommission: '' as string | number
 };
 
 export default function Register() {
@@ -68,6 +69,7 @@ export default function Register() {
     const [step, setStep] = useState(1);
     const [showPassword, setShowPassword] = useState(false);
     const [isExtractingCoords, setIsExtractingCoords] = useState(false);
+    const [showAgreementModal, setShowAgreementModal] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const scrollToField = (fieldName: string) => {
@@ -660,6 +662,14 @@ export default function Register() {
         if (!formData.propertyPhone?.trim()) {
             errs.propertyPhone = 'Property phone is required';
         }
+        if (formData.platformCommission === '' || formData.platformCommission === undefined || formData.platformCommission === null) {
+            errs.platformCommission = 'Platform commission percentage is required';
+        } else {
+            const commNum = Number(formData.platformCommission);
+            if (isNaN(commNum) || commNum < 0 || commNum > 100) {
+                errs.platformCommission = 'Please enter a valid commission percentage between 0 and 100';
+            }
+        }
         if (!SKIP_COMMISSION_OTP && !isCommissionVerified) {
             errs.platformCommission = 'Please verify platform commission via OTP';
         }
@@ -778,6 +788,11 @@ export default function Register() {
             return;
         }
 
+        // Open Agreement Review Modal
+        setShowAgreementModal(true);
+    };
+
+    const submitRegistration = async (agreementData: AgreementAcceptancePayload) => {
         setIsLoading(true);
         try {
             // Format phone numbers to include country code for backend validation
@@ -795,12 +810,26 @@ export default function Register() {
                 existingOwnerId: selectedExistingOwner?.id || undefined,
                 ownerPassword: formData.ownerPassword,
                 documentDetails: Object.keys(documentExpiry).length > 0 ? documentExpiry : undefined,
+                // Electronic Agreement fields
+                agreementAccepted: agreementData.agreementAccepted,
+                agreementAcceptedAt: agreementData.agreementAcceptedAt,
+                agreementVersion: agreementData.agreementVersion,
+                agreementDesignation: agreementData.agreementDesignation,
+                agreementSignatureName: agreementData.agreementSignatureName,
+                agreementAuditId: agreementData.agreementAuditId
             };
 
             await registerProperty(formattedData);
+            setShowAgreementModal(false);
             clearRegistrationDraft();
             setRestoredDraftInfo(null);
-            toast.success('Registration successful! Property is pending approval.');
+            
+            if (agreementData.agreementAccepted) {
+                toast.success('Registration and Agreement submitted successfully! Property is pending approval.');
+            } else {
+                toast.success('Registration submitted! Note: Agreement must be accepted in PMS for admin approval.');
+            }
+
             navigate('/login', {
                 state: {
                     message: 'Registration successful! Your property is being reviewed by our team. Please sign in to manage your details.'
@@ -1600,7 +1629,7 @@ export default function Register() {
 
                                 <div id="field-platformCommission" className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="col-span-2 md:col-span-1">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Platform Commission (%)</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Platform Commission (%) <span className="text-red-500">*</span></label>
                                         <div className="flex gap-2">
                                             <div className="relative flex-1">
                                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1621,7 +1650,7 @@ export default function Register() {
                                                             ? 'border-red-500 focus:ring-red-500 bg-red-50/20' 
                                                             : (isCommissionVerified ? 'bg-green-50 border-green-200 focus:ring-primary-500' : 'border-gray-200 focus:ring-primary-500')
                                                     }`}
-                                                    placeholder="10.00"
+                                                    placeholder="e.g. 15.00"
                                                 />
                                                 {isCommissionVerified && (
                                                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -1941,6 +1970,36 @@ export default function Register() {
                     &copy; {new Date().getFullYear()} Oreedu Property Management. All rights reserved.
                 </p>
             </div>
+
+            {/* Agreement Review Modal */}
+            <PropertyAgreementModal
+                isOpen={showAgreementModal}
+                onClose={() => setShowAgreementModal(false)}
+                mode="registration"
+                data={{
+                    propertyName: formData.propertyName,
+                    propertyType: formData.propertyType,
+                    categoryName: categories.find(c => c.id === formData.categoryId)?.name,
+                    address: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    country: formData.country || 'India',
+                    pincode: formData.pincode,
+                    propertyEmail: formData.propertyEmail,
+                    propertyPhone: formData.propertyPhone,
+                    ownerFirstName: formData.ownerFirstName,
+                    ownerLastName: formData.ownerLastName,
+                    ownerEmail: formData.ownerEmail,
+                    ownerPhone: formData.ownerPhone,
+                    platformCommission: formData.platformCommission,
+                    gstNumber: formData.gstNumber,
+                    isGstApplicable: formData.isGstApplicable,
+                    ownerAadhaarNumber: formData.ownerAadhaarNumber
+                }}
+                onAgree={submitRegistration}
+                onDecline={submitRegistration}
+                isSubmitting={isLoading}
+            />
         </div>
     );
 }
