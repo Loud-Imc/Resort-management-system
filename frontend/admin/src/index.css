@@ -66,3 +66,21 @@ input[type=number] {
     color: hsl(var(--foreground));
   }
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    zoom: 1 !important;
+  }
+  
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .print\:hidden,
+  button {
+    display: none !important;
+  }
+}

@@ -52,9 +52,12 @@ function App() {
         <CurrencyProvider>
           <BrowserRouter>
             <ScrollToTop />
+            <Toaster position="top-center" reverseOrder={false} />
             <Routes>
               <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
               <Route path="/terms" element={<Layout><Terms /></Layout>} />
+              <Route path="/delete" element={<Layout><DeleteAccount /></Layout>} />
+              <Route path="/delete-account" element={<Layout><DeleteAccount /></Layout>} />
               <Route path="*" element={<ComingSoon />} />
             </Routes>
           </BrowserRouter>
@@ -90,6 +93,7 @@ function App() {
                 <Route path="/my-bookings" element={<Navigate to="/profile?tab=bookings" replace />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/delete" element={<DeleteAccount />} />
                 <Route path="/delete-account" element={<DeleteAccount />} />
                 <Route path="/partner/dashboard" element={<PartnerDashboard />} />
                 <Route path="/rooms" element={<Navigate to="/search" replace />} />

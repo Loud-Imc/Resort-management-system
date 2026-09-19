@@ -249,6 +249,10 @@ export class PropertiesService {
             throw new BadRequestException('Cannot approve: Missing owner contact details.');
         }
 
+        if (details.agreementAccepted !== true) {
+            throw new BadRequestException('Cannot approve property: The property owner has not accepted the platform agreement yet.');
+        }
+
         // Finalize the creation
         return this.prisma.$transaction(async (tx) => {
             // 1. Find Owner — use the user who submitted the request first,
@@ -311,7 +315,15 @@ export class PropertiesService {
                     amenities: details.amenities || [],
                     licenceImage: details.licenceImage || null,
                     documents: details.documents || [],
-                    documentDetails: details.documentDetails || null,
+                    documentDetails: {
+                        ...(details.documentDetails || {}),
+                        agreementAccepted: true,
+                        agreementAcceptedAt: details.agreementAcceptedAt || new Date().toISOString(),
+                        agreementVersion: details.agreementVersion || 'v1.0',
+                        agreementDesignation: details.agreementDesignation || 'Authorized Representative',
+                        agreementSignatureName: details.agreementSignatureName || `${details.ownerFirstName || ''} ${details.ownerLastName || ''}`.trim(),
+                        agreementAuditId: details.agreementAuditId || null
+                    },
                     isGstApplicable: details.isGstApplicable !== undefined ? Boolean(details.isGstApplicable) : Boolean(details.gstNumber && details.gstNumber.trim()),
                     gstNumber: details.gstNumber || null,
                     ownerAadhaarNumber: details.ownerAadhaarNumber || null,
@@ -845,6 +857,12 @@ export class PropertiesService {
                 referredById: dto.referredById || null, // Capture referrer
                 details: {
                     ...dto,
+                    agreementAccepted: Boolean(dto.agreementAccepted),
+                    agreementAcceptedAt: dto.agreementAccepted ? (dto.agreementAcceptedAt || new Date().toISOString()) : null,
+                    agreementVersion: dto.agreementVersion || 'v1.0',
+                    agreementDesignation: dto.agreementDesignation || '',
+                    agreementSignatureName: dto.agreementSignatureName || `${dto.ownerFirstName} ${dto.ownerLastName || ''}`.trim(),
+                    agreementAuditId: dto.agreementAuditId || null,
                     ownerPassword: undefined // Never store raw password
                 }
             }

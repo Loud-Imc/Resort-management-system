@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService } from '../services/reports';
-import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle, CheckSquare, Check, CheckCircle2 } from 'lucide-react';
+import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle, CheckSquare, Check, CheckCircle2, FileText, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
@@ -10,6 +10,9 @@ import GuestDetailsModal from '../components/Rooms/GuestDetailsModal';
 import FinancialDetailsModal from '../components/Reports/FinancialDetailsModal';
 import BlockRoomModal from '../components/Rooms/BlockRoomModal';
 import RoomScheduleModal from '../components/Rooms/RoomScheduleModal';
+import PropertyAgreementModal, { type AgreementAcceptancePayload } from '../components/PropertyAgreementModal';
+import api from '../services/api';
+import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
 import { useNavigation } from '../hooks/useNavigation';
@@ -32,7 +35,7 @@ function formatTime12Hour(time24?: string | null): string {
 }
 
 export default function DashboardHome() {
-    const { selectedProperty } = useProperty();
+    const { selectedProperty, refreshProperties } = useProperty();
     const navigate = useNavigate();
     const { navItems, hasPermission } = useNavigation();
 
@@ -54,6 +57,37 @@ export default function DashboardHome() {
     const [isHistoricalModalOpen, setIsHistoricalModalOpen] = useState(false);
     const [historicalRoomId, setHistoricalRoomId] = useState<string>('');
     const [historicalRoomNumber, setHistoricalRoomNumber] = useState('');
+
+    // PMS Agreement Modal states
+    const [isAgreementModalOpen, setIsAgreementModalOpen] = useState(false);
+    const [isSigningAgreement, setIsSigningAgreement] = useState(false);
+
+    const details = (selectedProperty as any)?.details || (selectedProperty as any)?.documentDetails || {};
+    const isAgreementAccepted = details?.agreementAccepted === true;
+
+    const handlePmsAcceptAgreement = async (payload: AgreementAcceptancePayload) => {
+        setIsSigningAgreement(true);
+        try {
+            if (selectedProperty?.id) {
+                await api.patch(`/properties/requests/${selectedProperty.id}/my`, {
+                    agreementAccepted: payload.agreementAccepted,
+                    agreementAcceptedAt: payload.agreementAcceptedAt,
+                    agreementVersion: payload.agreementVersion,
+                    agreementDesignation: payload.agreementDesignation,
+                    agreementSignatureName: payload.agreementSignatureName,
+                    agreementAuditId: payload.agreementAuditId
+                });
+            }
+            toast.success('Agreement successfully accepted! Your property can now be approved by the admin.');
+            setIsAgreementModalOpen(false);
+            if (refreshProperties) await refreshProperties();
+        } catch (error: any) {
+            console.error('Failed to accept agreement:', error);
+            toast.error(error.response?.data?.message || 'Failed to submit agreement acceptance');
+        } finally {
+            setIsSigningAgreement(false);
+        }
+    };
 
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [detailsType, setDetailsType] = useState<'REVENUE' | 'BOOKINGS' | null>(null);
@@ -212,25 +246,99 @@ export default function DashboardHome() {
     }
 
     if (selectedProperty && selectedProperty.status !== 'APPROVED') {
+        const propDetails = (selectedProperty as any)?.details || (selectedProperty as any)?.documentDetails || {};
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
-                <div className="bg-white dark:bg-gray-800 p-12 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 max-w-xl w-full">
+                <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 max-w-xl w-full">
                     <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <Clock className="h-10 w-10 text-amber-500" />
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
                         {selectedProperty.status === 'PENDING' ? 'Registration Pending' : 'Property Inactive'}
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-lg leading-relaxed mb-8">
+                    <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base leading-relaxed mb-6">
                         {selectedProperty.status === 'PENDING'
                             ? "Your property registration is currently under review by our admin team. You'll be able to manage your rooms and bookings once it's approved."
                             : "This property is currently inactive. Please contact the administrator to re-enable it."}
                     </p>
-                    <div className="inline-flex items-center gap-3 px-6 py-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-200 dark:border-amber-800 font-bold">
+
+                    <div className="inline-flex items-center gap-3 px-6 py-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-200 dark:border-amber-800 font-bold text-sm">
                         <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                         Status: {selectedProperty.status}
                     </div>
+
+                    {/* Agreement Status Action Box */}
+                    {selectedProperty.status === 'PENDING' && (
+                        <div className="mt-8">
+                            {!isAgreementAccepted ? (
+                                <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20 border-2 border-amber-300 dark:border-amber-800 rounded-2xl text-left space-y-3 shadow-sm">
+                                    <div className="flex items-start gap-3">
+                                        <ShieldAlert className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <h3 className="text-sm font-bold text-amber-950 dark:text-amber-200">
+                                                Action Required: Sign Listing Agreement
+                                            </h3>
+                                            <p className="text-xs text-amber-800 dark:text-amber-300 mt-1 leading-relaxed">
+                                                The Oreedu Property Listing & Platform Services Agreement has not been accepted yet. Platform administrators require your electronic acceptance before approving and activating your listing.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end pt-2 border-t border-amber-200 dark:border-amber-800/60">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAgreementModalOpen(true)}
+                                            className="px-4 py-2.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-all shadow-md shadow-primary-600/20 flex items-center gap-2 cursor-pointer"
+                                        >
+                                            <FileText className="h-4 w-4" /> Review &amp; Sign Agreement Now
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-start gap-3 text-left">
+                                    <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200">
+                                            ✓ Agreement Accepted ({propDetails.agreementVersion || 'v1.0'})
+                                        </p>
+                                        <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5 leading-relaxed">
+                                            Signed by {propDetails.agreementSignatureName || 'Authorized Signatory'} ({propDetails.agreementDesignation || 'Owner'}). Your property is ready for final Admin Approval.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
+
+                {/* Agreement Modal in PMS Mode */}
+                <PropertyAgreementModal
+                    isOpen={isAgreementModalOpen}
+                    onClose={() => setIsAgreementModalOpen(false)}
+                    mode="pms"
+                    data={{
+                        propertyName: selectedProperty.name,
+                        propertyType: selectedProperty.type || propDetails.propertyType,
+                        categoryName: (selectedProperty as any).category?.name || propDetails.categoryName,
+                        address: selectedProperty.address || propDetails.address || '',
+                        city: selectedProperty.city || propDetails.city || '',
+                        state: selectedProperty.state || propDetails.state || '',
+                        country: selectedProperty.country || propDetails.country || 'India',
+                        pincode: selectedProperty.pincode || propDetails.pincode || '',
+                        propertyEmail: selectedProperty.email || propDetails.propertyEmail || '',
+                        propertyPhone: selectedProperty.phone || propDetails.propertyPhone || '',
+                        ownerFirstName: propDetails.ownerFirstName || selectedProperty.name,
+                        ownerLastName: propDetails.ownerLastName || '',
+                        ownerEmail: propDetails.ownerEmail || selectedProperty.email || '',
+                        ownerPhone: propDetails.ownerPhone || selectedProperty.phone || '',
+                        platformCommission: propDetails.platformCommission || (selectedProperty as any).platformCommission || 10,
+                        gstNumber: selectedProperty.gstNumber || propDetails.gstNumber,
+                        isGstApplicable: selectedProperty.isGstApplicable || propDetails.isGstApplicable,
+                        ownerAadhaarNumber: (selectedProperty as any).ownerAadhaarNumber || propDetails.ownerAadhaarNumber,
+                        requestId: selectedProperty.id
+                    }}
+                    onAgree={handlePmsAcceptAgreement}
+                    isSubmitting={isSigningAgreement}
+                />
             </div>
         );
     }

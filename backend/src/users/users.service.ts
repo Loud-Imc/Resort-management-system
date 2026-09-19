@@ -96,40 +96,23 @@ export class UsersService {
         }
 
         const normalizedPhone = createUserDto.phone ? normalizePhone(createUserDto.phone) : undefined;
-        const existingUser = await this.prisma.user.findFirst({
-            where: {
-                OR: [
-                    { email: createUserDto.email },
-                    ...(normalizedPhone ? [{ phone: normalizedPhone }] : [])
-                ]
-            },
-            include: { roles: true }
+
+        // Check if email already exists
+        const existingEmail = await this.prisma.user.findUnique({
+            where: { email: createUserDto.email }
         });
+        if (existingEmail) {
+            throw new ConflictException('A user with this email already exists');
+        }
 
-        if (existingUser) {
-            const currentRoleIds = existingUser.roles.map(r => r.roleId);
-            const rolesToAdd = roleIds?.filter(rid => !currentRoleIds.includes(rid)) || [];
-
-            const updateData: any = { ...userData };
-            if (password) {
-                updateData.password = await bcrypt.hash(password, 10);
-            }
-            if (rolesToAdd.length > 0) {
-                updateData.roles = {
-                    create: rolesToAdd.map(roleId => ({
-                        role: { connect: { id: roleId } }
-                    }))
-                };
-            }
-
-            const updatedUser = await this.prisma.user.update({
-                where: { id: existingUser.id },
-                data: updateData,
-                include: { roles: { include: { role: true } } }
+        // Check if phone already exists
+        if (normalizedPhone) {
+            const existingPhone = await this.prisma.user.findUnique({
+                where: { phone: normalizedPhone }
             });
-
-            const { password: _, ...result } = updatedUser as any;
-            return result;
+            if (existingPhone) {
+                throw new ConflictException('A user with this phone number already exists');
+            }
         }
 
         try {
@@ -155,9 +138,16 @@ export class UsersService {
 
             const { password: _, ...result } = user;
             return result;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating user:', error);
             if (error instanceof ConflictException || error instanceof ForbiddenException) throw error;
+            if (error?.code === 'P2002' || error?.message?.includes('Unique constraint')) {
+                const target = error?.meta?.target;
+                if ((typeof target === 'string' && target.includes('phone')) || (Array.isArray(target) && target.includes('phone'))) {
+                    throw new ConflictException('A user with this phone number already exists');
+                }
+                throw new ConflictException('A user with this email already exists');
+            }
             throw error;
         }
     }
