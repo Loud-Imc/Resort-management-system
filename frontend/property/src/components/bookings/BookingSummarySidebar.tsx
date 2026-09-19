@@ -210,7 +210,11 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         {/* Taxes / GST */}
                         {!isInclusive && details.taxAmount > 0 && (
                             <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground font-medium">GST ({details.taxRate}%)</span>
+                                <span className="text-muted-foreground font-medium">
+                                    {details.taxRate === 5 || details.taxRate === 18
+                                        ? `GST (${details.taxRate}%)`
+                                        : 'Taxes & GST (Dynamic 5% / 18% Per Room)'}
+                                </span>
                                 <span className="font-semibold text-foreground">+₹{details.taxAmount.toFixed(2)}</span>
                             </div>
                         )}
@@ -236,7 +240,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         )}
 
                         {/* Tax Slab Transition Notice */}
-                        {originalPriceDetails && originalPriceDetails.taxRate !== details.taxRate && details.taxRate > 0 && (
+                        {originalPriceDetails && originalPriceDetails.taxRate !== details.taxRate && (details.taxRate === 5 || details.taxRate === 18) && (
                             <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[11px] text-blue-700 dark:text-blue-300">
                                 <span className="font-bold">GST Slab Adjusted:</span> Rate lowered from {originalPriceDetails.taxRate}% to {details.taxRate}% (Net tariff &le; ₹7,500/night).
                             </div>
@@ -314,7 +318,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 </span>
                                 {isInclusive && details.taxAmount > 0 && !overrideTotal && (
                                     <span className="text-[10px] text-emerald-600 font-semibold block">
-                                        Includes ₹{details.taxAmount.toFixed(2)} GST ({details.taxRate}%)
+                                        Includes ₹{details.taxAmount.toFixed(2)} GST {details.taxRate === 5 || details.taxRate === 18 ? `(${details.taxRate}%)` : '(Dynamic 5% / 18% Per Room)'}
                                     </span>
                                 )}
                             </div>

@@ -955,7 +955,11 @@ export default function Checkout() {
                                     {!effectivePricing?.isGstInclusive && (effectivePricing?.taxAmount || 0) > 0 && (
                                         <div className="flex justify-between text-sm group relative pt-2">
                                             <div className="flex items-center gap-1.5 text-gray-600">
-                                                <span>Taxes & GST ({effectivePricing.taxRate}%)</span>
+                                                <span>
+                                                    {effectivePricing.taxRate === 5 || effectivePricing.taxRate === 18
+                                                        ? `Taxes & GST (${effectivePricing.taxRate}%)`
+                                                        : 'Taxes & GST (Dynamic 5% / 18% Per Room)'}
+                                                </span>
                                                 <div className="group/info relative">
                                                     <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
                                                     <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-[10px] text-white rounded-lg opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
@@ -972,7 +976,7 @@ export default function Checkout() {
                                             <span className="text-lg font-bold text-gray-900">Total</span>
                                             {effectivePricing?.isGstInclusive && (effectivePricing?.taxAmount || 0) > 0 && (
                                                 <span className="text-[11px] text-emerald-600 font-semibold tracking-tight block">
-                                                    Includes {formatPrice(effectivePricing.taxAmount, selectedCurrency, rates)} GST ({effectivePricing.taxRate}%)
+                                                    Includes {formatPrice(effectivePricing.taxAmount, selectedCurrency, rates)} GST {effectivePricing.taxRate === 5 || effectivePricing.taxRate === 18 ? `(${effectivePricing.taxRate}%)` : '(Dynamic 5% / 18%)'}
                                                 </span>
                                             )}
                                         </div>
