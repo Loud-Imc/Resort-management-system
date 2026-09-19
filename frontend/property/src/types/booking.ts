@@ -269,4 +269,17 @@ export interface PriceCalculationResult {
     taxRate: number;
     appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
     referralPartnerId?: string;
+    roomBreakdown?: {
+        roomTypeId: string;
+        adults: number;
+        children: number;
+        infants: number;
+        baseAmount: number;
+        discountAmount: number;
+        netBaseAmount?: number;
+        taxAmount: number;
+        taxRate: number;
+        totalAmount: number;
+        pricePerNight: number;
+    }[];
 }

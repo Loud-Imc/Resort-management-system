@@ -149,21 +149,39 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         </div>
                         <p className="text-xs font-black text-foreground">{solTitle}</p>
                         
-                        <div className="space-y-1 pt-1 border-t border-primary/10">
+                        <div className="space-y-1.5 pt-1.5 border-t border-primary/10">
                             {allocatedRooms.map((ar: any, idx: number) => {
                                 const assignedId = solutionRoomAssignments[idx];
                                 const rt = roomTypes?.find(r => r.id === ar.roomTypeId);
                                 const assignedRoom = rt?.rooms?.find((r: any) => r.id === assignedId);
                                 const childAgesStr = ar.childAges && ar.childAges.length > 0 ? ` (${ar.childAges.join(',')})` : '';
 
+                                const rb = details?.roomBreakdown?.[idx];
+                                const roomTaxRate = rb?.taxRate ?? ar?.pricing?.taxRate ?? ((ar.pricePerNight || ar.price || 0) > 7500 ? 18 : 5);
+                                const roomPrice = rb?.totalAmount ?? (ar.totalPrice ? Number(ar.totalPrice) : (ar.price ? Number(ar.price) * nights : 0));
+
                                 return (
-                                    <div key={idx} className="flex items-center justify-between text-[11px] py-0.5 border-b border-border/40 last:border-0">
-                                        <span className="font-semibold text-foreground truncate pr-2">
-                                            R{idx + 1}: {ar.roomTypeName} ({ar.adults}A{ar.children > 0 ? `, ${ar.children}C${childAgesStr}` : ''})
-                                        </span>
-                                        <span className="font-bold text-[9.5px] text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
-                                            {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
-                                        </span>
+                                    <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+                                            <span className="font-semibold text-foreground truncate max-w-[150px] sm:max-w-[170px]" title={`${ar.roomTypeName} (${ar.adults}A${ar.children > 0 ? `, ${ar.children}C` : ''})`}>
+                                                R{idx + 1}: {ar.roomTypeName} <span className="text-muted-foreground font-normal">({ar.adults}A{ar.children > 0 ? `, ${ar.children}C${childAgesStr}` : ''})</span>
+                                            </span>
+                                            <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                                roomTaxRate === 18
+                                                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                            }`}>
+                                                GST {roomTaxRate}%
+                                            </span>
+                                            <span className="font-bold text-[9.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
+                                                {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
+                                            </span>
+                                        </div>
+                                        {roomPrice > 0 && (
+                                            <span className="font-bold text-foreground shrink-0 text-xs text-right">
+                                                ₹{Math.round(roomPrice).toLocaleString()}
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -210,11 +228,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         {/* Taxes / GST */}
                         {!isInclusive && details.taxAmount > 0 && (
                             <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground font-medium">
-                                    {details.taxRate === 5 || details.taxRate === 18
-                                        ? `GST (${details.taxRate}%)`
-                                        : 'Taxes & GST (Dynamic 5% / 18% Per Room)'}
-                                </span>
+                                <span className="text-muted-foreground font-medium">GST</span>
                                 <span className="font-semibold text-foreground">+₹{details.taxAmount.toFixed(2)}</span>
                             </div>
                         )}
@@ -318,7 +332,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 </span>
                                 {isInclusive && details.taxAmount > 0 && !overrideTotal && (
                                     <span className="text-[10px] text-emerald-600 font-semibold block">
-                                        Includes ₹{details.taxAmount.toFixed(2)} GST {details.taxRate === 5 || details.taxRate === 18 ? `(${details.taxRate}%)` : '(Dynamic 5% / 18% Per Room)'}
+                                        Includes ₹{details.taxAmount.toFixed(2)} GST
                                     </span>
                                 )}
                             </div>

@@ -958,7 +958,7 @@ export default function Checkout() {
                                                 <span>
                                                     {effectivePricing.taxRate === 5 || effectivePricing.taxRate === 18
                                                         ? `Taxes & GST (${effectivePricing.taxRate}%)`
-                                                        : 'Taxes & GST (Dynamic 5% / 18% Per Room)'}
+                                                        : 'Taxes & GST'}
                                                 </span>
                                                 <div className="group/info relative">
                                                     <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
@@ -976,7 +976,7 @@ export default function Checkout() {
                                             <span className="text-lg font-bold text-gray-900">Total</span>
                                             {effectivePricing?.isGstInclusive && (effectivePricing?.taxAmount || 0) > 0 && (
                                                 <span className="text-[11px] text-emerald-600 font-semibold tracking-tight block">
-                                                    Includes {formatPrice(effectivePricing.taxAmount, selectedCurrency, rates)} GST {effectivePricing.taxRate === 5 || effectivePricing.taxRate === 18 ? `(${effectivePricing.taxRate}%)` : '(Dynamic 5% / 18%)'}
+                                                    Includes {formatPrice(effectivePricing.taxAmount, selectedCurrency, rates)} GST {effectivePricing.taxRate === 5 || effectivePricing.taxRate === 18 ? `(${effectivePricing.taxRate}%)` : ''}
                                                 </span>
                                             )}
                                         </div>

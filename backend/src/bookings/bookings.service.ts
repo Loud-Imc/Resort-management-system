@@ -97,7 +97,7 @@ export class BookingsService {
 
             if (dto.roomAllocations.length === 1) {
                 const alloc = dto.roomAllocations[0];
-                return this.pricingService.calculatePrice(
+                const singlePrice = await this.pricingService.calculatePrice(
                     alloc.roomTypeId,
                     checkIn,
                     checkOut,
@@ -117,6 +117,24 @@ export class BookingsService {
                     dto.infantsCount || alloc.infants || 0,
                     dto.childAges || alloc.childAges,
                 );
+
+                const singleBreakdown = [{
+                    roomTypeId: alloc.roomTypeId,
+                    adults: alloc.adults,
+                    children: alloc.children || 0,
+                    infants: alloc.infants || 0,
+                    baseAmount: singlePrice.baseAmount,
+                    taxAmount: singlePrice.taxAmount,
+                    taxRate: singlePrice.taxRate,
+                    discountAmount: singlePrice.discountAmount,
+                    totalAmount: singlePrice.totalAmount,
+                    pricePerNight: singlePrice.pricePerNight,
+                }];
+
+                return {
+                    ...singlePrice,
+                    roomBreakdown: singleBreakdown,
+                };
             }
 
             // Multi-room allocation: evaluate coupons and referral codes at aggregate booking level
@@ -220,8 +238,10 @@ export class BookingsService {
             let accumulatedTaxAmount = 0;
             let accumulatedTotalAmount = 0;
             let pricingRef: any = rawAllocPrices[0];
+            const roomBreakdown: any[] = [];
 
             for (let i = 0; i < dto.roomAllocations.length; i++) {
+                const alloc = dto.roomAllocations[i];
                 const rawPrice = rawAllocPrices[i];
                 const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
                 const weight = combinedSubtotal > 0 ? (roomSubtotal / combinedSubtotal) : (1 / dto.roomAllocations.length);
@@ -235,7 +255,10 @@ export class BookingsService {
                 const netTariffPerNight = netRoomSubtotal / numberOfNights;
 
                 let allocTax = 0;
+                let roomTaxRate = 0;
                 if (rawPrice.taxRate > 0 || rawPrice.isGstInclusive !== undefined) {
+                    const applicableTier = this.pricingService.getApplicableTier(netTariffPerNight, gstTiers);
+                    roomTaxRate = applicableTier ? applicableTier.rate : 0;
                     const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
                     allocTax = Number((taxPerNight * numberOfNights).toFixed(2));
                 }
@@ -243,6 +266,20 @@ export class BookingsService {
                 const allocTotal = Number((netRoomSubtotal + allocTax).toFixed(2));
                 accumulatedTaxAmount += allocTax;
                 accumulatedTotalAmount += allocTotal;
+
+                roomBreakdown.push({
+                    roomTypeId: alloc.roomTypeId,
+                    adults: alloc.adults,
+                    children: alloc.children || 0,
+                    infants: alloc.infants || 0,
+                    baseAmount: Number((rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount).toFixed(2)),
+                    discountAmount: Number(allocTotalDiscount.toFixed(2)),
+                    netBaseAmount: Number(netRoomSubtotal.toFixed(2)),
+                    taxAmount: allocTax,
+                    taxRate: roomTaxRate,
+                    totalAmount: allocTotal,
+                    pricePerNight: Number((allocTotal / numberOfNights).toFixed(2)),
+                });
             }
 
             const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
@@ -266,6 +303,7 @@ export class BookingsService {
                 originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
                 originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
                 roomCount: dto.roomAllocations.length,
+                roomBreakdown,
                 appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
                 referralPartnerId: effectiveReferralPartnerId,
             };
@@ -303,6 +341,20 @@ export class BookingsService {
                 result.couponDiscountAmount = 0;
                 result.referralDiscountAmount = 0;
                 result.discountAmount = 0;
+
+                const perRoomBase = Number((result.baseAmount / totalRooms).toFixed(2));
+                const perRoomTax = Number((result.taxAmount / totalRooms).toFixed(2));
+                const perRoomTotal = Number((result.totalAmount / totalRooms).toFixed(2));
+                result.roomBreakdown = (result.roomBreakdown || []).map((rb: any) => ({
+                    ...rb,
+                    baseAmount: perRoomBase,
+                    netBaseAmount: perRoomBase,
+                    taxAmount: perRoomTax,
+                    taxRate: overrideBreakdown.taxRate,
+                    discountAmount: 0,
+                    totalAmount: perRoomTotal,
+                    pricePerNight: Number((perRoomTotal / numberOfNights).toFixed(2)),
+                }));
             }
 
             return result;
@@ -312,7 +364,7 @@ export class BookingsService {
             throw new BadRequestException('Either roomTypeId or roomAllocations must be provided');
         }
 
-        return this.pricingService.calculatePrice(
+        const singlePrice = await this.pricingService.calculatePrice(
             dto.roomTypeId,
             checkIn,
             checkOut,
@@ -332,6 +384,24 @@ export class BookingsService {
             dto.infantsCount || 0,
             dto.childAges,
         );
+
+        const singleBreakdown = [{
+            roomTypeId: dto.roomTypeId,
+            adults: dto.adultsCount || 1,
+            children: dto.childrenCount || 0,
+            infants: dto.infantsCount || 0,
+            baseAmount: singlePrice.baseAmount,
+            taxAmount: singlePrice.taxAmount,
+            taxRate: singlePrice.taxRate,
+            discountAmount: singlePrice.discountAmount,
+            totalAmount: singlePrice.totalAmount,
+            pricePerNight: singlePrice.pricePerNight,
+        }];
+
+        return {
+            ...singlePrice,
+            roomBreakdown: singleBreakdown,
+        };
     }
 
     /**
