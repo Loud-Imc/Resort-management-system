@@ -234,7 +234,8 @@ export class BookingsService {
                 totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
             }
 
-            const gstTiers = await this.systemSettings.getSetting('GST_TIERS') as any[];
+            const isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
+            const gstTiers = isPropertyGstApplicable ? (await this.systemSettings.getSetting('GST_TIERS') as any[]) : [];
             let accumulatedTaxAmount = 0;
             let accumulatedTotalAmount = 0;
             let pricingRef: any = rawAllocPrices[0];
@@ -256,7 +257,7 @@ export class BookingsService {
 
                 let allocTax = 0;
                 let roomTaxRate = 0;
-                if (rawPrice.taxRate > 0 || rawPrice.isGstInclusive !== undefined) {
+                if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
                     const applicableTier = this.pricingService.getApplicableTier(netTariffPerNight, gstTiers);
                     roomTaxRate = applicableTier ? applicableTier.rate : 0;
                     const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
@@ -283,9 +284,9 @@ export class BookingsService {
             }
 
             const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
-            const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
+            const effectiveTaxRate = (isPropertyGstApplicable && totalTaxable > 0 && accumulatedTaxAmount > 0)
                 ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
-                : (pricingRef?.taxRate || 0);
+                : (isPropertyGstApplicable ? (pricingRef?.taxRate || 0) : 0);
 
             const result: any = {
                 ...pricingRef,
@@ -318,7 +319,7 @@ export class BookingsService {
                         numberOfNights,
                         totalRooms,
                         undefined,
-                        true
+                        isPropertyGstApplicable
                     );
                 } else {
                     overrideBreakdown = await this.pricingService.calculateExclusiveGST(
@@ -326,7 +327,7 @@ export class BookingsService {
                         numberOfNights,
                         totalRooms,
                         undefined,
-                        true
+                        isPropertyGstApplicable
                     );
                 }
                 result.baseAmount = overrideBreakdown.baseAmount;

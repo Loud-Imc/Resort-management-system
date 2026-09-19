@@ -157,6 +157,12 @@ export default function CreateBooking() {
     const [promoCodeMessage, setPromoCodeMessage] = useState<string | null>(null);
     const [isPromoCodeError, setIsPromoCodeError] = useState(false);
 
+    // Price Override State
+    const [overrideInputAmount, setOverrideInputAmount] = useState<string>('');
+    const [overrideInputReason, setOverrideInputReason] = useState<string>('');
+    const [isApplyingOverride, setIsApplyingOverride] = useState(false);
+    const [isPriceLoading, setIsPriceLoading] = useState(false);
+
     // Collapsible section toggles
     const [showAdditionalGuests, setShowAdditionalGuests] = useState(false);
     const [showGstDetails, setShowGstDetails] = useState(false);
@@ -1030,55 +1036,77 @@ export default function CreateBooking() {
         }
     };
 
-    const handleOverrideBlur = async () => {
+    const handleApplyOverride = async () => {
+        if (!overrideInputAmount || isNaN(Number(overrideInputAmount)) || Number(overrideInputAmount) <= 0) {
+            toast.error('Please enter a valid override amount.');
+            return;
+        }
         const currentValues = getValues();
-        const overrideTotal = currentValues.overrideTotal;
         const isGroup = currentValues.isGroupBooking;
         const targetRoomTypeId = currentValues.roomTypeId;
         const roomCount = (currentValues.selectedRoomIds || []).length || 1;
+        const overrideAmountNum = Number(overrideInputAmount);
 
-        if (originalPriceDetails) {
-            if (!overrideTotal) {
-                setPriceDetails(originalPriceDetails);
-                return;
-            }
-            try {
-                let solutionAllocations: any[] | undefined = undefined;
-                let overrideRoomTypeId: string | undefined = undefined;
+        setIsApplyingOverride(true);
+        setIsPriceLoading(true);
 
-                if (selectedSolution) {
-                    solutionAllocations = extractSolutionAllocations(selectedSolution);
-                    if (!solutionAllocations || solutionAllocations.length === 0) {
-                        throw new Error('Selected accommodation solution has no valid room allocations.');
-                    }
-                    overrideRoomTypeId = undefined;
-                } else {
-                    overrideRoomTypeId = isGroup ? (availability?.allocationPreview?.[0]?.roomTypeId || targetRoomTypeId) : targetRoomTypeId;
+        try {
+            let solutionAllocations: any[] | undefined = undefined;
+            let overrideRoomTypeId: string | undefined = undefined;
+
+            if (selectedSolution) {
+                solutionAllocations = extractSolutionAllocations(selectedSolution);
+                if (!solutionAllocations || solutionAllocations.length === 0) {
+                    throw new Error('Selected accommodation solution has no valid room allocations.');
                 }
-
-                const priceParams = {
-                    propertyId: selectedProperty?.id,
-                    roomTypeId: overrideRoomTypeId,
-                    roomAllocations: solutionAllocations,
-                    checkInDate: currentValues.checkInDate,
-                    checkOutDate: currentValues.checkOutDate,
-                    adultsCount: Number(currentValues.adultsCount),
-                    childrenCount: Number(currentValues.childrenCount),
-                    extraAdultsCount: Number(currentValues.extraAdultsCount || 0),
-                    extraChildrenCount: Number(currentValues.extraChildrenCount || 0),
-                    isGroupBooking: isGroup,
-                    groupSize: isGroup ? Number(currentValues.groupSize) : undefined,
-                    roomCount,
-                    generalCode: currentValues.appliedCode,
-                    overrideTotal: Number(overrideTotal),
-                    isOverrideInclusive: currentValues.isOverrideInclusive,
-                };
-                const overridePrice = await (bookingsService as any).calculatePrice(priceParams);
-                setPriceDetails(overridePrice);
-            } catch (e) {
-                console.error('Failed to calculate override price', e);
+                overrideRoomTypeId = undefined;
+            } else {
+                overrideRoomTypeId = isGroup ? (availability?.allocationPreview?.[0]?.roomTypeId || targetRoomTypeId) : targetRoomTypeId;
             }
+
+            const priceParams = {
+                propertyId: selectedProperty?.id,
+                roomTypeId: overrideRoomTypeId,
+                roomAllocations: solutionAllocations,
+                checkInDate: currentValues.checkInDate,
+                checkOutDate: currentValues.checkOutDate,
+                adultsCount: Number(currentValues.adultsCount),
+                childrenCount: Number(currentValues.childrenCount),
+                extraAdultsCount: Number(currentValues.extraAdultsCount || 0),
+                extraChildrenCount: Number(currentValues.extraChildrenCount || 0),
+                isGroupBooking: isGroup,
+                groupSize: isGroup ? Number(currentValues.groupSize) : undefined,
+                roomCount,
+                generalCode: currentValues.appliedCode,
+                overrideTotal: overrideAmountNum,
+                isOverrideInclusive: currentValues.isOverrideInclusive ?? true,
+            };
+
+            const overridePrice = await (bookingsService as any).calculatePrice(priceParams);
+            setValue('overrideTotal', overrideAmountNum);
+            setValue('overrideReason', overrideInputReason || 'Custom negotiated rate');
+            setPriceDetails(overridePrice);
+            toast.success(`Override of ₹${overrideAmountNum.toLocaleString()} applied`);
+        } catch (e: any) {
+            console.error('Failed to calculate override price', e);
+            toast.error(e?.response?.data?.message || 'Failed to apply price override');
+        } finally {
+            setIsApplyingOverride(false);
+            setIsPriceLoading(false);
         }
+    };
+
+    const handleRemoveOverride = async () => {
+        setOverrideInputAmount('');
+        setOverrideInputReason('');
+        setValue('overrideTotal', undefined);
+        setValue('overrideReason', undefined);
+        setIsPriceLoading(true);
+        if (originalPriceDetails) {
+            setPriceDetails(originalPriceDetails);
+        }
+        setIsPriceLoading(false);
+        toast.success('Price override removed');
     };
 
     const createBookingMutation = useMutation({
@@ -2467,23 +2495,71 @@ export default function CreateBooking() {
                                                         <label className="block text-xs font-bold text-muted-foreground mb-1">Override Amount (₹)</label>
                                                         <input
                                                             type="number"
-                                                            {...register('overrideTotal', {
-                                                                setValueAs: v => (v === '' || v === undefined || v === null) ? undefined : Number(v),
-                                                                onBlur: handleOverrideBlur
-                                                            })}
+                                                            value={overrideInputAmount}
+                                                            onChange={(e) => setOverrideInputAmount(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleApplyOverride();
+                                                                }
+                                                            }}
                                                             placeholder="Custom total amount"
-                                                            className="w-full border border-input bg-background rounded-lg h-10 px-3 text-xs font-bold"
+                                                            className="w-full border border-input bg-background rounded-lg h-10 px-3 text-xs font-bold focus:ring-1 focus:ring-primary"
                                                         />
                                                     </div>
                                                     <div>
                                                         <label className="block text-xs font-bold text-muted-foreground mb-1">Reason for Override</label>
                                                         <input 
                                                             type="text" 
-                                                            {...register('overrideReason')} 
+                                                            value={overrideInputReason}
+                                                            onChange={(e) => setOverrideInputReason(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleApplyOverride();
+                                                                }
+                                                            }}
                                                             placeholder="Reason for discount/custom rate"
-                                                            className="w-full border border-input bg-background rounded-lg h-10 px-3 text-xs font-medium"
+                                                            className="w-full border border-input bg-background rounded-lg h-10 px-3 text-xs font-medium focus:ring-1 focus:ring-primary"
                                                         />
                                                     </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-2">
+                                                        {watch('overrideTotal') ? (
+                                                            <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                                                                <span>✓ Active: ₹{Number(watch('overrideTotal')).toLocaleString()}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleRemoveOverride}
+                                                                    className="text-destructive hover:underline text-xs ml-1 cursor-pointer font-bold"
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[11px] text-muted-foreground">
+                                                                Enter amount and click Apply to update total
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleApplyOverride}
+                                                        disabled={isApplyingOverride || !overrideInputAmount.trim()}
+                                                        className="px-4 py-2 bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                                                    >
+                                                        {isApplyingOverride ? (
+                                                            <>
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                Applying...
+                                                            </>
+                                                        ) : (
+                                                            'Apply Override'
+                                                        )}
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -2550,6 +2626,7 @@ export default function CreateBooking() {
                         onApplyCode={handleApplyPromoCode}
                         onRemoveCode={handleRemovePromoCode}
                         isApplyingCode={isApplyingPromoCode}
+                        isPriceLoading={isPriceLoading || isApplyingOverride || isApplyingPromoCode}
                         codeMessage={promoCodeMessage}
                         isCodeError={isPromoCodeError}
                     />
@@ -2623,6 +2700,7 @@ export default function CreateBooking() {
                             onApplyCode={handleApplyPromoCode}
                             onRemoveCode={handleRemovePromoCode}
                             isApplyingCode={isApplyingPromoCode}
+                            isPriceLoading={isPriceLoading || isApplyingOverride || isApplyingPromoCode}
                             codeMessage={promoCodeMessage}
                             isCodeError={isPromoCodeError}
                         />

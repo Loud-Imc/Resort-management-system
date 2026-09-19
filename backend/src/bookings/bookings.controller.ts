@@ -71,6 +71,8 @@ export class BookingsController {
             dto.propertyId,
             dto.isAdmin,
             dto.excludeBookingId,
+            effectiveRoomTypeIds,
+            effectiveRoomIds,
         );
 
         const availableCount = await this.availabilityService.getAvailableRoomCount(
@@ -93,6 +95,8 @@ export class BookingsController {
                 dto.groupSize,
                 dto.isAdmin,
                 dto.excludeBookingId,
+                effectiveRoomTypeIds,
+                effectiveRoomIds,
             );
 
             // Fetch ALL available pool rooms for group-side manual selection

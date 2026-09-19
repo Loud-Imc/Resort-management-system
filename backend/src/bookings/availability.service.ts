@@ -33,6 +33,8 @@ export class AvailabilityService {
         propertyId?: string,
         includeAllStatus: boolean = false,
         excludeBookingId?: string,
+        filterRoomTypeIds?: string[],
+        filterRoomIds?: string[],
     ): Promise<boolean> {
         if (isGroupBooking && groupSize && propertyId) {
             const allocated = await this.allocateRoomsForGroup(
@@ -41,20 +43,25 @@ export class AvailabilityService {
                 checkOutDate,
                 groupSize,
                 includeAllStatus,
-                excludeBookingId
+                excludeBookingId,
+                filterRoomTypeIds,
+                filterRoomIds,
             );
             return allocated.length > 0;
         }
 
         if (!roomTypeId) return false;
 
-        const availableRooms = await this.getAvailableRooms(
+        let availableRooms = await this.getAvailableRooms(
             roomTypeId,
             checkInDate,
             checkOutDate,
             includeAllStatus,
             excludeBookingId
         );
+        if (filterRoomIds && filterRoomIds.length > 0) {
+            availableRooms = availableRooms.filter(r => filterRoomIds.includes(r.id));
+        }
         return availableRooms.length > 0;
     }
 
@@ -69,12 +76,15 @@ export class AvailabilityService {
         groupSize: number,
         includeAllStatus: boolean = false,
         excludeBookingId?: string,
+        filterRoomTypeIds?: string[],
+        filterRoomIds?: string[],
     ) {
         // Find all RoomTypes in the Group Pool for this property
         const groupPoolTypes = await this.prisma.roomType.findMany({
             where: {
                 propertyId,
                 isAvailableForGroupBooking: true,
+                ...(filterRoomTypeIds && filterRoomTypeIds.length > 0 ? { id: { in: filterRoomTypeIds } } : {}),
             }
         });
 
@@ -85,7 +95,10 @@ export class AvailabilityService {
         // Find all available rooms across these types
         let allAvailableRooms: any[] = [];
         for (const type of groupPoolTypes) {
-            const availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut, includeAllStatus, excludeBookingId);
+            let availableForType = await this.getAvailableRooms(type.id, checkIn, checkOut, includeAllStatus, excludeBookingId);
+            if (filterRoomIds && filterRoomIds.length > 0) {
+                availableForType = availableForType.filter(r => filterRoomIds.includes(r.id));
+            }
             const isV2 = (type as any).totalMaxOccupancy !== null && (type as any).totalMaxOccupancy !== undefined;
             const roomCapacity = isV2
                 ? Number((type as any).totalMaxOccupancy)

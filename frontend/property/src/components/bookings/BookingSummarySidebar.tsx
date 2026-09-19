@@ -29,6 +29,7 @@ interface BookingSummarySidebarProps {
     onApplyCode?: (code: string) => Promise<boolean | void>;
     onRemoveCode?: () => void;
     isApplyingCode?: boolean;
+    isPriceLoading?: boolean;
     codeMessage?: string | null;
     isCodeError?: boolean;
 }
@@ -59,6 +60,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     onApplyCode,
     onRemoveCode,
     isApplyingCode = false,
+    isPriceLoading = false,
     codeMessage,
     isCodeError = false,
 }) => {
@@ -157,29 +159,47 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 const childAgesStr = ar.childAges && ar.childAges.length > 0 ? ` (${ar.childAges.join(',')})` : '';
 
                                 const rb = details?.roomBreakdown?.[idx];
-                                const roomTaxRate = rb?.taxRate ?? ar?.pricing?.taxRate ?? ((ar.pricePerNight || ar.price || 0) > 7500 ? 18 : 5);
-                                const roomPrice = rb?.totalAmount ?? (ar.totalPrice ? Number(ar.totalPrice) : (ar.price ? Number(ar.price) * nights : 0));
+                                const roomBasePerNight = ar?.totalPricePerNight 
+                                    ?? (ar?.basePricePerNight ? (ar.basePricePerNight + (ar.extraAdultChargePerNight || 0) + (ar.extraChildChargePerNight || 0)) : undefined)
+                                    ?? ar?.pricePerNight 
+                                    ?? ar?.price 
+                                    ?? 0;
+
+                                const isGstApplicable = (details?.taxAmount || 0) > 0 || (details?.taxRate || 0) > 0 || Boolean(details?.roomBreakdown && details.roomBreakdown.some(rb => rb.taxRate > 0));
+
+                                const roomTaxRate = rb?.taxRate 
+                                    ?? ar?.pricing?.taxRate 
+                                    ?? (isGstApplicable ? (roomBasePerNight > 7500 ? 18 : 5) : 0);
+
+                                const roomPrice = rb?.totalAmount 
+                                    ?? (ar?.totalPrice ? Number(ar.totalPrice) : (roomBasePerNight > 0 ? (roomBasePerNight * nights * (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0))) : 0));
 
                                 return (
-                                    <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                                    <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border/40 last:border-0">
                                         <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
-                                            <span className="font-semibold text-foreground truncate max-w-[150px] sm:max-w-[170px]" title={`${ar.roomTypeName} (${ar.adults}A${ar.children > 0 ? `, ${ar.children}C` : ''})`}>
+                                            <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[160px]" title={`${ar.roomTypeName} (${ar.adults}A${ar.children > 0 ? `, ${ar.children}C` : ''})`}>
                                                 R{idx + 1}: {ar.roomTypeName} <span className="text-muted-foreground font-normal">({ar.adults}A{ar.children > 0 ? `, ${ar.children}C${childAgesStr}` : ''})</span>
                                             </span>
-                                            <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                                roomTaxRate === 18
-                                                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                                            }`}>
-                                                GST {roomTaxRate}%
-                                            </span>
+                                            {roomTaxRate > 0 && (
+                                                <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                                    roomTaxRate === 18
+                                                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                                                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                                }`}>
+                                                    GST {roomTaxRate}%
+                                                </span>
+                                            )}
                                             <span className="font-bold text-[9.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
                                                 {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
                                             </span>
                                         </div>
                                         {roomPrice > 0 && (
-                                            <span className="font-bold text-foreground shrink-0 text-xs text-right">
-                                                ₹{Math.round(roomPrice).toLocaleString()}
+                                            <span className="font-black text-foreground shrink-0 text-xs text-right pl-1 min-w-[45px] flex items-center justify-end">
+                                                {isPriceLoading ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                                ) : (
+                                                    `₹${Math.round(roomPrice).toLocaleString()}`
+                                                )}
                                             </span>
                                         )}
                                     </div>
@@ -206,8 +226,12 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                             <span className="text-muted-foreground font-medium">
                                 Accommodation ({allocatedRooms.length || 1} Rms × {nights} Nts)
                             </span>
-                            <span className="font-semibold text-foreground">
-                                ₹{(isInclusive ? (details.grossBaseAmount ?? (details.baseAmount + details.taxAmount)) : details.baseAmount).toFixed(2)}
+                            <span className="font-semibold text-foreground flex items-center gap-1">
+                                {isPriceLoading ? (
+                                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                ) : (
+                                    `₹${details.baseAmount.toFixed(2)}`
+                                )}
                             </span>
                         </div>
 
@@ -226,10 +250,16 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         )}
 
                         {/* Taxes / GST */}
-                        {!isInclusive && details.taxAmount > 0 && (
+                        {details.taxAmount > 0 && (
                             <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground font-medium">GST</span>
-                                <span className="font-semibold text-foreground">+₹{details.taxAmount.toFixed(2)}</span>
+                                <span className="font-semibold text-foreground flex items-center gap-1">
+                                    {isPriceLoading ? (
+                                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                    ) : (
+                                        `+₹${details.taxAmount.toFixed(2)}`
+                                    )}
+                                </span>
                             </div>
                         )}
 
@@ -254,9 +284,9 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         )}
 
                         {/* Tax Slab Transition Notice */}
-                        {originalPriceDetails && originalPriceDetails.taxRate !== details.taxRate && (details.taxRate === 5 || details.taxRate === 18) && (
+                        {originalPriceDetails && originalPriceDetails.taxRate === 18 && details.taxRate === 5 && (
                             <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[11px] text-blue-700 dark:text-blue-300">
-                                <span className="font-bold">GST Slab Adjusted:</span> Rate lowered from {originalPriceDetails.taxRate}% to {details.taxRate}% (Net tariff &le; ₹7,500/night).
+                                <span className="font-bold">GST Slab Adjusted:</span> Rate lowered from 18% to 5% (Net tariff &le; ₹7,500/night).
                             </div>
                         )}
 
@@ -330,14 +360,22 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 <span className="font-black text-xs uppercase tracking-wider text-muted-foreground block">
                                     {overrideTotal ? 'Final Override Total' : 'TOTAL'}
                                 </span>
-                                {isInclusive && details.taxAmount > 0 && !overrideTotal && (
+                                {overrideTotal ? (
                                     <span className="text-[10px] text-emerald-600 font-semibold block">
-                                        Includes ₹{details.taxAmount.toFixed(2)} GST
+                                        {isOverrideInclusive ? `Includes ₹${details.taxAmount.toFixed(2)} GST` : `+₹${details.taxAmount.toFixed(2)} GST`}
                                     </span>
-                                )}
+                                ) : (isInclusive && details.taxAmount > 0 && (
+                                    <span className="text-[10px] text-emerald-600 font-semibold block">
+                                        Includes ₹${details.taxAmount.toFixed(2)} GST
+                                    </span>
+                                ))}
                             </div>
-                            <span className="text-xl font-black text-primary tracking-tight">
-                                ₹{finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-xl font-black text-primary tracking-tight flex items-center gap-1.5">
+                                {isPriceLoading ? (
+                                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                ) : (
+                                    `₹${finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                )}
                             </span>
                         </div>
 
