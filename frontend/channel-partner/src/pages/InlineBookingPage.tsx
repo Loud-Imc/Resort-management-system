@@ -602,20 +602,33 @@ const InlineBookingPage: React.FC = () => {
 
         if (!cIn || !cOut) return;
         setIsPricingLoading(true);
-        try {
-            const allocs = selectedSolution?.rooms && selectedSolution.rooms.length > 0
-                ? selectedSolution.rooms.map((r: any) => ({
-                    roomTypeId: r.roomTypeId,
-                    adults: r.adults,
-                    children: r.children || 0,
-                    infants: r.infants || 0,
-                    childAges: r.childAges,
-                }))
-                : undefined;
+        let allocs: any[] | undefined = undefined;
+        let singleRoomTypeId: string | undefined = undefined;
 
+        if (selectedSolution) {
+            const solRooms = selectedSolution.rooms || (selectedSolution as any).allocatedRooms;
+            if (!solRooms || !Array.isArray(solRooms) || solRooms.length === 0) {
+                console.error('Invalid accommodation solution: missing room allocations');
+                setPricing(null);
+                setIsPricingLoading(false);
+                return;
+            }
+            allocs = solRooms.map((r: any) => ({
+                roomTypeId: r.roomTypeId,
+                adults: Number(r.adults) || 1,
+                children: Number(r.children) || 0,
+                infants: Number(r.infants) || 0,
+                childAges: r.childAges,
+            }));
+            singleRoomTypeId = undefined;
+        } else {
+            singleRoomTypeId = room?.id;
+        }
+
+        try {
             const res: any = await api.post('/bookings/calculate-price', {
                 propertyId: selectedProperty?.id,
-                roomTypeId: !allocs ? room?.id : undefined,
+                roomTypeId: singleRoomTypeId,
                 roomAllocations: allocs,
                 checkInDate: cIn,
                 checkOutDate: cOut,

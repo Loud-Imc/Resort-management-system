@@ -88,6 +88,13 @@ export class BookingsService {
         const checkOut = new Date(dto.checkOutDate);
 
         if (dto.roomAllocations && dto.roomAllocations.length > 0) {
+            for (let idx = 0; idx < dto.roomAllocations.length; idx++) {
+                const alloc = dto.roomAllocations[idx];
+                if (!alloc.roomTypeId) {
+                    throw new BadRequestException(`Room allocation at index ${idx} is missing roomTypeId.`);
+                }
+            }
+
             if (dto.roomAllocations.length === 1) {
                 const alloc = dto.roomAllocations[0];
                 return this.pricingService.calculatePrice(

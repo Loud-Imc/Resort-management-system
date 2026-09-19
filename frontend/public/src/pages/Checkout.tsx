@@ -180,27 +180,33 @@ export default function Checkout() {
         queryKey: ['booking-price', roomId, selectedSolution?.id, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
         queryFn: async () => {
             console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
-            const allocations = selectedSolution?.allocatedRooms && selectedSolution.allocatedRooms.length > 0
-                ? selectedSolution.allocatedRooms.map((r: any) => ({
+            let allocations: any[] | undefined = undefined;
+            let targetRoomTypeId: string | undefined = undefined;
+
+            if (selectedSolution) {
+                const solutionRooms = selectedSolution.rooms || (selectedSolution as any).allocatedRooms;
+                if (!solutionRooms || !Array.isArray(solutionRooms) || solutionRooms.length === 0) {
+                    throw new Error('Selected accommodation solution has no valid room allocations.');
+                }
+                allocations = solutionRooms.map((r: any) => ({
                     roomTypeId: r.roomTypeId,
-                    adults: r.adults,
-                    children: r.children || 0,
-                    infants: r.infants || 0,
+                    adults: Number(r.adults) || 1,
+                    children: Number(r.children) || 0,
+                    infants: Number(r.infants) || 0,
                     childAges: r.childAges,
-                }))
-                : (selectedSolution?.rooms && selectedSolution.rooms.length > 0
-                    ? selectedSolution.rooms.map((r: any) => ({
-                        roomTypeId: r.roomTypeId,
-                        adults: r.adults,
-                        children: r.children || 0,
-                        infants: r.infants || 0,
-                        childAges: r.childAges,
-                    }))
-                    : undefined);
+                }));
+                const missingRt = allocations.find(a => !a.roomTypeId);
+                if (missingRt) {
+                    throw new Error('One or more rooms in the selected solution are missing a room type.');
+                }
+                targetRoomTypeId = undefined;
+            } else {
+                targetRoomTypeId = roomId || undefined;
+            }
 
             const res = await bookingService.calculatePrice({
                 propertyId: searchParams.get('propertyId') || selectedSolution?.propertyId || selectedRoom?.propertyId || undefined,
-                roomTypeId: !allocations ? (roomId || undefined) : undefined,
+                roomTypeId: targetRoomTypeId,
                 roomAllocations: allocations,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,

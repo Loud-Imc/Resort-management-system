@@ -546,6 +546,19 @@ export default function CreateBooking() {
         }
     };
 
+    const extractSolutionAllocations = (solution: any) => {
+        if (!solution) return undefined;
+        const rooms = solution.rooms || solution.allocatedRooms;
+        if (!rooms || !Array.isArray(rooms) || rooms.length === 0) return undefined;
+        return rooms.map((r: any) => ({
+            roomTypeId: r.roomTypeId,
+            adults: Number(r.adults) || 1,
+            children: Number(r.children) || 0,
+            infants: Number(r.infants) || 0,
+            childAges: r.childAges,
+        }));
+    };
+
     const handleApplyPromoCode = async (code: string) => {
         if (!code.trim() || !selectedProperty?.id) return;
         setIsApplyingPromoCode(true);
@@ -557,21 +570,27 @@ export default function CreateBooking() {
             const adults = Number(watchedAdults) || 1;
             const children = Number(watchedChildren) || 0;
 
-            const allocations = selectedSolution?.allocatedRooms && selectedSolution.allocatedRooms.length > 0
-                ? selectedSolution.allocatedRooms.map((r: any) => ({
-                    roomTypeId: r.roomTypeId,
-                    adults: r.adults,
-                    children: r.children || 0,
-                    infants: r.infants || 0,
-                    childAges: r.childAges,
-                }))
-                : undefined;
+            let allocations: any[] | undefined = undefined;
+            let targetRoomTypeId: string | undefined = undefined;
 
-            const firstRoomTypeId = !allocations ? (watch('roomTypeId') || undefined) : undefined;
+            if (selectedSolution) {
+                allocations = extractSolutionAllocations(selectedSolution);
+                if (!allocations || allocations.length === 0) {
+                    throw new Error('Selected accommodation solution has no valid room allocations.');
+                }
+                const missingRt = allocations.find(a => !a.roomTypeId);
+                if (missingRt) {
+                    throw new Error('One or more rooms in the selected solution are missing a room type.');
+                }
+                // When solution is selected, roomTypeId must NOT be passed
+                targetRoomTypeId = undefined;
+            } else {
+                targetRoomTypeId = watch('roomTypeId') || undefined;
+            }
 
             const res = await bookingsService.calculatePrice({
                 propertyId: selectedProperty.id,
-                roomTypeId: firstRoomTypeId,
+                roomTypeId: targetRoomTypeId,
                 roomAllocations: allocations,
                 checkInDate: checkIn,
                 checkOutDate: checkOut,
@@ -1014,27 +1033,22 @@ export default function CreateBooking() {
                 return;
             }
             try {
-                const solutionAllocations = selectedSolution?.allocatedRooms && selectedSolution.allocatedRooms.length > 0
-                    ? selectedSolution.allocatedRooms.map((r: any) => ({
-                        roomTypeId: r.roomTypeId,
-                        adults: r.adults,
-                        children: r.children || 0,
-                        infants: r.infants || 0,
-                        childAges: r.childAges,
-                    }))
-                    : (selectedSolution?.rooms && selectedSolution.rooms.length > 0
-                        ? selectedSolution.rooms.map((r: any) => ({
-                            roomTypeId: r.roomTypeId,
-                            adults: r.adults,
-                            children: r.children || 0,
-                            infants: r.infants || 0,
-                            childAges: r.childAges,
-                        }))
-                        : undefined);
+                let solutionAllocations: any[] | undefined = undefined;
+                let overrideRoomTypeId: string | undefined = undefined;
+
+                if (selectedSolution) {
+                    solutionAllocations = extractSolutionAllocations(selectedSolution);
+                    if (!solutionAllocations || solutionAllocations.length === 0) {
+                        throw new Error('Selected accommodation solution has no valid room allocations.');
+                    }
+                    overrideRoomTypeId = undefined;
+                } else {
+                    overrideRoomTypeId = isGroup ? (availability?.allocationPreview?.[0]?.roomTypeId || targetRoomTypeId) : targetRoomTypeId;
+                }
 
                 const priceParams = {
                     propertyId: selectedProperty?.id,
-                    roomTypeId: !solutionAllocations ? (isGroup ? (availability?.allocationPreview?.[0]?.roomTypeId || targetRoomTypeId) : targetRoomTypeId) : undefined,
+                    roomTypeId: overrideRoomTypeId,
                     roomAllocations: solutionAllocations,
                     checkInDate: currentValues.checkInDate,
                     checkOutDate: currentValues.checkOutDate,
@@ -1127,7 +1141,7 @@ export default function CreateBooking() {
             roomAllocations: roomAllocationsPayload,
             childAges: (!data.isGroupBooking && childAges.length > 0) ? childAges : undefined,
             infants: (!data.isGroupBooking && infantsCount > 0) ? infantsCount : undefined,
-            roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || (selectedSolution?.allocatedRooms?.length) || (data.selectedRoomIds?.length) || 1)),
+            roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || (allocatedRooms.length) || (data.selectedRoomIds?.length) || 1)),
             guestName: `${guestFirstName} ${guestLastName || ''}`.trim(),
             guestEmail: guestEmail || undefined,
             guestPhone: guestPhone,
@@ -1135,7 +1149,7 @@ export default function CreateBooking() {
             generalCode: appliedCode || undefined,
             isGroupBooking: Boolean(data.isGroupBooking),
             groupSize: totalGroupSize,
-            roomTypeId: data.isGroupBooking ? undefined : (selectedSolution?.allocatedRooms?.[0]?.roomTypeId || rest.roomTypeId),
+            roomTypeId: data.isGroupBooking ? undefined : (allocatedRooms[0]?.roomTypeId || rest.roomTypeId),
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
             selectedRoomIds: data.selectedRoomIds || undefined,
