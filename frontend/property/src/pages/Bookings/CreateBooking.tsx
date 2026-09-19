@@ -196,6 +196,16 @@ export default function CreateBooking() {
         Boolean(preSelectedRoomTypeIds.length > 0 || preSelectedRoomIds.length > 0)
     );
 
+    // Compute top solutions to display on the page, ensuring the selected solution always appears first
+    const displayedAccommodationSolutions = useMemo(() => {
+        if (!accommodationSolutions || accommodationSolutions.length === 0) return [];
+        if (!selectedSolution) {
+            return accommodationSolutions.slice(0, 2);
+        }
+        const otherSolutions = accommodationSolutions.filter((s: any) => s.id !== selectedSolution.id);
+        return [selectedSolution, ...otherSolutions].slice(0, 2);
+    }, [accommodationSolutions, selectedSolution]);
+
     const {
         register, control, handleSubmit, watch,
         formState: { errors }, getValues, setValue,
@@ -1829,8 +1839,8 @@ export default function CreateBooking() {
                                 <>
                                     {accommodationSolutions && accommodationSolutions.length > 0 ? (
                                         <div className="space-y-3.5">
-                                            {/* Show first 2 solutions directly on page */}
-                                            {accommodationSolutions.slice(0, 2).map((sol: any) => (
+                                            {/* Show top solutions directly on page with currently selected solution always first */}
+                                            {displayedAccommodationSolutions.map((sol: any) => (
                                                 <AccommodationPackageCard
                                                     key={sol.id}
                                                     solution={sol}
