@@ -24,7 +24,7 @@ export interface ChannexOccupancyPayload {
  * 2. For V2 properties:
  *    - maxPhysicalAdults -> occ_adults
  *    - maxPhysicalChildren -> occ_children
- *    - freeChildrenCount -> occ_infants
+ *    - maxPhysicalInfants -> occ_infants
  *    - totalBaseOccupancy -> default_occupancy
  * 3. Channex Invariant: default_occupancy <= occ_adults.
  *    If totalBaseOccupancy > maxPhysicalAdults:
@@ -38,7 +38,7 @@ export function validateAndMapChannexOccupancy(
     // V1 legacy behavior
     const occ_adults = Math.max(1, roomType.maxAdults || 2);
     const occ_children = Math.max(0, roomType.maxChildren || 2);
-    const occ_infants = Math.max(0, roomType.freeChildrenCount || 0);
+    const occ_infants = Math.max(0, roomType.maxPhysicalInfants ?? 0);
     const default_occupancy = Math.max(1, roomType.maxAdults || 2);
     return {
       occ_adults,
@@ -115,7 +115,7 @@ export function validateAndMapChannexOccupancy(
     occ_children = Math.max(0, totalMaxOccupancy - 1);
   }
 
-  // 4. freeChildrenCount is valid (>= 0)
+  // 4. freeChildrenCount is valid (>= 0) (internal commercial rule, not mapped to infants)
   const freeChildrenCount =
     roomType.freeChildrenCount !== null && roomType.freeChildrenCount !== undefined
       ? Number(roomType.freeChildrenCount)
@@ -126,7 +126,7 @@ export function validateAndMapChannexOccupancy(
     );
   }
 
-  // 5. maxPhysicalInfants is valid (>= 0)
+  // 5. maxPhysicalInfants is valid (>= 0) -> maps to occ_infants
   const maxPhysicalInfants =
     roomType.maxPhysicalInfants !== null && roomType.maxPhysicalInfants !== undefined
       ? Number(roomType.maxPhysicalInfants)
@@ -147,7 +147,7 @@ export function validateAndMapChannexOccupancy(
   }
 
   // 7. Canonical RouteGuide values mapped directly without clamping or rewriting
-  const occ_infants = freeChildrenCount;
+  const occ_infants = maxPhysicalInfants;
   const default_occupancy = totalBaseOccupancy;
 
   return {

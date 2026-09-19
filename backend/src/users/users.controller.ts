@@ -7,6 +7,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RequestChangePasswordOtpDto, ConfirmChangePasswordDto } from './dto/change-password-otp.dto';
 import { DeleteAccountOtpDto } from './dto/delete-account-otp.dto';
+import { SendGuestsWhatsappDto } from './dto/send-guests-whatsapp.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions.constant';
@@ -61,6 +62,16 @@ export class UsersController {
     @ApiOperation({ summary: 'Confirm account deletion with OTP' })
     async deleteAccountWithOtp(@Request() req, @Body() dto: DeleteAccountOtpDto) {
         return this.usersService.deleteAccountWithOtp(req.user.id, dto);
+    }
+
+    @Post('guests/whatsapp')
+    @Permissions(PERMISSIONS.USERS.READ)
+    @ApiOperation({ summary: 'Send direct WhatsApp message to individual or selected guests' })
+    async sendGuestsWhatsapp(
+        @Request() req,
+        @Body() body: SendGuestsWhatsappDto
+    ) {
+        return this.usersService.sendGuestsWhatsapp(body, req.user);
     }
 
     @Post('report/guests/pdf')

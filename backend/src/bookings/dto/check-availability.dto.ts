@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsDateString, IsOptional, IsBoolean, IsInt, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsDateString, IsOptional, IsBoolean, IsInt, Min, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -7,6 +7,23 @@ export class CheckAvailabilityDto {
     @IsString()
     @IsOptional()
     roomTypeId?: string;
+
+    @ApiProperty({ example: ['room-type-uuid'], required: false, type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    roomTypeIds?: string[];
+
+    @ApiProperty({ example: 'room-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    roomId?: string;
+
+    @ApiProperty({ example: ['room-uuid'], required: false, type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    roomIds?: string[];
 
     @ApiProperty({ example: '2026-02-01' })
     @IsDateString()

@@ -29,6 +29,10 @@ interface SearchProps {
     setAdults: (v: number) => void;
     children: number;
     setChildren: (v: number) => void;
+    childAges?: number[];
+    setChildAge?: (index: number, age: number) => void;
+    infants?: number;
+    setInfants?: (v: number) => void;
     rooms: number;
     setRooms: (v: number) => void;
     longitude: number | null;
@@ -55,6 +59,8 @@ export default function SearchMobile({
     checkOut, setCheckOut,
     adults, setAdults,
     children, setChildren,
+    childAges = [], setChildAge,
+    infants = 0, setInfants,
     rooms, setRooms,
     handleSearch,
     isExpanded, setIsExpanded,
@@ -282,7 +288,7 @@ export default function SearchMobile({
                                     </span>
                                 </div>
                                 <p className={`text-[9px] ${isDark ? 'text-white/30' : 'text-gray-400'} mt-0.5 font-bold italic`}>
-                                    {isGroupBooking ? 'Whole Property Stay' : `${adults} Adults${children > 0 ? `, ${children} Children` : ''}, ${rooms} Room${rooms > 1 ? 's' : ''}`}
+                                    {isGroupBooking ? 'Whole Property Stay' : `${adults} Adults${children > 0 ? `, ${children} Children` : ''}${infants > 0 ? `, ${infants} Inf` : ''}, ${rooms} Room${rooms > 1 ? 's' : ''}`}
                                 </p>
                             </div>
                             <div className={`p-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-gray-100'} text-primary-600 transition-transform active:scale-90`}>
@@ -310,8 +316,8 @@ export default function SearchMobile({
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
                         onClick={() => setShowGuestModal(false)}
                     />
-                    <div className="relative w-full max-w-lg bg-white rounded-lg shadow-none overflow-hidden animate-slide-up-fade">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <div className="relative w-full max-w-lg bg-white rounded-lg shadow-none overflow-hidden animate-slide-up-fade max-h-[85vh] flex flex-col">
+                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                             <div className="space-y-1">
                                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-900">Manage Travelers</h3>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Adjust your group size</p>
@@ -325,13 +331,13 @@ export default function SearchMobile({
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-2">
+                        <div className="p-6 space-y-4 overflow-y-auto flex-1">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">
-                                        {isGroupBooking ? 'Adults' : 'Adults'}
+                                        {isGroupBooking ? 'Group Adults (12+ yrs)' : 'Adults (12+ yrs)'}
                                     </h4>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 13+</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 12+</p>
                                 </div>
                                 <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                     <button
@@ -368,9 +374,9 @@ export default function SearchMobile({
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">
-                                        {isGroupBooking ? 'Children' : 'Children'}
+                                        {isGroupBooking ? 'Group Children (2–12 yrs)' : 'Children (2–12 yrs)'}
                                     </h4>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 6–12</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 2–12</p>
                                 </div>
                                 <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
                                     <button
@@ -404,8 +410,60 @@ export default function SearchMobile({
                                 </div>
                             </div>
 
+                            {/* Child Age Selectors */}
+                            {children > 0 && !isGroupBooking && (
+                                <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/70 space-y-2.5">
+                                    <p className="text-[10px] font-black text-amber-900 uppercase tracking-wider">
+                                        Select Age for Each Child (2–12 yrs)
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {Array.from({ length: children }).map((_, idx) => (
+                                            <div key={idx} className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-bold text-gray-600 uppercase">
+                                                    Child {idx + 1} Age
+                                                </label>
+                                                <select
+                                                    value={childAges[idx] ?? 5}
+                                                    onChange={(e) => setChildAge?.(idx, parseInt(e.target.value) || 5)}
+                                                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary-500"
+                                                >
+                                                    {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                                                        <option key={age} value={age}>
+                                                            {age} yrs {age <= 6 ? '(free)' : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Infants */}
                             {!isGroupBooking && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                    <div className="space-y-1">
+                                        <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Infants (0–2 yrs)</h4>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ages 0–2 (in cot / free)</p>
+                                    </div>
+                                    <div className="flex items-center gap-4 bg-gray-50 p-1 rounded-lg border border-gray-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setInfants?.(Math.max(0, infants - 1))}
+                                            className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                        >-</button>
+                                        <span className="w-14 text-center font-black text-xl text-gray-900">{infants}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setInfants?.(infants + 1)}
+                                            className="w-12 h-12 flex items-center justify-center rounded-lg transition-all font-black text-xl bg-white text-gray-900 hover:bg-primary-600 hover:text-white shadow-sm border border-gray-100 active:scale-90"
+                                        >+</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isGroupBooking && (
+                                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                                     <div className="space-y-1">
                                         <h4 className="text-sm font-black uppercase tracking-widest text-gray-900">Rooms</h4>
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Accommodation</p>

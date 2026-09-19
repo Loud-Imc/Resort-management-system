@@ -14,6 +14,8 @@ import { PdfService } from '../pdf/pdf.service';
 
 @Injectable()
 export class UsersService {
+    private readonly logger = new Logger(UsersService.name);
+
     constructor(
         private prisma: PrismaService,
         private mailService: MailService,
@@ -1079,6 +1081,60 @@ export class UsersService {
         }
 
         return this.pdfService.generateIndividualGuestReport(user, filteredBookings, query.startDate, query.endDate);
+    }
+
+    async sendGuestsWhatsapp(dto: { userIds: string[]; message: string; propertyId?: string }, reqUser?: any) {
+        if (!dto.userIds || dto.userIds.length === 0) {
+            throw new BadRequestException('No guest user IDs provided');
+        }
+        if (!dto.message || !dto.message.trim()) {
+            throw new BadRequestException('Message content cannot be empty');
+        }
+
+        const users = await this.prisma.user.findMany({
+            where: {
+                id: { in: dto.userIds },
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                whatsappNumber: true,
+            },
+        });
+
+        let sentCount = 0;
+        let failedCount = 0;
+        let skippedNoPhoneCount = 0;
+
+        for (const user of users) {
+            const rawPhone = user.whatsappNumber || user.phone;
+            if (!rawPhone || !rawPhone.trim()) {
+                skippedNoPhoneCount++;
+                continue;
+            }
+
+            const formattedPhone = normalizePhone(rawPhone.trim());
+            try {
+                await this.notificationsService.sendWhatsApp(formattedPhone, dto.message.trim());
+                sentCount++;
+            } catch (error) {
+                this.logger.error(`Failed to send WhatsApp message to guest ${user.id} (${formattedPhone}):`, error);
+                failedCount++;
+            }
+        }
+
+        // Account for any userIds not found in DB
+        const notFoundCount = Math.max(0, dto.userIds.length - users.length);
+        skippedNoPhoneCount += notFoundCount;
+
+        return {
+            totalRequested: dto.userIds.length,
+            sentCount,
+            failedCount,
+            skippedNoPhoneCount,
+        };
     }
 }
 

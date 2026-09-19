@@ -29,16 +29,16 @@ export interface ParseResult {
 export function extractCoordsFromUrl(url: string): ParsedCoords | null {
     if (!url) return null;
 
-    // Pattern 1: @lat,lng  (standard map view / directions)
-    const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
-
-    // Pattern 2: !3dlat!4dlng  (protobuf / place pin)
+    // Pattern 1: !3dlat!4dlng (protobuf / exact place pin — highest precision)
     const protoMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
     if (protoMatch) return { lat: parseFloat(protoMatch[1]), lng: parseFloat(protoMatch[2]) };
 
-    // Pattern 3: ?q=lat,lng | ?ll=lat,lng | ?query=lat,lng | ?destination=lat,lng | ?center=lat,lng
-    const queryMatch = url.match(/[?&](?:q|ll|query|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
+    // Pattern 2: @lat,lng (standard map view / camera center)
+    const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+
+    // Pattern 3: ?q=lat,lng | ?ll=lat,lng | ?query=lat,lng | ?destination=lat,lng
+    const queryMatch = url.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
     if (queryMatch) return { lat: parseFloat(queryMatch[1]), lng: parseFloat(queryMatch[2]) };
 
     // Pattern 4: /place/lat,lng in path

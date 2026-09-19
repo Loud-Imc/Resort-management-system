@@ -29,7 +29,8 @@ import {
     Type,
     LayoutGrid,
     Search,
-    PlugZap
+    PlugZap,
+    Smartphone
 } from 'lucide-react';
 import clsx from 'clsx';
 import logoLight from '../assets/oreedu-04.svg';
@@ -131,8 +132,9 @@ export default function DashboardLayout() {
         ...(hasPermission('marketing.manageBroadcasts') ? [
             { icon: Bell, label: 'Broadcast Alerts', path: '/marketing/notifications' },
         ] : []),
-        ...(hasPermission('marketing.manageLoyalty') ? [
-            { icon: Settings, label: 'Platform Settings', path: '/platform-settings' }
+        ...((hasPermission('marketing.manageLoyalty') || isSuperAdmin || user?.roles?.includes('Admin')) ? [
+            { icon: Settings, label: 'Platform Settings', path: '/platform-settings' },
+            { icon: Smartphone, label: 'App Updates', path: '/mobile-updates' },
         ] : []),
 
         // PILLAR 6: PLATFORM INTEGRITY

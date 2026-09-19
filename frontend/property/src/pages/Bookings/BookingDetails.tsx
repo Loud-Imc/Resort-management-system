@@ -89,7 +89,15 @@ const BookingDetails = () => {
     }
 
     const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
-    const balanceDue = Number(booking.totalAmount) - Number(booking.paidAmount);
+    const isCancelled = booking.status === 'CANCELLED';
+    const balanceDue = isCancelled ? 0 : Math.max(0, Number(booking.totalAmount) - Number(booking.paidAmount));
+    const paymentsList = Array.isArray(booking.payments) ? booking.payments : [];
+    const totalOriginalPaid = paymentsList.length > 0
+        ? paymentsList.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
+        : Number(booking.paidAmount || 0);
+    const totalRefundedAmount = paymentsList.length > 0
+        ? paymentsList.reduce((acc: number, p: any) => acc + Number(p.refundAmount || 0), 0)
+        : (isCancelled ? totalOriginalPaid : 0);
     const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
     const handleOpenCheckIn = (b: Booking) => {
         const today = new Date();
@@ -529,22 +537,64 @@ const BookingDetails = () => {
                                     </div>
                                 </div>
 
-                                <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex justify-between items-center">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Paid Amount</span>
-                                        <span className="text-[9px] text-emerald-500 font-bold uppercase">{booking.paymentMethod || 'ONLINE'}</span>
-                                    </div>
-                                    <span className="text-xl font-black text-emerald-600">₹{Number(booking.paidAmount).toLocaleString()}</span>
-                                </div>
-
-                                {balanceDue > 0 && (
-                                    <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 flex justify-between items-center">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Balance Due</span>
-                                            <span className="text-[9px] text-amber-500 font-bold uppercase italic">At Resort</span>
+                                {isCancelled ? (
+                                    <>
+                                        <div className="p-6 bg-red-50 dark:bg-red-950/20 rounded-3xl border border-red-200 dark:border-red-900/40 flex justify-between items-center">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">Booking Status</span>
+                                                <span className="text-[9px] text-red-500 font-bold uppercase">Cancelled & Refunded</span>
+                                            </div>
+                                            <span className="text-sm font-black text-red-600 dark:text-red-400 uppercase">CANCELLED</span>
                                         </div>
-                                        <span className="text-xl font-black text-amber-600">₹{balanceDue.toLocaleString()}</span>
-                                    </div>
+
+                                        {totalOriginalPaid > 0 && (
+                                            <div className="p-6 bg-muted/40 rounded-3xl border border-border flex justify-between items-center">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Original Amount Paid</span>
+                                                    <span className="text-[9px] text-muted-foreground font-bold uppercase">{booking.paymentMethod || 'ONLINE'}</span>
+                                                </div>
+                                                <span className="text-lg font-black text-foreground">₹{totalOriginalPaid.toLocaleString()}</span>
+                                            </div>
+                                        )}
+
+                                        {totalRefundedAmount > 0 && (
+                                            <div className="p-6 bg-purple-50 dark:bg-purple-950/20 rounded-3xl border border-purple-200 dark:border-purple-800/40 flex justify-between items-center">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">Total Refunded</span>
+                                                    <span className="text-[9px] text-purple-500 font-bold uppercase">Returned to Customer</span>
+                                                </div>
+                                                <span className="text-lg font-black text-purple-700 dark:text-purple-300">₹{totalRefundedAmount.toLocaleString()}</span>
+                                            </div>
+                                        )}
+
+                                        <div className="p-6 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/20 flex justify-between items-center">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Balance Due</span>
+                                                <span className="text-[9px] text-emerald-500 font-bold uppercase italic">No Pending Balance</span>
+                                            </div>
+                                            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">₹0</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex justify-between items-center">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Paid Amount</span>
+                                                <span className="text-[9px] text-emerald-500 font-bold uppercase">{booking.paymentMethod || 'ONLINE'}</span>
+                                            </div>
+                                            <span className="text-xl font-black text-emerald-600">₹{Number(booking.paidAmount).toLocaleString()}</span>
+                                        </div>
+
+                                        {balanceDue > 0 && (
+                                            <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 flex justify-between items-center">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Balance Due</span>
+                                                    <span className="text-[9px] text-amber-500 font-bold uppercase italic">At Resort</span>
+                                                </div>
+                                                <span className="text-xl font-black text-amber-600">₹{balanceDue.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
 
                                 {((booking as any).offlineCp || Number((booking as any).offlineCpCommission) > 0) && (

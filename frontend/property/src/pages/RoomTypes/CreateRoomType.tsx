@@ -656,8 +656,9 @@ export default function CreateRoomType() {
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="sm:col-span-2 lg:col-span-1">
+                            {/* Row 1: Core Physical Capacities (3 in a line) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Total Max Occupancy <span className="text-red-500">*</span></span>
                                         <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">A + C Cap</span>
@@ -707,7 +708,7 @@ export default function CreateRoomType() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Max Physical Children <span className="text-[11px] font-normal text-slate-500">(Optional)</span></span>
-                                        <span className="text-[10px] text-slate-400 font-normal">Age 2-12</span>
+                                        <span className="text-[10px] text-slate-400 font-normal">Age 2–12</span>
                                     </label>
                                     <input
                                         type="number"
@@ -720,11 +721,14 @@ export default function CreateRoomType() {
                                     <p className="text-[10px] text-slate-500 mt-1">Optional upper bound for children (max: Total Max - 1).</p>
                                     {errors.maxPhysicalChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalChildren.message)}</p>}
                                 </div>
+                            </div>
 
+                            {/* Row 2: Infant & Free Child Allowances (2 in next line) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                                         <Baby className="h-3.5 w-3.5 text-pink-500" />
-                                        <span>Max Infants (0-2y)</span>
+                                        <span>Max Infants (0–2 yrs)</span>
                                     </label>
                                     <input
                                         type="number"
@@ -736,6 +740,25 @@ export default function CreateRoomType() {
                                     />
                                     <p className="text-[10px] text-slate-500 mt-1">Infants in cots (always ₹0, do not consume A+C occupancy).</p>
                                     {errors.maxPhysicalInfants?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.maxPhysicalInfants.message)}</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                        <span className="flex items-center gap-1">
+                                            <Baby className="h-3.5 w-3.5 text-amber-500" />
+                                            <span>Free Children Count (3–6 yrs)</span>
+                                        </span>
+                                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Waived (₹0)</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="0"
+                                        {...register('freeChildrenCount', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">Number of children (3–6 yrs) whose child charge is waived.</p>
+                                    {errors.freeChildrenCount?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.freeChildrenCount.message)}</p>}
                                 </div>
                             </div>
 
@@ -772,23 +795,23 @@ export default function CreateRoomType() {
                                 )}
                                 <div className="pt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                                     <Baby className="h-3.5 w-3.5 text-pink-500" />
-                                    <span>+ Up to <strong className="text-slate-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0-2 yrs, Free in cots)</span>
+                                    <span>+ Up to <strong className="text-slate-900 dark:text-white font-bold">{watchedMaxPhysicalInfants} Infant(s)</strong> (0–2 yrs, Free in cots)</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* CARD 2: BASE RATE OCCUPANCY (Pricing Inclusion) */}
-                        <div className="md:col-span-2 p-5 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200/80 dark:border-emerald-900/60 space-y-4 shadow-sm">
-                            <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/60 pb-3">
+                        <div className="md:col-span-2 p-5 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200/70 dark:border-emerald-900/50 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-3">
                                 <div className="flex items-center gap-2">
                                     <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                                     <div>
-                                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200">2. Base Rate Occupancy (Included in Base Price)</h4>
-                                        <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 font-medium">Number of adults + children included in standard room rate without extra person charges.</p>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200">2. Base Rate Occupancy (Inclusions)</h4>
+                                        <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 font-medium">Number of guests covered in the base room price before extra guest charges apply.</p>
                                     </div>
                                 </div>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                    Included in Base Rate
+                                    Pricing Inclusions
                                 </span>
                             </div>
 
@@ -796,7 +819,7 @@ export default function CreateRoomType() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Total Base Occupancy <span className="text-red-500">*</span></span>
-                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Base Cap</span>
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Included</span>
                                     </label>
                                     <input
                                         type="number"
@@ -805,7 +828,7 @@ export default function CreateRoomType() {
                                         {...register('totalBaseOccupancy', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
                                         className={`w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border ${!isTotalBaseConfigured ? 'border-amber-400 dark:border-amber-600 focus:ring-amber-500' : 'border-slate-200 dark:border-slate-800 focus:ring-primary-500'} rounded-xl focus:ring-2 font-bold text-sm shadow-sm placeholder:text-amber-600 dark:placeholder:text-amber-400 placeholder:font-medium`}
                                     />
-                                    <p className="text-[10px] text-slate-500 mt-1">Number of adults + children included in the base room price.</p>
+                                    <p className="text-[10px] text-slate-500 mt-1">Number of guests covered in base price.</p>
                                     {errors.totalBaseOccupancy?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.totalBaseOccupancy.message)}</p>}
                                     {!isTotalBaseConfigured && isEdit && (
                                         <div className="mt-2 p-2 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg flex flex-col gap-1.5">
@@ -837,9 +860,6 @@ export default function CreateRoomType() {
                                         className={`w-full px-3.5 py-2 ${!isTotalBaseConfigured ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-primary-500'} rounded-xl font-bold text-sm shadow-sm placeholder:text-slate-400`}
                                     />
                                     <p className="text-[10px] text-slate-500 mt-1">Optional pricing restriction. Adults above this count incur extra adult charge.</p>
-                                    {!isTotalBaseConfigured && (
-                                        <p className="text-amber-600 dark:text-amber-400 text-xs mt-1 font-semibold">Set Total Base Occupancy first.</p>
-                                    )}
                                     {errors.baseMaxAdults?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseMaxAdults.message)}</p>}
                                 </div>
 
@@ -857,9 +877,6 @@ export default function CreateRoomType() {
                                         className={`w-full px-3.5 py-2 ${!isTotalBaseConfigured ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-primary-500'} rounded-xl font-bold text-sm shadow-sm placeholder:text-slate-400`}
                                     />
                                     <p className="text-[10px] text-slate-500 mt-1">Optional pricing restriction. Children above this count incur extra child charge.</p>
-                                    {!isTotalBaseConfigured && (
-                                        <p className="text-amber-600 dark:text-amber-400 text-xs mt-1 font-semibold">Set Total Base Occupancy first.</p>
-                                    )}
                                     {errors.baseMaxChildren?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.baseMaxChildren.message)}</p>}
                                 </div>
                             </div>
@@ -913,13 +930,13 @@ export default function CreateRoomType() {
                             </div>
                         </div>
 
-                        {/* CARD 3: CHILD & EXTRA GUEST PRICING */}
+                        {/* CARD 3: EXTRA GUEST PRICING */}
                         <div className="md:col-span-2 p-5 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/70 dark:border-amber-900/50 space-y-4 shadow-sm">
                             <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-3">
                                 <div className="flex items-center gap-2">
                                     <Tag className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                                     <div>
-                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">3. Child & Extra Guest Pricing</h4>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">3. Extra Guest Pricing</h4>
                                         <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 font-medium">Extra guest charges for adults/children beyond base rate occupancy or free allowance.</p>
                                     </div>
                                 </div>
@@ -928,21 +945,7 @@ export default function CreateRoomType() {
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                                        <span>Free Children Count</span>
-                                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Waived Charge</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        {...register('freeChildrenCount', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
-                                    />
-                                    <p className="text-[10px] text-slate-500 mt-1">Number of children aged 2–12 whose child charge is waived.</p>
-                                </div>
-
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
                                         <span>Extra Adult Price (₹)</span>

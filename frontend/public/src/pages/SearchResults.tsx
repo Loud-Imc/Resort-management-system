@@ -19,6 +19,8 @@ export default function SearchResults() {
         checkOut: globalCheckOut,
         adults,
         children,
+        childAges,
+        infants,
         rooms,
         latitude, setLatitude,
         longitude, setLongitude,
@@ -33,12 +35,14 @@ export default function SearchResults() {
     const checkOutStr = globalCheckOut ? globalCheckOut.toISOString().split('T')[0] : '';
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['availability', checkInStr, checkOutStr, adults, children, rooms, location, globalCategoryId, latitude, longitude, radius, isGroupBooking, groupSize],
+        queryKey: ['availability', checkInStr, checkOutStr, adults, children, (childAges || []).join(','), infants, rooms, location, globalCategoryId, latitude, longitude, radius, isGroupBooking, groupSize],
         queryFn: () => bookingService.searchRooms({
             checkInDate: checkInStr,
             checkOutDate: checkOutStr,
             adults,
             children,
+            childAges: children > 0 ? childAges : undefined,
+            infants: infants || undefined,
             location: location,
             categoryId: globalCategoryId || undefined,
             includeSoldOut: false,
@@ -66,37 +70,68 @@ export default function SearchResults() {
         params.delete('categoryId');
         params.delete('latitude');
         params.delete('longitude');
+        params.delete('lat');
+        params.delete('lng');
         params.delete('radius');
         setSearchParams(params);
     };
 
-    // Group available room types by property
+    // Group available room types & accommodation solutions by property
     const groupedProperties = useMemo(() => {
         if (!data) return [];
 
-        // Handle both old array response and any potential object wrapped response for safety
         const roomTypes = Array.isArray(data) ? data : (data as any).availableRoomTypes || [];
+        const solutions: any[] = (data as any).accommodationSolutions || [];
 
         const propertyMap = new Map<string, any>();
 
+        // First pass: register properties from solutions
+        solutions.forEach((sol: any) => {
+            const propId = sol.propertyId || sol.property?.id;
+            if (propId && sol.property) {
+                if (!propertyMap.has(propId)) {
+                    propertyMap.set(propId, {
+                        ...sol.property,
+                        isSoldOut: false,
+                        minPrice: sol.pricing?.totalPrice || 0,
+                        nightlyPrice: sol.pricing?.pricePerNight || 0,
+                        availableRoomCount: sol.totalRooms || 1,
+                        bestSolution: sol,
+                        solutionsCount: 1,
+                    });
+                } else {
+                    const prop = propertyMap.get(propId);
+                    prop.isSoldOut = false;
+                    prop.solutionsCount = (prop.solutionsCount || 1) + 1;
+                    if (sol.isRecommended || (sol.pricing?.totalPrice && sol.pricing.totalPrice < prop.minPrice)) {
+                        prop.minPrice = sol.pricing.totalPrice;
+                        prop.nightlyPrice = sol.pricing.pricePerNight;
+                        prop.bestSolution = sol;
+                    }
+                }
+            }
+        });
+
+        // Second pass: merge room types
         roomTypes.forEach((roomType: any) => {
             if (roomType.property) {
                 const propId = roomType.property.id;
                 if (!propertyMap.has(propId)) {
                     propertyMap.set(propId, {
                         ...roomType.property,
-                        isSoldOut: true,
-                        minPrice: roomType.totalPrice,
-                        availableRoomCount: 0
+                        isSoldOut: roomType.isSoldOut ?? false,
+                        minPrice: roomType.totalPrice || roomType.basePrice || 0,
+                        nightlyPrice: roomType.pricePerNight || roomType.basePrice || 0,
+                        availableRoomCount: roomType.availableCount || 0,
                     });
-                }
-
-                const property = propertyMap.get(propId);
-                if (!roomType.isSoldOut) {
-                    property.isSoldOut = false;
-                    property.availableRoomCount += (roomType.availableCount || 0);
-                    if (roomType.totalPrice < property.minPrice) {
-                        property.minPrice = roomType.totalPrice;
+                } else {
+                    const property = propertyMap.get(propId);
+                    if (!roomType.isSoldOut) {
+                        property.availableRoomCount = (property.availableRoomCount || 0) + (roomType.availableCount || 0);
+                        if (!property.minPrice || (roomType.totalPrice && roomType.totalPrice < property.minPrice)) {
+                            property.minPrice = roomType.totalPrice;
+                            property.nightlyPrice = roomType.pricePerNight || roomType.basePrice;
+                        }
                     }
                 }
             }
@@ -106,7 +141,7 @@ export default function SearchResults() {
             if (a.isSoldOut !== b.isSoldOut) {
                 return a.isSoldOut ? 1 : -1;
             }
-            return a.minPrice - b.minPrice;
+            return (a.minPrice || 0) - (b.minPrice || 0);
         });
     }, [data]);
 

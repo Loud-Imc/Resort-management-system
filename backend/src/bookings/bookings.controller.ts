@@ -55,8 +55,15 @@ export class BookingsController {
     @Post('check-availability')
     @ApiOperation({ summary: 'Check room availability (Public)' })
     async checkAvailability(@Body() dto: CheckAvailabilityDto) {
+        const effectiveRoomTypeIds = dto.roomTypeIds && dto.roomTypeIds.length > 0
+            ? dto.roomTypeIds
+            : (dto.roomTypeId ? [dto.roomTypeId] : []);
+        const effectiveRoomIds = dto.roomIds && dto.roomIds.length > 0
+            ? dto.roomIds
+            : (dto.roomId ? [dto.roomId] : []);
+
         const isAvailable = await this.availabilityService.checkAvailability(
-            dto.roomTypeId,
+            dto.roomTypeId || effectiveRoomTypeIds[0],
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
             dto.isGroupBooking,
@@ -64,10 +71,12 @@ export class BookingsController {
             dto.propertyId,
             dto.isAdmin,
             dto.excludeBookingId,
+            effectiveRoomTypeIds,
+            effectiveRoomIds,
         );
 
         const availableCount = await this.availabilityService.getAvailableRoomCount(
-            dto.roomTypeId || '',
+            dto.roomTypeId || effectiveRoomTypeIds[0] || '',
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
             dto.isAdmin,
@@ -86,27 +95,38 @@ export class BookingsController {
                 dto.groupSize,
                 dto.isAdmin,
                 dto.excludeBookingId,
+                effectiveRoomTypeIds,
+                effectiveRoomIds,
             );
 
             // Fetch ALL available pool rooms for group-side manual selection
             const groupPoolTypes = await (this.availabilityService as any).prisma.roomType.findMany({
-                where: { propertyId: dto.propertyId, isAvailableForGroupBooking: true }
+                where: { 
+                    propertyId: dto.propertyId, 
+                    isAvailableForGroupBooking: true,
+                    ...(effectiveRoomTypeIds.length > 0 ? { id: { in: effectiveRoomTypeIds } } : {})
+                }
             });
 
             for (const type of groupPoolTypes) {
-                const availableForType = await this.availabilityService.getAvailableRooms(
+                let availableForType = await this.availabilityService.getAvailableRooms(
                     type.id,
                     new Date(dto.checkInDate),
                     new Date(dto.checkOutDate),
                     dto.isAdmin,
                     dto.excludeBookingId,
                 );
+                if (effectiveRoomIds.length > 0) {
+                    availableForType = availableForType.filter(r => effectiveRoomIds.includes(r.id));
+                }
                 roomList.push(...availableForType.map(r => ({
                     id: r.id,
                     name: r.name,
                     roomNumber: r.roomNumber,
                     roomType: type.name,
-                    capacity: (type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0)),
+                    capacity: (type as any).totalMaxOccupancy !== null && (type as any).totalMaxOccupancy !== undefined
+                        ? Number((type as any).totalMaxOccupancy)
+                        : ((type as any).groupMaxOccupancy || (type.maxAdults + (type.maxChildren || 0))),
                     maxAdults: type.maxAdults,
                     maxChildren: type.maxChildren || 0,
                     baseAdults: type.baseAdults ?? type.maxAdults ?? 2,
@@ -120,35 +140,38 @@ export class BookingsController {
                 const hasPool = await this.availabilityService.hasGroupPool(dto.propertyId);
                 groupUnavailableReason = hasPool ? 'CAPACITY_EXCEEDED' : 'NO_POOL_CONFIGURED';
             }
-        } else if (!dto.isGroupBooking && dto.roomTypeId) {
-            // For standard bookings, return the list of available rooms.
-            // getAvailableRooms() returns rooms pre-sorted by consolidation score (most booked first).
-            const availableRooms = await this.availabilityService.getAvailableRooms(
-                dto.roomTypeId,
-                new Date(dto.checkInDate),
-                new Date(dto.checkOutDate),
-                dto.isAdmin,
-                dto.excludeBookingId,
-            );
-            const roomType = await (this.availabilityService as any).prisma.roomType.findUnique({
-                where: { id: dto.roomTypeId }
-            });
-            roomList = availableRooms.map((r, idx) => ({
-                id: r.id,
-                name: r.name,
-                roomNumber: r.roomNumber,
-                roomType: roomType?.name || 'N/A',
-                capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0,
-                maxAdults: roomType?.maxAdults || 0,
-                maxChildren: roomType?.maxChildren || 0,
-                baseAdults: roomType?.baseAdults ?? roomType?.maxAdults ?? 2,
-                baseChildren: roomType?.baseChildren ?? roomType?.maxChildren ?? 1,
-                maxPhysicalAdults: roomType?.maxPhysicalAdults ?? 4,
-                maxPhysicalChildren: roomType?.maxPhysicalChildren ?? 2,
-                // Consolidation metadata for the PMS UI
-                consolidationScore: r.consolidationScore ?? 0,
-                isRecommended: idx === 0, // First room = highest score = recommended
-            }));
+        } else if (!dto.isGroupBooking && (dto.roomTypeId || effectiveRoomTypeIds.length > 0)) {
+            const typesToFetch = effectiveRoomTypeIds.length > 0 ? effectiveRoomTypeIds : (dto.roomTypeId ? [dto.roomTypeId] : []);
+            for (const rtId of typesToFetch) {
+                let availableRooms = await this.availabilityService.getAvailableRooms(
+                    rtId,
+                    new Date(dto.checkInDate),
+                    new Date(dto.checkOutDate),
+                    dto.isAdmin,
+                    dto.excludeBookingId,
+                );
+                if (effectiveRoomIds.length > 0) {
+                    availableRooms = availableRooms.filter(r => effectiveRoomIds.includes(r.id));
+                }
+                const roomType = await (this.availabilityService as any).prisma.roomType.findUnique({
+                    where: { id: rtId }
+                });
+                roomList.push(...availableRooms.map((r, idx) => ({
+                    id: r.id,
+                    name: r.name,
+                    roomNumber: r.roomNumber,
+                    roomType: roomType?.name || 'N/A',
+                    capacity: roomType ? (roomType.maxAdults + (roomType.maxChildren || 0)) : 0,
+                    maxAdults: roomType?.maxAdults || 0,
+                    maxChildren: roomType?.maxChildren || 0,
+                    baseAdults: roomType?.baseAdults ?? roomType?.maxAdults ?? 2,
+                    baseChildren: roomType?.baseChildren ?? roomType?.maxChildren ?? 1,
+                    maxPhysicalAdults: roomType?.maxPhysicalAdults ?? 4,
+                    maxPhysicalChildren: roomType?.maxPhysicalChildren ?? 2,
+                    consolidationScore: r.consolidationScore ?? 0,
+                    isRecommended: idx === 0,
+                })));
+            }
         }
 
 
@@ -171,6 +194,13 @@ export class BookingsController {
     @Post('search')
     @ApiOperation({ summary: 'Search available room types (Public)' })
     async searchRooms(@Body() dto: SearchRoomsDto) {
+        const roomTypeIds = dto.roomTypeIds && dto.roomTypeIds.length > 0
+            ? dto.roomTypeIds
+            : (dto.roomTypeId ? [dto.roomTypeId] : undefined);
+        const roomIds = dto.roomIds && dto.roomIds.length > 0
+            ? dto.roomIds
+            : (dto.roomId ? [dto.roomId] : undefined);
+
         const results = await this.availabilityService.searchAvailableRoomTypes(
             new Date(dto.checkInDate),
             new Date(dto.checkOutDate),
@@ -189,12 +219,49 @@ export class BookingsController {
             dto.isGroupBooking || false,
             dto.groupSize,
             dto.infants || 0,
+            dto.childAges,
+            dto.includeFlexibleDates,
+            roomTypeIds,
+            roomIds,
         );
 
         return {
-            availableRoomTypes: results
+            availableRoomTypes: results,
+            accommodationSolutions: (results as any).accommodationSolutions || [],
+            flexibleDateRates: (results as any).flexibleDateRates || [],
         };
     }
+
+    @Post('flexible-dates')
+    @ApiOperation({ summary: 'Get flexible date rates for property (Public)' })
+    async getFlexibleDates(@Body() dto: SearchRoomsDto) {
+        const results = await this.availabilityService.searchAvailableRoomTypes(
+            new Date(dto.checkInDate),
+            new Date(dto.checkOutDate),
+            dto.adults,
+            dto.children || 0,
+            dto.location,
+            dto.type,
+            dto.includeSoldOut || false,
+            dto.rooms || 1,
+            dto.categoryId,
+            dto.latitude,
+            dto.longitude,
+            dto.radius,
+            dto.currency,
+            dto.propertyId,
+            dto.isGroupBooking || false,
+            dto.groupSize,
+            dto.infants || 0,
+            dto.childAges,
+            true, // force includeFlexibleDates
+        );
+
+        return {
+            flexibleDateRates: (results as any).flexibleDateRates || [],
+        };
+    }
+
 
     @Post('calculate-price')
     @ApiOperation({ summary: 'Calculate booking price (Public). Invalid referral codes are rate-limited per IP.' })
@@ -202,25 +269,7 @@ export class BookingsController {
         console.log(`[BookingsController] calculatePrice called with DTO:`, JSON.stringify(dto));
         // If referral code provided but invalid, count it as a failure for brute-force protection.
         // Valid codes: no penalty. No referral code: no tracking.
-        const result = await this.pricingService.calculatePrice(
-            dto.roomTypeId,
-            new Date(dto.checkInDate),
-            new Date(dto.checkOutDate),
-            dto.adultsCount,
-            dto.childrenCount,
-            dto.couponCode,
-            dto.referralCode,
-            dto.currency,
-            dto.isGroupBooking,
-            dto.groupSize,
-            dto.roomCount || dto.roomsCount,
-            dto.generalCode,
-            dto.overrideTotal,
-            dto.isOverrideInclusive ?? true,
-            dto.extraAdultsCount,
-            dto.extraChildrenCount,
-            dto.infantsCount || 0,
-        );
+        const result = await this.bookingsService.calculatePrice(dto);
         // Track abuse: if a referral code was submitted but came back with no discount (invalid code)
         if (dto.referralCode && !result.referralDiscountAmount) {
             await this.referralAbuseService.recordFailure(ip);

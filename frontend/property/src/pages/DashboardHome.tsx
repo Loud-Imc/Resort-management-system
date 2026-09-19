@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService } from '../services/reports';
-import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle } from 'lucide-react';
+import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle, CheckSquare, Check, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
@@ -66,6 +66,10 @@ export default function DashboardHome() {
     const [blockingRoom, setBlockingRoom] = useState<any>(null);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
+    // Multi-Room Selection State for Booking Creation
+    const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
+    const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
+
     // Fetch unified dashboard statistics (single API call with server-calculated date-aware room statuses)
     const { data: stats, isLoading: statsLoading, isFetching } = useQuery<any>({
         queryKey: ['dashboard-unified', selectedProperty?.id, selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'today'],
@@ -78,6 +82,57 @@ export default function DashboardHome() {
     });
 
     const displayRooms = stats?.roomsList || [];
+
+    // Clear room selection when selected date changes
+    useEffect(() => {
+        setSelectedRoomIds([]);
+    }, [selectedDate]);
+
+    const toggleRoomSelection = (roomId: string) => {
+        setSelectedRoomIds(prev => {
+            const next = prev.includes(roomId)
+                ? prev.filter(id => id !== roomId)
+                : [...prev, roomId];
+            if (next.length > 0 && !isSelectionMode) {
+                setIsSelectionMode(true);
+            }
+            return next;
+        });
+    };
+
+    const handleSelectAllAvailable = () => {
+        const availableIds = displayRooms
+            .filter((r: any) => r.status === 'AVAILABLE' || r.status === 'OUT_TODAY')
+            .map((r: any) => r.id);
+        setSelectedRoomIds(availableIds);
+        setIsSelectionMode(true);
+    };
+
+    const handleClearSelection = () => {
+        setSelectedRoomIds([]);
+        setIsSelectionMode(false);
+    };
+
+    const handleCreateBookingForSelectedRooms = () => {
+        if (selectedRoomIds.length === 0) return;
+        const selectedRooms = displayRooms.filter((r: any) => selectedRoomIds.includes(r.id));
+        const roomTypeIds = Array.from(new Set(selectedRooms.map((r: any) => r.roomTypeId).filter(Boolean))) as string[];
+        const targetDate = selectedDate || new Date();
+        const dateStr = format(targetDate, 'yyyy-MM-dd');
+
+        navigate('/bookings/create', {
+            state: {
+                roomIds: selectedRoomIds,
+                roomId: selectedRoomIds[0],
+                roomTypeIds,
+                roomTypeId: selectedRooms[0]?.roomTypeId,
+                startDate: dateStr,
+                endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd'),
+                roomsCount: selectedRoomIds.length,
+                adultsCount: Math.max(2, selectedRoomIds.length * 2),
+            }
+        });
+    };
     const statusSummary = stats?.statusSummary || {
         AVAILABLE: 0,
         OUT_TODAY: 0,
@@ -102,6 +157,12 @@ export default function DashboardHome() {
     };
 
     const handleRoomClick = (room: any) => {
+        if (isSelectionMode || selectedRoomIds.length > 0) {
+            if (room.status === 'AVAILABLE' || room.status === 'OUT_TODAY') {
+                toggleRoomSelection(room.id);
+                return;
+            }
+        }
         if (room.status === 'AVAILABLE') {
             handleBookClick(room);
         } else if (room._activeBooking) {
@@ -129,10 +190,14 @@ export default function DashboardHome() {
         navigate('/bookings/create', { 
             state: { 
                 roomId: room.id,
+                roomIds: [room.id],
                 roomTypeId: room.roomTypeId,
+                roomTypeIds: room.roomTypeId ? [room.roomTypeId] : [],
                 roomNumber: room.roomNumber,
                 startDate: dateStr,
-                endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd')
+                endDate: format(addDays(targetDate, 1), 'yyyy-MM-dd'),
+                roomsCount: 1,
+                adultsCount: 2,
             } 
         });
     };
@@ -187,6 +252,8 @@ export default function DashboardHome() {
         }).filter(Boolean) as { label: string; dateStr: string; type: 'expired' | 'expiring' }[];
     })();
 
+    const availableRoomsCount = displayRooms.filter((r: any) => r.status === 'AVAILABLE' || r.status === 'OUT_TODAY').length;
+
     return (
         <div className="space-y-6">
             <PropertyReadiness />
@@ -227,7 +294,7 @@ export default function DashboardHome() {
                 </div>
                 <button
                     onClick={() => navigate('/bookings/create')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
                 >
                     <Plus className="h-4 w-4" />
                     Walk-in Booking
@@ -245,7 +312,7 @@ export default function DashboardHome() {
                     <button
                         key={action.label}
                         onClick={() => navigate(action.path)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${action.color}`}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${action.color}`}
                     >
                         <action.icon className="h-4 w-4" />
                         {action.label}
@@ -325,7 +392,6 @@ export default function DashboardHome() {
                     {[
                         { label: 'Available', count: statusSummary.AVAILABLE, color: 'bg-emerald-500' },
                         { label: 'Out Today', count: statusSummary.OUT_TODAY, color: 'bg-orange-500' },
-                        // { label: 'Confirmed', count: statusSummary.CONFIRMED, color: 'bg-fuchsia-500' },
                         { label: 'Reserved', count: statusSummary.RESERVED, color: 'bg-indigo-500' },
                         { label: 'Occupied', count: statusSummary.OCCUPIED, color: 'bg-blue-500' },
                         { label: 'Maintenance', count: statusSummary.MAINTENANCE, color: 'bg-amber-500' },
@@ -347,8 +413,8 @@ export default function DashboardHome() {
             <div className="grid lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     {/* Room Status Grid */}
-                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 h-full">
-                        <div className="flex items-start justify-between mb-4">
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 h-full space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                     <BedDouble className="h-5 w-5 text-primary" />
@@ -364,15 +430,40 @@ export default function DashboardHome() {
                                     </p>
                                 )}
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                 {selectedDate && (
                                     <button
                                         onClick={() => setSelectedDate(null)}
-                                        className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                                        className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors cursor-pointer"
                                     >
                                         Reset to Today
                                     </button>
                                 )}
+
+                                {/* Multi-Selection Toggle Button */}
+                                {availableRoomsCount > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            if (isSelectionMode && selectedRoomIds.length === 0) {
+                                                setIsSelectionMode(false);
+                                            } else if (isSelectionMode && selectedRoomIds.length > 0) {
+                                                handleClearSelection();
+                                            } else {
+                                                setIsSelectionMode(true);
+                                            }
+                                        }}
+                                        className={clsx(
+                                            "text-xs px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all cursor-pointer",
+                                            isSelectionMode || selectedRoomIds.length > 0
+                                                ? "bg-primary/10 text-primary border-primary/30"
+                                                : "bg-muted/50 hover:bg-muted text-muted-foreground border-border hover:text-foreground"
+                                        )}
+                                    >
+                                        <CheckSquare className="h-3.5 w-3.5" />
+                                        {isSelectionMode ? 'Cancel Selection' : 'Select Multiple Rooms'}
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={() => navigate('/rooms')}
                                     className="text-sm text-primary hover:underline font-medium flex items-center gap-1"
@@ -382,133 +473,207 @@ export default function DashboardHome() {
                             </div>
                         </div>
 
+                        {/* Multi-Room Selection Floating / Sticky Bar */}
+                        {(isSelectionMode || selectedRoomIds.length > 0) && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                                        {selectedRoomIds.length} Room{selectedRoomIds.length === 1 ? '' : 's'} Selected
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        (for {selectedDate ? format(selectedDate, 'MMM d') : 'Today'})
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {availableRoomsCount > selectedRoomIds.length && (
+                                        <button
+                                            type="button"
+                                            onClick={handleSelectAllAvailable}
+                                            className="text-xs font-bold text-primary hover:underline px-2 py-1 rounded cursor-pointer"
+                                        >
+                                            Select All ({availableRoomsCount})
+                                        </button>
+                                    )}
+                                    {selectedRoomIds.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={handleClearSelection}
+                                            className="text-xs font-bold text-muted-foreground hover:text-rose-600 px-2 py-1 rounded cursor-pointer"
+                                        >
+                                            Clear Selection
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        disabled={selectedRoomIds.length === 0}
+                                        onClick={handleCreateBookingForSelectedRooms}
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-black uppercase tracking-wider rounded-xl shadow-xs transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Create Booking ({selectedRoomIds.length})
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {displayRooms.length === 0 ? (
                             <div className="text-center py-12">
                                 <BedDouble className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
                                 <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">No rooms found.</p>
                                 <button onClick={() => navigate('/rooms/create')}
-                                    className="mt-3 text-sm text-primary hover:underline font-medium">
+                                    className="mt-3 text-sm text-primary hover:underline font-medium cursor-pointer">
                                     + Add your first room
                                 </button>
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                                {displayRooms.map((room: any) => (
-                                    <div
-                                        key={room.id}
-                                        onClick={() => handleRoomClick(room as Room & { _activeBooking?: Booking | null, _checkoutBooking?: Booking | null })}
-                                        title={
-                                            (room as any)._checkoutBooking && room.status !== 'OUT_TODAY'
-                                                ? "This room has a check out today, but also has a booking today"
-                                                : room.status === 'AVAILABLE' 
-                                                    ? `Book Room ${room.roomNumber}` 
-                                                    : `${room.roomNumber} — ${room.status}`
-                                        }
-                                        className={clsx(
-                                            `p-3 rounded-2xl border text-center font-medium transition-all flex flex-col justify-center items-center h-full min-h-[6.5rem] relative group cursor-pointer hover:shadow-lg hover:-translate-y-1`,
-                                            activeMenuId === room.id ? 'z-30' : 'z-10',
-                                            getStatusColor(room.status as string)
-                                        )}
-                                    >
-                                        {/* Three-dot dropdown menu trigger */}
-                                        {room.status !== 'BLOCKED' && room.status !== 'MAINTENANCE' && (
-                                            <div className="absolute top-1.5 right-1.5 z-30">
-                                                <button
+                                {displayRooms.map((room: any) => {
+                                    const isAvailableOrOutToday = room.status === 'AVAILABLE' || room.status === 'OUT_TODAY';
+                                    const isSelected = selectedRoomIds.includes(room.id);
+
+                                    return (
+                                        <div
+                                            key={room.id}
+                                            onClick={() => handleRoomClick(room as Room & { _activeBooking?: Booking | null, _checkoutBooking?: Booking | null })}
+                                            title={
+                                                (room as any)._checkoutBooking && room.status !== 'OUT_TODAY'
+                                                    ? "This room has a check out today, but also has a booking today"
+                                                    : room.status === 'AVAILABLE' 
+                                                        ? (isSelectionMode ? `Select Room ${room.roomNumber}` : `Book Room ${room.roomNumber}`)
+                                                        : `${room.roomNumber} — ${room.status}`
+                                            }
+                                            className={clsx(
+                                                `p-3 rounded-2xl border text-center font-medium transition-all flex flex-col justify-center items-center h-full min-h-[6.5rem] relative group cursor-pointer hover:shadow-lg hover:-translate-y-1 select-none`,
+                                                activeMenuId === room.id ? 'z-30' : 'z-10',
+                                                isSelected
+                                                    ? 'ring-2 ring-primary border-primary bg-primary/10 dark:bg-primary/20 shadow-md transform scale-[1.02]'
+                                                    : getStatusColor(room.status as string)
+                                            )}
+                                        >
+                                            {/* Checkbox for Available / Out Today rooms */}
+                                            {isAvailableOrOutToday && (
+                                                <div 
+                                                    className={clsx(
+                                                        "absolute top-2 left-2 z-20 transition-all",
+                                                        isSelectionMode || isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                                    )}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setActiveMenuId(activeMenuId === room.id ? null : room.id);
+                                                        toggleRoomSelection(room.id);
                                                     }}
-                                                    className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                 >
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </button>
-
-                                                {activeMenuId === room.id && (
-                                                    <div
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="absolute right-0 top-full mt-1 w-36 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden text-left py-1"
-                                                    >
-                                                        {room.status === 'AVAILABLE' && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setBlockingRoom(room);
-                                                                    setIsBlockModalOpen(true);
-                                                                    setActiveMenuId(null);
-                                                                }}
-                                                                className="w-full text-left px-3 py-2.5 text-xs font-bold text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
-                                                            >
-                                                                <Lock className="h-3.5 w-3.5 text-amber-500" /> Block Room
-                                                            </button>
-                                                        )}
-                                                        {(room.status === 'OCCUPIED' || room.status === 'RESERVED') && (
-                                                            <>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedRoomId(room.id);
-                                                                        setIsGuestModalOpen(true);
-                                                                        setActiveMenuId(null);
-                                                                    }}
-                                                                    className="w-full text-left px-3 py-2.5 text-xs font-bold text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
-                                                                >
-                                                                    <Users className="h-3.5 w-3.5 text-primary" /> Guest Details
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedRoomId(room.id);
-                                                                        setIsScheduleModalOpen(true);
-                                                                        setActiveMenuId(null);
-                                                                    }}
-                                                                    className="w-full text-left px-3 py-2.5 text-xs font-bold text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
-                                                                >
-                                                                    <CalendarDays className="h-3.5 w-3.5 text-amber-500" /> View Schedule
-                                                                </button>
-                                                            </>
-                                                        )}
+                                                    <div className={clsx(
+                                                        "w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer shadow-xs",
+                                                        isSelected
+                                                            ? "bg-primary border-primary text-primary-foreground"
+                                                            : "bg-white/80 dark:bg-gray-800/80 border-gray-400 dark:border-gray-500 hover:border-primary text-transparent"
+                                                    )}>
+                                                        <Check className={clsx("w-3.5 h-3.5 stroke-[3]", isSelected ? "block" : "hidden")} />
                                                     </div>
-                                                )}
-                                            </div>
-                                        )}
+                                                </div>
+                                            )}
 
-                                        {/* Status edge badge: If there's a checkout today but the room is already booked for tonight */}
-                                        {(room as any)._checkoutBooking && room.status !== 'OUT_TODAY' && (
-                                            <span className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tr-2xl rounded-bl-lg shadow-sm z-10" title="This room has a check out today, but also has a booking today">
-                                                OUT TODAY
-                                            </span>
-                                        )}
+                                            {/* Three-dot dropdown menu trigger */}
+                                            {room.status !== 'BLOCKED' && room.status !== 'MAINTENANCE' && (
+                                                <div className="absolute top-1.5 right-1.5 z-30">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveMenuId(activeMenuId === room.id ? null : room.id);
+                                                        }}
+                                                        className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                                                    >
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </button>
 
-                                        <div className="font-bold text-lg">{room.roomNumber}</div>
-                                        <div className="mt-1 flex flex-col items-center w-full">
-                                            {(room as any)._guestName && (
-                                                <span className="font-semibold text-xs truncate w-full px-1 text-center">
-                                                    {(room as any)._guestName}
+                                                    {activeMenuId === room.id && (
+                                                        <div
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="absolute right-0 top-full mt-1 w-36 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden text-left py-1"
+                                                        >
+                                                            {room.status === 'AVAILABLE' && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setBlockingRoom(room);
+                                                                        setIsBlockModalOpen(true);
+                                                                        setActiveMenuId(null);
+                                                                    }}
+                                                                    className="w-full text-left px-3 py-2.5 text-xs font-bold text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                                >
+                                                                    <Lock className="h-3.5 w-3.5 text-amber-500" /> Block Room
+                                                                </button>
+                                                            )}
+                                                            {(room.status === 'OCCUPIED' || room.status === 'RESERVED') && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedRoomId(room.id);
+                                                                            setIsGuestModalOpen(true);
+                                                                            setActiveMenuId(null);
+                                                                        }}
+                                                                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Users className="h-3.5 w-3.5 text-primary" /> Guest Details
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedRoomId(room.id);
+                                                                            setIsScheduleModalOpen(true);
+                                                                            setActiveMenuId(null);
+                                                                        }}
+                                                                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                                    >
+                                                                        <CalendarDays className="h-3.5 w-3.5 text-amber-500" /> View Schedule
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Status edge badge: If there's a checkout today but the room is already booked for tonight */}
+                                            {(room as any)._checkoutBooking && room.status !== 'OUT_TODAY' && (
+                                                <span className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tr-2xl rounded-bl-lg shadow-sm z-10" title="This room has a check out today, but also has a booking today">
+                                                    OUT TODAY
                                                 </span>
                                             )}
-                                            <span className="text-[10px] uppercase font-bold tracking-wider mt-0.5 opacity-80">
-                                                {room.status?.replace('_', ' ')}
-                                            </span>
-                                        </div>
 
-                                        {room.status === 'OUT_TODAY' && (
-                                            <div 
-                                                className="absolute bottom-0 left-0 w-full bg-primary/10 text-primary dark:text-primary-foreground dark:bg-primary/20 text-[10px] font-bold py-2 border-t border-primary/20 dark:border-primary/30 hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary transition-all cursor-pointer z-20 flex items-center justify-center gap-1 backdrop-blur-sm rounded-b-[15px]"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleBookClick(room as Room);
-                                                }}
-                                            >
-                                                <Plus className="w-3 h-3" /> BOOK
+                                            <div className="font-bold text-lg">{room.roomNumber}</div>
+                                            <div className="mt-1 flex flex-col items-center w-full">
+                                                {(room as any)._guestName && (
+                                                    <span className="font-semibold text-xs truncate w-full px-1 text-center">
+                                                        {(room as any)._guestName}
+                                                    </span>
+                                                )}
+                                                <span className="text-[10px] uppercase font-bold tracking-wider mt-0.5 opacity-80">
+                                                    {room.status?.replace('_', ' ')}
+                                                </span>
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+
+                                            {room.status === 'OUT_TODAY' && !isSelectionMode && selectedRoomIds.length === 0 && (
+                                                <div 
+                                                    className="absolute bottom-0 left-0 w-full bg-primary/10 text-primary dark:text-primary-foreground dark:bg-primary/20 text-[10px] font-bold py-2 border-t border-primary/20 dark:border-primary/30 hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary transition-all cursor-pointer z-20 flex items-center justify-center gap-1 backdrop-blur-sm rounded-b-[15px]"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleBookClick(room as Room);
+                                                    }}
+                                                >
+                                                    <Plus className="w-3 h-3" /> BOOK
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                         {displayRooms.some((r: any) => r.status === 'AVAILABLE') && (
                             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 italic">
-                                💡 Click an available room to create a walk-in booking
+                                💡 Click any available room to book individually, or use checkboxes to book multiple rooms together.
                             </p>
                         )}
                     </div>

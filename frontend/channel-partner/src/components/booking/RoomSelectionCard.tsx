@@ -22,6 +22,11 @@ export interface RoomType {
     originalPrice?: number;
     maxAdults: number;
     maxChildren: number;
+    maxPhysicalAdults?: number | null;
+    maxPhysicalChildren?: number | null;
+    maxPhysicalInfants?: number | null;
+    totalMaxOccupancy?: number | null;
+    capacity?: number;
     images?: (string | Image)[];
     amenities?: string[];
     availableCount?: number;
@@ -112,22 +117,30 @@ const RoomSelectionCard: React.FC<{
     guests: number,
     isGroupBooking?: boolean,
     currency?: string,
-    roomsCount?: number
-}> = ({ room, onSelect, onShowDetails, isSelected, nights, guests, isGroupBooking, currency = 'INR', roomsCount = 1 }) => {
+    roomsCount?: number,
+    canFit?: boolean
+}> = ({ room, onSelect, onShowDetails, isSelected, nights, guests, isGroupBooking, currency = 'INR', roomsCount = 1, canFit = true }) => {
     const isSoldOut = room.isSoldOut || (room.availableCount !== undefined && room.availableCount === 0);
+    const isClickable = !isSoldOut && canFit;
 
     return (
         <div
             style={{
                 background: '#fff', borderRadius: '2rem', overflow: 'hidden',
-                border: isSelected ? '3px solid #14b8a6' : '1px solid #f3f4f6',
+                border: isSelected ? '3px solid #14b8a6' : (!canFit ? '1px dashed #e5e7eb' : '1px solid #f3f4f6'),
                 boxShadow: isSelected ? '0 20px 40px rgba(20,184,166,0.12)' : '0 4px 20px rgba(0,0,0,0.03)',
                 transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: isSoldOut ? 'default' : 'pointer',
-                opacity: isSoldOut ? 0.75 : 1,
+                cursor: isClickable ? 'pointer' : 'default',
+                opacity: isSoldOut ? 0.75 : (!canFit ? 0.85 : 1),
                 position: 'relative'
             }}
-            onClick={() => !isSoldOut && (onShowDetails ? onShowDetails(room) : onSelect(room))}
+            onClick={() => {
+                if (onShowDetails) {
+                    onShowDetails(room);
+                } else if (isClickable) {
+                    onSelect(room);
+                }
+            }}
         >
             {isSoldOut && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(1px)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -157,9 +170,24 @@ const RoomSelectionCard: React.FC<{
                     {/* Middle: Info */}
                     <div className="room-card-info" style={{ flex: 1, borderRight: '1.5px solid #f9fafb', minWidth: '320px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '2rem', borderBottom: '1.5px solid #f9fafb' }}>
-                            <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#111827', margin: '0 0 0.75rem 0', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
-                                {isGroupBooking ? 'Group Stay Package' : room.name}
-                            </h3>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#111827', margin: '0 0 0.25rem 0', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+                                    {isGroupBooking ? 'Group Stay Package' : room.name}
+                                </h3>
+                                {!canFit && !isGroupBooking && (
+                                    <span style={{
+                                        background: '#fef3c7',
+                                        color: '#92400e',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        padding: '0.25rem 0.65rem',
+                                        borderRadius: '0.5rem',
+                                        border: '1px solid #fde68a'
+                                    }}>
+                                        ⚠️ Exceeds 1-Room Capacity
+                                    </span>
+                                )}
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#059669', fontSize: '12px', fontWeight: 800 }}>
                                 <Sparkles size={16} />
                                 {isGroupBooking ? 'Exclusive Property Reservation' : 'Highest Quality Standard'}
@@ -170,7 +198,7 @@ const RoomSelectionCard: React.FC<{
                         <div style={{ padding: '1rem 2rem', background: '#f9fafb', display: 'flex', gap: '2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '13px', fontWeight: 800, color: '#374151' }}>
                                 <Users size={16} color="#0d9488" />
-                                {isGroupBooking ? `${guests} Total Guests` : `${room.maxAdults} Adults ${room.maxChildren > 0 ? `+ ${room.maxChildren} Child` : ''}`}
+                                {isGroupBooking ? `${guests} Total Guests` : `Max: ${room.maxPhysicalAdults ?? room.maxAdults} Adults ${((room.maxPhysicalChildren ?? room.maxChildren) > 0) ? `+ ${room.maxPhysicalChildren ?? room.maxChildren} Child` : ''}`}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '13px', fontWeight: 700, color: '#6b7280' }}>
                                 <Maximize size={16} color="#0d9488" />
@@ -244,34 +272,61 @@ const RoomSelectionCard: React.FC<{
                             </div>
                         )}
 
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (!isSoldOut) onSelect(room);
-                            }}
-                            disabled={isSoldOut}
-                            style={{
-                                width: '100%',
-                                padding: '1.1rem',
-                                background: isSelected ? '#14b8a6' : '#111827',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '1.25rem',
-                                fontWeight: 900,
-                                textTransform: 'uppercase',
-                                fontSize: '12px',
-                                letterSpacing: '0.1em',
-                                cursor: isSoldOut ? 'default' : 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.75rem',
-                                boxShadow: isSelected ? '0 10px 25px rgba(20,184,166,0.3)' : '0 10px 25px rgba(17,24,39,0.2)',
-                                transition: 'all 0.3s'
-                            }}
-                        >
-                            {isSelected ? 'Stay Selected' : 'Choose Package'}
-                        </button>
+                        {!canFit && !isGroupBooking ? (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onShowDetails) onShowDetails(room);
+                                }}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.9rem',
+                                    background: '#f3f4f6',
+                                    color: '#4b5563',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '1.25rem',
+                                    fontWeight: 800,
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    textAlign: 'center',
+                                    lineHeight: 1.3
+                                }}
+                            >
+                                Requires Package (View Details)
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isClickable) onSelect(room);
+                                }}
+                                disabled={!isClickable}
+                                style={{
+                                    width: '100%',
+                                    padding: '1.1rem',
+                                    background: isSelected ? '#14b8a6' : '#111827',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '1.25rem',
+                                    fontWeight: 900,
+                                    textTransform: 'uppercase',
+                                    fontSize: '12px',
+                                    letterSpacing: '0.1em',
+                                    cursor: isClickable ? 'pointer' : 'default',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.75rem',
+                                    boxShadow: isSelected ? '0 10px 25px rgba(20,184,166,0.3)' : '0 10px 25px rgba(17,24,39,0.2)',
+                                    transition: 'all 0.3s'
+                                }}
+                            >
+                                {isSelected ? 'Stay Selected' : 'Choose Single Room'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

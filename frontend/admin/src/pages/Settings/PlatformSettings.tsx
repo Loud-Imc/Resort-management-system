@@ -396,9 +396,46 @@ export default function PlatformSettings() {
                                         {gstTiers.map((tier, index) => (
                                             <div key={index} className="group relative border border-border rounded-xl p-4 hover:border-primary/50 transition-all bg-background/50">
                                                 <div className="grid grid-cols-3 gap-4">
-                                                    <div><label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min (₹)</label><input type="number" value={tier.min} onChange={(e) => updateGstTier(index, 'min', e.target.value)} className="w-full text-sm font-medium border-none p-0 bg-transparent text-foreground" /></div>
-                                                    <div><label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Max (₹)</label><input type="number" value={tier.max === null ? '' : tier.max} onChange={(e) => updateGstTier(index, 'max', e.target.value)} className="w-full text-sm font-medium border-none p-0 bg-transparent text-foreground" /></div>
-                                                    <div><label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Rate (%)</label><input type="number" value={tier.rate} onChange={(e) => updateGstTier(index, 'rate', e.target.value)} className="w-full text-sm font-bold text-primary border-none p-0 bg-transparent" /></div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min Tariff (₹)</label>
+                                                        <input 
+                                                            type="number" 
+                                                            value={tier.min} 
+                                                            onChange={(e) => updateGstTier(index, 'min', e.target.value)} 
+                                                            placeholder="0"
+                                                            className="w-full text-sm font-semibold border-none p-0 bg-transparent text-foreground focus:outline-none" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Max Tariff (₹)</label>
+                                                        <input 
+                                                            type="number" 
+                                                            value={tier.max === null ? '' : tier.max} 
+                                                            onChange={(e) => updateGstTier(index, 'max', e.target.value)} 
+                                                            placeholder="No Limit (Above)"
+                                                            className="w-full text-sm font-semibold border-none p-0 bg-transparent text-foreground placeholder:text-muted-foreground/50 placeholder:font-normal focus:outline-none" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">GST Rate (%)</label>
+                                                        <div className="flex items-center gap-1">
+                                                            <input 
+                                                                type="number" 
+                                                                value={tier.rate} 
+                                                                onChange={(e) => updateGstTier(index, 'rate', e.target.value)} 
+                                                                placeholder="5"
+                                                                className="w-full text-sm font-black text-primary border-none p-0 bg-transparent focus:outline-none" 
+                                                            />
+                                                            <span className="text-xs font-bold text-primary">%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 text-[11px] font-medium text-muted-foreground/80 flex items-center gap-1">
+                                                    {tier.max === null || tier.max === undefined ? (
+                                                        <span>Tariff &gt; ₹{tier.min.toLocaleString()} &rarr; <strong className="text-primary">{tier.rate}% GST</strong></span>
+                                                    ) : (
+                                                        <span>₹{tier.min.toLocaleString()} to ₹{tier.max.toLocaleString()} &rarr; <strong className="text-primary">{tier.rate}% GST</strong></span>
+                                                    )}
                                                 </div>
                                                 <button onClick={() => removeGstTier(index)} className="absolute -right-2 -top-2 p-1.5 bg-destructive/10 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-3 w-3" /></button>
                                             </div>
@@ -406,8 +443,8 @@ export default function PlatformSettings() {
                                     </div>
                                 )}
                                 <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full"><AlertCircle className="h-3.5 w-3.5" /> Affects new bookings.</div>
-                                    <button onClick={handleSaveGstTiers} disabled={isSaving} className="flex items-center gap-2 px-6 py-2 bg-foreground text-background rounded-xl font-bold">{isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Tiers</button>
+                                    <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 rounded-full"><AlertCircle className="h-3.5 w-3.5" /> Applied continuously with zero gaps.</div>
+                                    <button onClick={handleSaveGstTiers} disabled={isSaving} className="flex items-center gap-2 px-6 py-2 bg-foreground text-background rounded-xl font-bold hover:opacity-90 cursor-pointer transition-all">{isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Tiers</button>
                                 </div>
                             </div>
                         </div>

@@ -126,18 +126,19 @@ describe('Phase 7: Channex Canonical Occupancy Integration', () => {
     });
   });
 
-  describe('F. freeChildrenCount -> occ_infants', () => {
-    it('should map freeChildrenCount directly to occ_infants', () => {
+  describe('F. maxPhysicalInfants -> occ_infants (freeChildrenCount disconnected)', () => {
+    it('should map maxPhysicalInfants directly to occ_infants regardless of freeChildrenCount', () => {
       const roomType: any = {
         totalBaseOccupancy: 2,
         totalMaxOccupancy: 4,
         maxPhysicalAdults: 2,
         maxPhysicalChildren: 2,
-        freeChildrenCount: 2,
+        maxPhysicalInfants: 1,
+        freeChildrenCount: 3,
       };
 
       const result = validateAndMapChannexOccupancy(roomType, true);
-      expect(result.occ_infants).toBe(2);
+      expect(result.occ_infants).toBe(1);
     });
   });
 

@@ -98,13 +98,16 @@ export interface CheckAvailabilityDto {
 }
 
 export interface PriceCalculationDto {
-    roomTypeId: string;
+    roomTypeId?: string;
+    propertyId?: string;
+    roomAllocations?: any[];
     checkInDate: string;
     checkOutDate: string;
-    adultsCount: number;
-    childrenCount: number;
+    adultsCount?: number;
+    childrenCount?: number;
     couponCode?: string;
     referralCode?: string;
+    generalCode?: string;
     isGroupBooking?: boolean;
     groupSize?: number;
 }

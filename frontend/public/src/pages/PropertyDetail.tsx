@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
@@ -13,9 +13,12 @@ import { propertyApi } from '../services/properties';
 import { bookingService } from '../services/booking';
 import { reviewService, Review, ReviewStats } from '../services/reviews';
 import PropertyCard from '../components/PropertyCard';
-import { Property, RoomType } from '../types';
+import AccommodationSolutionCard from '../components/booking/AccommodationSolutionCard';
+import RoomDetailsModal, { RoomDetailData } from '../components/booking/RoomDetailsModal';
+import { Property, RoomType, AccommodationSolution, AllocatedRoomItem, FlexibleDateRate } from '../types';
 import { useSearch } from '../context/SearchContext';
 import { PriceDisplay } from '../components/common/PriceDisplay';
+import { canRoomTypeFitParty } from '../utils/occupancy';
 import DatePicker from 'react-datepicker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import "react-datepicker/dist/react-datepicker.css";
@@ -149,6 +152,7 @@ export default function PropertyDetail() {
         checkOut, setCheckOut,
         adults, setAdults,
         children, setChildren,
+        childAges,
         infants, setInfants,
         rooms, setRooms,
         isGroupBooking, setIsGroupBooking,
@@ -164,6 +168,7 @@ export default function PropertyDetail() {
 
     const [property, setProperty] = useState<Property | null>(null);
     const [availability, setAvailability] = useState<RoomType[] | null>(null);
+    const [accommodationSolutions, setAccommodationSolutions] = useState<AccommodationSolution[]>([]);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -172,9 +177,10 @@ export default function PropertyDetail() {
     const [nearbyProperties, setNearbyProperties] = useState<Property[]>([]);
     const [nearbyRadius, setNearbyRadius] = useState<number>(50);
     const [loadingNearby, setLoadingNearby] = useState(false);
-    const [flexiRates, setFlexiRates] = useState<any[]>([]);
-    const [loadingFlexi, setLoadingFlexi] = useState(false);
+    const [flexiRates, setFlexiRates] = useState<FlexibleDateRate[]>([]);
     const [selectedOfferDetails, setSelectedOfferDetails] = useState<any | null>(null);
+    const [inspectingRoom, setInspectingRoom] = useState<RoomDetailData | null>(null);
+    const [showRoomModal, setShowRoomModal] = useState(false);
 
     useEffect(() => {
         if (slug) {
@@ -194,10 +200,14 @@ export default function PropertyDetail() {
     const fetchNearby = async (lat: number, lng: number) => {
         try {
             setLoadingNearby(true);
-            const { properties: data, radiusKm } = await propertyApi.getNearby(lat, lng); 
-            setNearbyRadius(radiusKm);
+            const res = await propertyApi.getNearby(lat, lng); 
+            const propertiesList: Property[] = Array.isArray(res) 
+                ? res 
+                : (res && Array.isArray((res as any).properties) ? (res as any).properties : []);
+            const radius = (res as any)?.radiusKm || 50;
+            setNearbyRadius(radius);
             // Filter out the current property
-            setNearbyProperties(data.filter(p => p.id !== property?.id).slice(0, 3));
+            setNearbyProperties(propertiesList.filter(p => p.id !== property?.id).slice(0, 3));
         } catch (err) {
             console.error('Error fetching nearby properties:', err);
         } finally {
@@ -218,115 +228,12 @@ export default function PropertyDetail() {
         }
     };
 
-    // Fetch availability if dates are selected
+    // Fetch availability and flexible date rates if dates are selected
     useEffect(() => {
         if (property && checkIn && checkOut) {
             fetchAvailability();
         }
-    }, [property, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
-
-    // Fetch flexible travel dates rates in parallel
-    useEffect(() => {
-        if (!property?.id || !checkIn || !checkOut) return;
-
-        const loadFlexiDates = async () => {
-            try {
-                setLoadingFlexi(true);
-
-                // Stay length N
-                const nights = differenceInDays(checkOut, checkIn);
-                const stayLength = nights > 0 ? nights : 1;
-
-                // Offsets surrounding selected date
-                let offsets = [-1, 0, 1, 2, 3];
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                // Check if check-in minus 1 day is in the past
-                const checkInMinus1 = addDays(checkIn, -1);
-                checkInMinus1.setHours(0, 0, 0, 0);
-
-                if (checkInMinus1.getTime() < today.getTime()) {
-                    // Shift range forward to only check future/present dates
-                    offsets = [0, 1, 2, 3, 4];
-                }
-
-                // Generate ranges
-                const ranges = offsets.map(offset => {
-                    const cin = addDays(checkIn, offset);
-                    const cout = addDays(cin, stayLength);
-                    return { checkIn: cin, checkOut: cout };
-                });
-
-                // Fetch availability for all ranges in parallel
-                const promises = ranges.map(async (range) => {
-                    try {
-                        const data = await bookingService.checkAvailability({
-                            checkInDate: range.checkIn.toISOString(),
-                            checkOutDate: range.checkOut.toISOString(),
-                            adults,
-                            children,
-                            rooms,
-                            includeSoldOut: true,
-                            propertyId: property.id,
-                            isGroupBooking,
-                            groupSize
-                        });
-
-                        // Calculate lowest starting price in this range
-                        let price: number | null = null;
-                        let isSoldOut = true;
-
-                        if (isGroupBooking) {
-                            const groupStay = data.availableRoomTypes?.[0];
-                            if (groupStay && !groupStay.isSoldOut) {
-                                price = groupStay.totalPrice;
-                                isSoldOut = false;
-                            }
-                        } else {
-                            const availableRoomTypes = data.availableRoomTypes || [];
-                            const nonSoldOut = availableRoomTypes.filter((rt: any) => !rt.isSoldOut);
-                            if (nonSoldOut.length > 0) {
-                                isSoldOut = false;
-                                // Find minimum price
-                                const prices = nonSoldOut.map((rt: any) => {
-                                    if (rt.totalPrice) return rt.totalPrice;
-                                    return (rt.discountedPricePerNight || rt.basePrice) * stayLength;
-                                });
-                                price = Math.min(...prices);
-                            }
-                        }
-
-                        return {
-                            checkIn: range.checkIn,
-                            checkOut: range.checkOut,
-                            price,
-                            isSoldOut,
-                            isSelected: range.checkIn.toDateString() === checkIn.toDateString()
-                        };
-                    } catch (err) {
-                        console.error('Error fetching flexi rate for range', range, err);
-                        return {
-                            checkIn: range.checkIn,
-                            checkOut: range.checkOut,
-                            price: null,
-                            isSoldOut: true,
-                            isSelected: range.checkIn.toDateString() === checkIn.toDateString()
-                        };
-                    }
-                });
-
-                const results = await Promise.all(promises);
-                setFlexiRates(results);
-            } catch (err) {
-                console.error('Error loading flexible dates:', err);
-            } finally {
-                setLoadingFlexi(false);
-            }
-        };
-
-        loadFlexiDates();
-    }, [property?.id, checkIn, checkOut, adults, children, rooms, isGroupBooking, groupSize]);
+    }, [property, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, rooms, isGroupBooking, groupSize]);
 
     const fetchAvailability = async () => {
         if (!property || !checkIn || !checkOut) return;
@@ -337,19 +244,109 @@ export default function PropertyDetail() {
                 checkOutDate: checkOut.toISOString(),
                 adults,
                 children,
+                childAges: children > 0 ? childAges : undefined,
+                infants: infants || 0,
                 rooms,
                 includeSoldOut: true,
                 propertyId: property.id,
                 isGroupBooking,
-                groupSize
+                groupSize,
+                includeFlexibleDates: true,
             });
             // For group booking, the service returns exactly one "Group Stay Package" if available
             setAvailability(data.availableRoomTypes);
+            if (data.accommodationSolutions && data.accommodationSolutions.length > 0) {
+                setAccommodationSolutions(data.accommodationSolutions);
+            } else {
+                setAccommodationSolutions([]);
+            }
+            if (data.flexibleDateRates && data.flexibleDateRates.length > 0) {
+                setFlexiRates(data.flexibleDateRates);
+            }
         } catch (err) {
             console.error('Error fetching availability:', err);
         } finally {
             setLoadingAvailability(false);
         }
+    };
+
+    // Effective flexible date rates: Use authoritative backend rates, with seamless local calculation fallback
+    const effectiveFlexiRates: FlexibleDateRate[] = useMemo(() => {
+        if (flexiRates && flexiRates.length > 0) {
+            return flexiRates;
+        }
+        if (!checkIn || !checkOut || !property?.roomTypes || property.roomTypes.length === 0) {
+            return [];
+        }
+
+        const stayLength = Math.max(1, differenceInDays(checkOut, checkIn));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let offsets = [-1, 0, 1, 2, 3];
+        if (addDays(checkIn, -1) < today) {
+            offsets = [0, 1, 2, 3, 4];
+        }
+
+        const minAvailableBasePrice = property.roomTypes.reduce((min, rt) => {
+            const price = Number(rt.basePrice) || 0;
+            return price > 0 && price < min ? price : min;
+        }, Infinity);
+
+        const currentStayPrice = isFinite(minAvailableBasePrice) ? minAvailableBasePrice * stayLength * rooms : null;
+
+        return offsets.map(offset => {
+            const cin = addDays(checkIn, offset);
+            const cout = addDays(cin, stayLength);
+            const isSelected = offset === 0;
+            const price = currentStayPrice;
+
+            return {
+                checkInDate: cin.toISOString(),
+                checkOutDate: cout.toISOString(),
+                stayLength,
+                price,
+                pricePerNight: price !== null ? Number((price / stayLength).toFixed(2)) : null,
+                isSoldOut: price === null,
+                isSelected,
+                isCheapest: false,
+                priceDifference: isSelected ? 0 : 0,
+                hasSolution: false,
+            };
+        });
+    }, [flexiRates, checkIn, checkOut, property, rooms]);
+
+    const handleSelectSolution = (solution: AccommodationSolution) => {
+        if (!checkIn || !checkOut) {
+            pickerRef.current?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+        sessionStorage.setItem('selectedSolution', JSON.stringify(solution));
+        const firstRoomId = solution.rooms[0]?.roomTypeId || '';
+        const childAgesParam = children > 0 && childAges && childAges.length > 0 ? `&childAges=${childAges.join(',')}` : '';
+        navigate(`/book?roomId=${firstRoomId}&property=${property?.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${childAgesParam}&infants=${infants || 0}&roomsCount=${solution.totalRooms}&hasSolution=true`);
+    };
+
+    const handleViewRoomDetails = (allocatedRoom: AllocatedRoomItem) => {
+        const matchedRt = property?.roomTypes?.find(rt => rt.id === allocatedRoom.roomTypeId);
+        const roomData: RoomDetailData = {
+            id: allocatedRoom.roomTypeId,
+            name: allocatedRoom.roomTypeName,
+            description: matchedRt?.description,
+            images: (matchedRt as any)?.images || (allocatedRoom as any)?.images || [],
+            maxAdults: matchedRt?.maxAdults,
+            maxChildren: matchedRt?.maxChildren,
+            maxPhysicalAdults: (matchedRt as any)?.maxPhysicalAdults,
+            maxPhysicalChildren: (matchedRt as any)?.maxPhysicalChildren,
+            baseAdults: (matchedRt as any)?.baseAdults,
+            baseChildren: (matchedRt as any)?.baseChildren,
+            bedType: (matchedRt as any)?.bedType,
+            size: matchedRt?.size || undefined,
+            amenities: [...(matchedRt?.inclusions || []), ...(matchedRt?.highlights || [])],
+            basePrice: allocatedRoom.basePricePerNight,
+        };
+        setInspectingRoom(roomData);
+        setShowRoomModal(true);
     };
 
     const loadProperty = async (propertySlug: string) => {
@@ -474,8 +471,7 @@ export default function PropertyDetail() {
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-8">
                         {/* Flexible Dates Widget */}
-                        {/* Flexible Dates Widget */}
-                        {checkIn && checkOut && flexiRates.length > 0 && (
+                        {checkIn && checkOut && property.roomTypes && property.roomTypes.length > 0 && (
                             <div className="bg-gradient-to-br from-indigo-50/40 via-white to-blue-50/20 rounded-xl border border-indigo-100/60 p-3 shadow-sm mb-4 overflow-hidden relative">
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none" />
                                 
@@ -500,7 +496,7 @@ export default function PropertyDetail() {
                                     </button>
                                 </div>
 
-                                {loadingFlexi ? (
+                                {loadingAvailability && effectiveFlexiRates.length === 0 ? (
                                     <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                                         {[1, 2, 3, 4, 5].map((i) => (
                                             <div key={i} className="min-w-[145px] h-[82px] bg-gray-50 animate-pulse rounded-lg border border-gray-100 shrink-0" />
@@ -508,123 +504,118 @@ export default function PropertyDetail() {
                                     </div>
                                 ) : (
                                     <div className="flex gap-2.5 overflow-x-auto pb-1 snap-x scroll-smooth no-scrollbar">
-                                        {(() => {
-                                            const selectedRate = flexiRates.find(r => r.isSelected);
-                                            const selectedPrice = selectedRate?.price;
-                                            const availableRates = flexiRates.filter(r => !r.isSoldOut && r.price !== null);
-                                            const minPrice = availableRates.length > 0 ? Math.min(...availableRates.map(r => r.price!)) : null;
+                                        {effectiveFlexiRates.map((rate, idx) => {
+                                            const cinDate = typeof rate.checkInDate === 'string' ? new Date(rate.checkInDate) : rate.checkInDate;
+                                            const coutDate = typeof rate.checkOutDate === 'string' ? new Date(rate.checkOutDate) : rate.checkOutDate;
 
-                                            return flexiRates.map((rate, idx) => {
-                                                const isCheapest = rate.price !== null && minPrice !== null && rate.price <= minPrice;
-                                                
-                                                let badgeText = '';
-                                                let badgeType: 'cheapest' | 'expensive' | 'cheaper' | 'soldout' | 'same' = 'same';
+                                            let badgeText = '';
+                                            let badgeType: 'cheapest' | 'expensive' | 'cheaper' | 'soldout' | 'same' = 'same';
 
-                                                if (rate.isSoldOut || rate.price === null) {
-                                                    badgeText = 'Sold Out';
-                                                    badgeType = 'soldout';
-                                                } else if (rate.isSelected) {
-                                                    badgeText = isCheapest ? 'Cheapest Price' : 'Selected Date';
-                                                    badgeType = isCheapest ? 'cheapest' : 'same';
-                                                } else if (selectedPrice !== undefined && selectedPrice !== null) {
-                                                    if (isCheapest) {
-                                                        badgeText = 'Cheapest Price';
-                                                        badgeType = 'cheapest';
-                                                    } else if (rate.price > selectedPrice) {
-                                                        badgeText = `+ ₹${(rate.price - selectedPrice).toLocaleString('en-IN')}`;
-                                                        badgeType = 'expensive';
-                                                    } else if (rate.price < selectedPrice) {
-                                                        badgeText = `- ₹${(selectedPrice - rate.price).toLocaleString('en-IN')}`;
-                                                        badgeType = 'cheaper';
-                                                    } else {
-                                                        badgeText = 'Same Price';
-                                                        badgeType = 'same';
-                                                    }
+                                            if (rate.isSoldOut || rate.price === null) {
+                                                badgeText = 'Sold Out';
+                                                badgeType = 'soldout';
+                                            } else if (rate.isSelected) {
+                                                badgeText = rate.isCheapest ? 'Cheapest Price' : 'Selected Date';
+                                                badgeType = rate.isCheapest ? 'cheapest' : 'same';
+                                            } else if (rate.isCheapest) {
+                                                badgeText = 'Cheapest Price';
+                                                badgeType = 'cheapest';
+                                            } else if (rate.priceDifference !== null && rate.priceDifference !== undefined) {
+                                                if (rate.priceDifference > 0) {
+                                                    badgeText = `+ ₹${rate.priceDifference.toLocaleString('en-IN')}`;
+                                                    badgeType = 'expensive';
+                                                } else if (rate.priceDifference < 0) {
+                                                    badgeText = `- ₹${Math.abs(rate.priceDifference).toLocaleString('en-IN')}`;
+                                                    badgeType = 'cheaper';
+                                                } else {
+                                                    badgeText = 'Same Price';
+                                                    badgeType = 'same';
                                                 }
+                                            }
 
-                                                return (
-                                                    <button
-                                                        key={idx}
-                                                        onClick={() => {
-                                                            if (rate.isSoldOut || rate.price === null || rate.isSelected) return;
-                                                            setCheckIn(rate.checkIn);
-                                                            setCheckOut(rate.checkOut);
-                                                        }}
-                                                        disabled={rate.isSoldOut || rate.price === null}
-                                                        className={clsx(
-                                                            "min-w-[145px] flex-1 text-left flex flex-col justify-between pt-4 pb-2 px-2.5 rounded-lg border transition-all snap-start relative overflow-hidden group/card shadow-sm h-[82px]",
-                                                            rate.isSelected
-                                                                ? "bg-white border-indigo-600 ring-1 ring-indigo-600/20 text-gray-900"
-                                                                : rate.isSoldOut || rate.price === null
-                                                                    ? "bg-gray-50/50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60"
-                                                                    : "bg-white border-indigo-50 text-gray-800 hover:border-indigo-400 hover:scale-[1.01]"
-                                                        )}
-                                                    >
-                                                        {rate.isSelected && (
-                                                            <div className="absolute top-0 left-0 right-0 bg-indigo-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5 border-b border-indigo-500/10">
-                                                                Selected Date
-                                                            </div>
-                                                        )}
-                                                        
-                                                        <div className="flex flex-col space-y-0.5">
-                                                            <span className={clsx(
-                                                                "text-[9px] font-extrabold uppercase tracking-tight",
-                                                                rate.isSelected ? "text-indigo-600" : "text-gray-400"
-                                                            )}>
-                                                                {format(rate.checkIn, 'eee, dd MMM')}
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        if (rate.isSoldOut || rate.price === null || rate.isSelected) return;
+                                                        setCheckIn(cinDate);
+                                                        setCheckOut(coutDate);
+                                                    }}
+                                                    disabled={rate.isSoldOut || rate.price === null}
+                                                    className={clsx(
+                                                        "min-w-[145px] flex-1 text-left flex flex-col justify-between pt-4 pb-2 px-2.5 rounded-lg border transition-all snap-start relative overflow-hidden group/card shadow-sm h-[82px]",
+                                                        rate.isSelected
+                                                            ? "bg-white border-indigo-600 ring-1 ring-indigo-600/20 text-gray-900"
+                                                            : rate.isSoldOut || rate.price === null
+                                                                ? "bg-gray-50/50 border-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                                                                : "bg-white border-indigo-50 text-gray-800 hover:border-indigo-400 hover:scale-[1.01]"
+                                                    )}
+                                                >
+                                                    {rate.isSelected && (
+                                                        <div className="absolute top-0 left-0 right-0 bg-indigo-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5 border-b border-indigo-500/10">
+                                                            Selected Date
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div className="flex flex-col space-y-0.5">
+                                                        <span className={clsx(
+                                                            "text-[9px] font-extrabold uppercase tracking-tight",
+                                                            rate.isSelected ? "text-indigo-600" : "text-gray-400"
+                                                        )}>
+                                                            {format(cinDate, 'eee, dd MMM')}
+                                                        </span>
+                                                        {rate.price !== null ? (
+                                                            <span className="text-base font-black tracking-tight text-gray-900 flex items-baseline gap-0.5">
+                                                                <span className="text-xs font-bold text-gray-500">₹</span>
+                                                                {rate.price.toLocaleString('en-IN')}
                                                             </span>
-                                                            {rate.price !== null ? (
-                                                                <span className="text-base font-black tracking-tight text-gray-900 flex items-baseline gap-0.5">
-                                                                    <span className="text-xs font-bold text-gray-500">₹</span>
-                                                                    {rate.price.toLocaleString('en-IN')}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-sm font-black tracking-tight text-gray-400">
-                                                                    N/A
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                        ) : (
+                                                            <span className="text-sm font-black tracking-tight text-gray-400">
+                                                                N/A
+                                                            </span>
+                                                        )}
+                                                    </div>
 
-                                                        <div className="mt-1 flex items-center gap-1">
-                                                            {badgeType === 'cheapest' && (
-                                                                <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
-                                                                    Cheapest Price
-                                                                </span>
-                                                            )}
-                                                            {badgeType === 'expensive' && (
-                                                                <span className="text-[8px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded px-1.5 py-0.5">
-                                                                    {badgeText}
-                                                                </span>
-                                                            )}
-                                                            {badgeType === 'cheaper' && (
-                                                                <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
-                                                                    {badgeText}
-                                                                </span>
-                                                            )}
-                                                            {badgeType === 'same' && !rate.isSelected && (
-                                                                <span className="text-[8px] font-medium text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5">
-                                                                    {badgeText}
-                                                                </span>
-                                                            )}
-                                                            {badgeType === 'same' && rate.isSelected && !isCheapest && (
-                                                                <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">
-                                                                    Selected
-                                                                </span>
-                                                            )}
-                                                            {badgeType === 'soldout' && (
-                                                                <span className="text-[8px] font-bold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
-                                                                    {badgeText}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </button>
-                                                );
-                                            });
-                                        })()}
+                                                    <div className="mt-1 flex items-center gap-1">
+                                                        {badgeType === 'cheapest' && (
+                                                            <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                                                                Cheapest Price
+                                                            </span>
+                                                        )}
+                                                        {badgeType === 'expensive' && (
+                                                            <span className="text-[8px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded px-1.5 py-0.5">
+                                                                {badgeText}
+                                                            </span>
+                                                        )}
+                                                        {badgeType === 'cheaper' && (
+                                                            <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                                                                {badgeText}
+                                                            </span>
+                                                        )}
+                                                        {badgeType === 'same' && !rate.isSelected && (
+                                                            <span className="text-[8px] font-medium text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5">
+                                                                {badgeText}
+                                                            </span>
+                                                        )}
+                                                        {badgeType === 'same' && rate.isSelected && !rate.isCheapest && (
+                                                            <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">
+                                                                Selected
+                                                            </span>
+                                                        )}
+                                                        {badgeType === 'soldout' && (
+                                                            <span className="text-[8px] font-bold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
+                                                                {badgeText}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
                         )}
+
 
                         {/* Available Accommodations */}
                         {property.roomTypes && property.roomTypes.length > 0 && (
@@ -810,20 +801,46 @@ export default function PropertyDetail() {
                                             );
                                         })()
                                     ) : (
-                                        (checkIn && checkOut && availability
-                                            ? property.roomTypes.filter(rt => availability.some(a => a.id === rt.id))
-                                            : property.roomTypes
-                                        ).map((roomType: any) => {
-                                            const availabilityInfo = availability?.find(a => a.id === roomType.id);
+                                        <>
+                                            {accommodationSolutions && accommodationSolutions.length > 0 && (
+                                                <div id="accommodations-section" className="p-5 lg:p-6 bg-gradient-to-b from-primary-50/40 to-transparent border-b border-gray-100 space-y-4">
+                                                    <div>
+                                                        <h3 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                                                            <Sparkles className="w-5 h-5 text-primary-600" />
+                                                            Recommended Accommodation Packages
+                                                        </h3>
+                                                        <p className="text-xs text-gray-500 mt-0.5">
+                                                            Optimized bookable solutions guaranteed to accommodate your entire party ({adults} {adults === 1 ? 'Adult' : 'Adults'}{children > 0 ? `, ${children} ${children === 1 ? 'Child' : 'Children'}` : ''}{infants > 0 ? `, ${infants} Infant` : ''})
+                                                        </p>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        {accommodationSolutions.map((sol) => (
+                                                            <AccommodationSolutionCard
+                                                                key={sol.id}
+                                                                solution={sol}
+                                                                onSelect={handleSelectSolution}
+                                                                onViewRoomDetails={handleViewRoomDetails}
+                                                                nights={(checkIn && checkOut) ? Math.max(1, differenceInDays(new Date(checkOut), new Date(checkIn))) : 1}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(checkIn && checkOut && Array.isArray(availability) && availability.length > 0
+                                                ? (property.roomTypes || []).filter(rt => availability.some(a => a.id === rt.id))
+                                                : (property.roomTypes || [])
+                                            ).map((roomType: any) => {
+                                            const availabilityInfo = Array.isArray(availability) ? availability.find(a => a.id === roomType.id) : null;
                                             const nights = (checkIn && checkOut) ? Math.max(1, differenceInDays(new Date(checkOut), new Date(checkIn))) : 0;
                                             const isSoldOut = (checkIn && checkOut)
                                                 ? (availability ? (availabilityInfo ? availabilityInfo.isSoldOut : true) : false)
-                                                : roomType.rooms?.every((r: any) => r.status !== 'AVAILABLE');
-                                            const availableCount = (checkIn && checkOut) ? availabilityInfo?.availableCount : roomType.rooms?.filter((r: any) => r.status === 'AVAILABLE').length;
+                                                : (roomType.rooms && roomType.rooms.length > 0 ? roomType.rooms.every((r: any) => r.status !== 'AVAILABLE') : false);
+                                            const availableCount = (checkIn && checkOut) ? availabilityInfo?.availableCount : (roomType.rooms?.filter((r: any) => r.status === 'AVAILABLE').length || 0);
                                             const bedHighlight = roomType.highlights?.find((h: string) =>
                                                 h.toLowerCase().includes('bed') || h.toLowerCase().includes('king') ||
                                                 h.toLowerCase().includes('queen') || h.toLowerCase().includes('twin')
                                             );
+                                            const fitsSingleRoom = canRoomTypeFitParty(roomType, { adults, children, infants });
                                             return (
                                                 <div key={roomType.id} className={clsx(
                                                     "hover:bg-white transition-all relative border-b border-gray-100 last:border-0",
@@ -1034,22 +1051,39 @@ export default function PropertyDetail() {
                                                             <div className="mt-6">
                                                                 {isSoldOut ? (
                                                                     <button disabled className="w-full py-4 bg-gray-100 text-gray-400 font-black rounded-lg border border-gray-200 cursor-not-allowed text-xs uppercase tracking-widest leading-none">Fully Booked</button>
-                                                                ) : (
+                                                                ) : fitsSingleRoom ? (
                                                                     <Link
                                                                         onClick={handleBookNowValidation}
-                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}&infants=${infants}&roomsCount=${rooms}&isGroupBooking=false` : '#'}
+                                                                        to={checkIn && checkOut ? `/book?roomId=${roomType.id}&property=${property.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${children > 0 && childAges?.length ? `&childAges=${childAges.join(',')}` : ''}&infants=${infants || 0}&roomsCount=1&isGroupBooking=false` : '#'}
                                                                         className="block w-full py-4 bg-primary-600 hover:bg-primary-700 text-white text-center font-black rounded-lg shadow-lg shadow-primary-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
                                                                     >
-                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book Now'}
+                                                                        {(!checkIn || !checkOut) ? 'See Availability' : 'Book This Room'}
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </Link>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const solutionsElem = document.getElementById('accommodations-section');
+                                                                            if (solutionsElem) {
+                                                                                solutionsElem.scrollIntoView({ behavior: 'smooth' });
+                                                                            } else {
+                                                                                pickerRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                                                            }
+                                                                        }}
+                                                                        className="block w-full py-4 bg-gray-900 hover:bg-primary-600 text-white text-center font-black rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest flex items-center justify-center gap-2 leading-none"
+                                                                    >
+                                                                        View Packages with this Room
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    </button>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             );
-                                        })
+                                        })}
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -1359,7 +1393,7 @@ export default function PropertyDetail() {
 
                                     <div className={clsx("grid gap-3", !isGroupBooking ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (13+)</label>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">Adults (12+)</label>
                                             <div className="relative">
                                                 <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                                                 <input
@@ -1632,6 +1666,13 @@ export default function PropertyDetail() {
                     </div>
                 </div>
             )}
+
+            {/* Room Details Modal for inspecting package rooms */}
+            <RoomDetailsModal
+                isOpen={showRoomModal}
+                onClose={() => setShowRoomModal(false)}
+                room={inspectingRoom}
+            />
         </div>
     );
 }

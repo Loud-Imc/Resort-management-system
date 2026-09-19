@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, isAfter, isToday } from 'date-fns';
-import { ChevronLeft, ChevronRight, Loader2, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { bookingsService } from '../../services/bookings';
 
@@ -15,6 +15,8 @@ interface BookingAvailabilityCalendarProps {
     excludeBookingId?: string;
     monthsToShow?: 1 | 2;
     className?: string;
+    allowPastDates?: boolean;
+    showAvailabilityCount?: boolean;
 }
 
 export default function BookingAvailabilityCalendar({
@@ -26,7 +28,9 @@ export default function BookingAvailabilityCalendar({
     onSelectDates,
     excludeBookingId,
     monthsToShow = 2,
-    className
+    className,
+    allowPastDates = false,
+    showAvailabilityCount = true,
 }: BookingAvailabilityCalendarProps) {
     const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
     const [tempCheckIn, setTempCheckIn] = useState<Date | null>(selectedCheckIn ? new Date(selectedCheckIn) : null);
@@ -44,8 +48,8 @@ export default function BookingAvailabilityCalendar({
     const month2Start = startOfMonth(nextMonth);
     const month2End = endOfMonth(month2Start);
 
-    // Only fetch if it's a group booking OR if a roomTypeId is provided
-    const shouldFetch = !!propertyId && (isGroupBooking || !!roomTypeId);
+    // Fetch availability whenever propertyId is available and count display is enabled
+    const shouldFetch = !!propertyId && showAvailabilityCount;
 
     // Fetch day-by-day availability from the backend
     const { data: calendarData = {}, isLoading: isLoadingCalendar } = useQuery<Record<string, { available: number, total: number, isFull: boolean }>>({
@@ -71,11 +75,9 @@ export default function BookingAvailabilityCalendar({
     const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
     const handleDayClick = (day: Date) => {
-        if (!shouldFetch) return; // Disallow selection if no room type picked
-        
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        if (day < today) return; // prevent selecting previous dates
+        if (!allowPastDates && day < today) return; // prevent selecting previous dates unless explicitly allowed
 
         let newCheckIn = tempCheckIn;
         let newCheckOut = tempCheckOut;
@@ -115,7 +117,7 @@ export default function BookingAvailabilityCalendar({
         const isTodayDate = isToday(day);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const isPast = day < today;
+        const isPast = !allowPastDates && day < today;
         
         const dayData = calendarData[dateKey];
         const availableCount = dayData ? dayData.available : 0;
@@ -133,41 +135,25 @@ export default function BookingAvailabilityCalendar({
         let badgeClass = "";
 
         if (isPast) {
-            cellClass = "opacity-20 cursor-not-allowed pointer-events-none bg-muted/10 border-border/30";
+            cellClass = "opacity-20 cursor-not-allowed pointer-events-none bg-muted/10 border-border/30 text-muted-foreground";
             textClass = "text-muted-foreground";
             badgeClass = "text-muted-foreground/40";
-        } else if (!shouldFetch) {
-            cellClass = "opacity-40 cursor-not-allowed bg-muted/20 border-border/20";
-            textClass = "text-muted-foreground";
-            badgeClass = "hidden";
         } else if (!isCurrentMonth) {
-            cellClass = "opacity-35 hover:opacity-80";
+            cellClass = "opacity-35 hover:opacity-80 text-muted-foreground";
             textClass = "text-muted-foreground";
             badgeClass = "text-muted-foreground/60";
-        } else if (isSelectedCheckIn) {
-            if (isFull) {
+        } else if (isSelectedCheckIn || isSelectedCheckOut) {
+            if (showAvailabilityCount && (isFull || isCheckInFull)) {
                 cellClass = "bg-red-500/15 dark:bg-red-950/40 border-2 border-red-500 ring-2 ring-red-500/30 scale-[0.98] shadow-md shadow-red-500/20";
                 textClass = "text-red-600 dark:text-red-400 font-black";
                 badgeClass = "bg-red-500 text-white font-black";
             } else {
                 cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
-                textClass = "text-white font-bold";
-                badgeClass = "text-white/80 font-bold";
-            }
-        } else if (isSelectedCheckOut) {
-            if (isCheckInFull) {
-                // If Check-In date was FULL, the entire selection is invalid: render Check-Out in red warning
-                cellClass = "bg-red-500/15 dark:bg-red-950/40 border-2 border-red-500 ring-2 ring-red-500/30 scale-[0.98] shadow-md shadow-red-500/20";
-                textClass = "text-red-600 dark:text-red-400 font-black";
-                badgeClass = "bg-red-500 text-white font-black";
-            } else {
-                // Check-out morning is valid for departure when check-in date WAS available
-                cellClass = "bg-primary text-primary-foreground border-primary scale-[0.98] shadow-md shadow-primary/20";
-                textClass = "text-white font-bold";
-                badgeClass = "bg-white/20 text-white font-black uppercase tracking-wider";
+                textClass = "text-white font-black";
+                badgeClass = "bg-white/20 text-white font-bold";
             }
         } else if (isInRange) {
-            if (isCheckInFull || isFull) {
+            if (showAvailabilityCount && (isCheckInFull || isFull)) {
                 cellClass = "bg-red-500/10 dark:bg-red-950/30 border-2 border-red-500/70 text-red-600 dark:text-red-400";
                 textClass = "text-red-600 dark:text-red-400 font-black";
                 badgeClass = "bg-red-500/20 text-red-600 dark:text-red-400 font-black border border-red-500/40";
@@ -176,12 +162,12 @@ export default function BookingAvailabilityCalendar({
                 textClass = "text-primary font-bold";
                 badgeClass = "text-primary/80 font-bold";
             }
-        } else if (isFull) {
+        } else if (showAvailabilityCount && isFull) {
             cellClass = "bg-red-500/5 dark:bg-red-950/20 border-red-500/20 hover:border-red-500/40";
             textClass = "text-red-700 dark:text-red-400";
             badgeClass = "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/10";
         } else {
-            cellClass = "bg-muted/10 border-border/50 hover:bg-muted/40 hover:border-border";
+            cellClass = "bg-muted/10 border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary";
             textClass = "text-foreground";
             badgeClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
         }
@@ -192,19 +178,25 @@ export default function BookingAvailabilityCalendar({
                 onClick={() => handleDayClick(day)}
                 type="button"
                 className={clsx(
-                    "flex flex-col items-center justify-between p-1 sm:p-2 rounded-xl transition-all border text-left min-h-[48px] sm:min-h-[56px] relative select-none",
+                    "rounded-xl transition-all border text-center select-none cursor-pointer",
+                    showAvailabilityCount 
+                        ? "flex flex-col items-center justify-between p-1 sm:p-2 min-h-[48px] sm:min-h-[56px]" 
+                        : "flex items-center justify-center h-10 sm:h-11 w-full text-sm font-bold",
                     cellClass,
                     isTodayDate && !isSelectedCheckIn && !isSelectedCheckOut && "ring-2 ring-primary/40"
                 )}
             >
-                <span className={clsx("text-[10px] sm:text-xs font-bold self-start pl-0.5", textClass)}>
+                <span className={clsx(
+                    showAvailabilityCount ? "text-[10px] sm:text-xs font-bold self-start pl-0.5" : "text-xs sm:text-sm font-bold",
+                    textClass
+                )}>
                     {format(day, 'd')}
                 </span>
                 
-                {shouldFetch ? (
+                {showAvailabilityCount && shouldFetch ? (
                     totalRoomsOfType > 0 ? (
                         <span className={clsx("text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.5 rounded-md self-center font-black tracking-tight", badgeClass)}>
-                            {isSelectedCheckOut && !isCheckInFull ? 'OUT' : isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
+                            {isFull ? 'FULL' : `${availableCount}/${totalRoomsOfType}`}
                         </span>
                     ) : (
                         <span className="text-[8px] text-muted-foreground self-center">No inv.</span>
@@ -243,19 +235,6 @@ export default function BookingAvailabilityCalendar({
 
     return (
         <div className={clsx("relative w-full rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-sm", className)}>
-            {!shouldFetch && (
-                <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[2px] rounded-2xl flex items-center justify-center p-6 text-center">
-                    <div className="bg-card border border-border shadow-lg rounded-xl p-4 sm:p-6 max-w-sm flex flex-col items-center gap-3">
-                        <div className="h-10 w-10 bg-primary/10 text-primary rounded-full flex items-center justify-center">
-                            <Info className="h-5 w-5" />
-                        </div>
-                        <h4 className="font-bold text-foreground">Select a Room Type</h4>
-                        <p className="text-xs text-muted-foreground">
-                            Please select a Room Type from the Booking Details panel to view its calendar availability.
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {isLoadingCalendar && shouldFetch && (
                 <div className="absolute top-4 right-4 flex items-center gap-2 text-primary text-xs font-bold bg-primary/10 px-3 py-1.5 rounded-full z-10">
@@ -294,13 +273,22 @@ export default function BookingAvailabilityCalendar({
 
             <div className="mt-5 sm:mt-6 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-4 text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40"></div> Available</div>
-                    <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary border border-primary/50"></div> Selected</div>
-                    <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/40"></div> Full</div>
+                    {showAvailabilityCount ? (
+                        <>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20 border border-emerald-500/40"></div> Available</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary border border-primary/50"></div> Selected</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/40"></div> Full</div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary border border-primary/50"></div> Selected Dates</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary/20 border border-primary/30"></div> In-Stay Range</div>
+                        </>
+                    )}
                 </div>
                 {tempCheckIn && tempCheckOut && (
                     <div className="text-primary font-black text-xs">
-                        {format(tempCheckIn, 'MMM d')} - {format(tempCheckOut, 'MMM d')}
+                        {format(tempCheckIn, 'MMM d, yyyy')} — {format(tempCheckOut, 'MMM d, yyyy')}
                     </div>
                 )}
             </div>

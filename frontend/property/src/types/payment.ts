@@ -13,8 +13,9 @@ export interface Payment {
     refundAmount?: number;
     refundDate?: string;
     refundReason?: string;
-    bookingId: string;
+    bookingId?: string;
     booking?: {
+        id?: string;
         bookingNumber: string;
         user: {
             firstName: string;
@@ -28,6 +29,11 @@ export interface Payment {
             name: string;
             platformCommission?: number;
         };
+    };
+    eventBookingId?: string;
+    eventBooking?: {
+        id: string;
+        ticketId?: string;
     };
     createdAt: string;
 }

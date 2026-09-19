@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MapPin, Loader2, X } from 'lucide-react';
+import { MapPin, Building2, Loader2, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -8,6 +8,11 @@ interface Suggestion {
     description: string;
     mainText: string;
     secondaryText: string;
+    type?: 'property' | 'location';
+    propertyId?: string;
+    slug?: string;
+    lat?: number | null;
+    lng?: number | null;
 }
 
 interface Props {
@@ -69,7 +74,7 @@ export default function LocationAutocomplete({
         const val = e.target.value;
         onChange(val);
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => fetchSuggestions(val), 300);
+        debounceRef.current = setTimeout(() => fetchSuggestions(val), 250);
     };
 
     const handleSelect = async (suggestion: Suggestion) => {
@@ -77,6 +82,11 @@ export default function LocationAutocomplete({
         setSuggestions([]);
         setIsOpen(false);
         setActiveIndex(-1);
+
+        if (suggestion.lat !== undefined && suggestion.lat !== null && suggestion.lng !== undefined && suggestion.lng !== null) {
+            onSelect?.(suggestion.description, suggestion.lat, suggestion.lng);
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -162,7 +172,7 @@ export default function LocationAutocomplete({
 
             {/* Dropdown */}
             {isOpen && (suggestions.length > 0 || onUseLocation) && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-[200] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 bg-white border-gray-100">
+                <div className="absolute top-full left-0 right-0 mt-1 z-[200] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 bg-white border-gray-100 max-h-80 overflow-y-auto">
                     {onUseLocation && (
                         <button
                             type="button"
@@ -189,9 +199,24 @@ export default function LocationAutocomplete({
                                 : 'hover:bg-gray-50'
                                 } ${i < suggestions.length - 1 ? 'border-b border-gray-50' : ''}`}
                         >
-                            <MapPin className="h-4 w-4 shrink-0 text-primary-500" />
+                            {s.type === 'property' ? (
+                                <div className="h-7 w-7 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
+                                    <Building2 className="h-4 w-4" />
+                                </div>
+                            ) : (
+                                <div className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+                                    <MapPin className="h-4 w-4" />
+                                </div>
+                            )}
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold truncate text-gray-900">{s.mainText}</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm font-bold truncate text-gray-900">{s.mainText}</p>
+                                    {s.type === 'property' && (
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
+                                            Resort
+                                        </span>
+                                    )}
+                                </div>
                                 {s.secondaryText && (
                                     <p className="text-[11px] truncate text-gray-400">{s.secondaryText}</p>
                                 )}

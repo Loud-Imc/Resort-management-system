@@ -47,6 +47,8 @@ cleanup.ps1
 artifacts/
 architecture/
 Channex-documents/
+docs/
+backend/scripts/generate-guide-pdf.js
 
 # IDE & OS Metadata
 .vscode/

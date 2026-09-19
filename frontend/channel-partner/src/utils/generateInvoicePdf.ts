@@ -90,7 +90,8 @@ function buildDoc(data: InvoiceData, type: 'GUEST' | 'PARTNER'): jsPDF {
   doc.text(`REF: #${data.bookingNumber || 'N/A'}`, pageW - margin, 32, { align: 'right' });
 
   // ── Status Bar ───────────────────────────────────────────────────────────
-  setFill('#0d9488');
+  const isCancelled = data.status === 'CANCELLED';
+  setFill(isCancelled ? '#dc2626' : '#0d9488');
   doc.rect(0, 38, pageW, 10, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
@@ -267,8 +268,21 @@ function buildDoc(data: InvoiceData, type: 'GUEST' | 'PARTNER'): jsPDF {
   doc.text(fmt(finalAmount), pageW - margin - 4, y + 9, { align: 'right' });
   y += 18;
 
-  // --- Partial Payment Breakdown ---
-  if (data.paymentOption === 'PARTIAL') {
+  // --- Partial Payment / Cancellation Breakdown ---
+  if (isCancelled) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    setColor('#dc2626');
+    doc.text('CANCELLATION & SETTLEMENT DETAILS', margin, y);
+    y += 6;
+
+    if ((data.paidAmount || 0) > 0) {
+      drawRow('Advance / Paid Amount', fmt(data.paidAmount || 0), '#64748b', true);
+      drawRow('Amount Refunded', `- ${fmt(data.paidAmount || 0)}`, '#dc2626', true);
+    }
+    drawRow('Remaining Balance Due', '₹0 (Cancelled)', '#0d9488', true);
+    y += 8;
+  } else if (data.paymentOption === 'PARTIAL') {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     setColor('#64748b');

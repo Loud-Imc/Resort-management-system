@@ -8,6 +8,7 @@ import { ChannelPartnersService } from '../channel-partners/channel-partners.ser
 import { PaymentsService } from '../payments/payments.service';
 import { differenceInDays, format, addDays, differenceInHours } from 'date-fns';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CalculatePriceDto } from './dto/calculate-price.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { TrackBookingDto } from './dto/track-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
@@ -23,6 +24,7 @@ import { ConnectivityOutboxService } from '../connectivity/services/connectivity
 import {
     validatePhysicalFeasibility,
     solveAccommodationOptions,
+    validateChildAges,
 } from '../common/utils/occupancy-solver.util';
 
 import { Decimal } from '@prisma/client/runtime/library';
@@ -76,6 +78,331 @@ export class BookingsService {
                 this.logger.error(`[Channex ARI Sync] Background push failed after internal booking action for property ${propertyId}: ${err.message}`);
             });
         }
+    }
+
+    /**
+     * Calculate price for single room or multi-room Accommodation Solution
+     */
+    async calculatePrice(dto: CalculatePriceDto) {
+        const checkIn = new Date(dto.checkInDate);
+        const checkOut = new Date(dto.checkOutDate);
+
+        if (dto.roomAllocations && dto.roomAllocations.length > 0) {
+            for (let idx = 0; idx < dto.roomAllocations.length; idx++) {
+                const alloc = dto.roomAllocations[idx];
+                if (!alloc.roomTypeId) {
+                    throw new BadRequestException(`Room allocation at index ${idx} is missing roomTypeId.`);
+                }
+            }
+
+            if (dto.roomAllocations.length === 1) {
+                const alloc = dto.roomAllocations[0];
+                const singlePrice = await this.pricingService.calculatePrice(
+                    alloc.roomTypeId,
+                    checkIn,
+                    checkOut,
+                    alloc.adults,
+                    alloc.children || 0,
+                    dto.couponCode,
+                    dto.referralCode,
+                    dto.currency || 'INR',
+                    false,
+                    undefined,
+                    1,
+                    dto.generalCode,
+                    dto.overrideTotal,
+                    dto.isOverrideInclusive ?? true,
+                    dto.extraAdultsCount ?? alloc.extraAdults,
+                    dto.extraChildrenCount ?? alloc.extraChildren,
+                    dto.infantsCount || alloc.infants || 0,
+                    dto.childAges || alloc.childAges,
+                );
+
+                const singleBreakdown = [{
+                    roomTypeId: alloc.roomTypeId,
+                    adults: alloc.adults,
+                    children: alloc.children || 0,
+                    infants: alloc.infants || 0,
+                    baseAmount: singlePrice.baseAmount,
+                    taxAmount: singlePrice.taxAmount,
+                    taxRate: singlePrice.taxRate,
+                    discountAmount: singlePrice.discountAmount,
+                    totalAmount: singlePrice.totalAmount,
+                    pricePerNight: singlePrice.pricePerNight,
+                }];
+
+                return {
+                    ...singlePrice,
+                    roomBreakdown: singleBreakdown,
+                };
+            }
+
+            // Multi-room allocation: evaluate coupons and referral codes at aggregate booking level
+            const rawAllocPrices: any[] = [];
+            let combinedSubtotal = 0;
+            let accumulatedOfferDiscountAmount = 0;
+            let accumulatedExtraAdultAmount = 0;
+            let accumulatedExtraChildAmount = 0;
+            let accumulatedBaseAmount = 0;
+
+            for (const alloc of dto.roomAllocations) {
+                const rawPrice = await this.pricingService.calculatePrice(
+                    alloc.roomTypeId,
+                    checkIn,
+                    checkOut,
+                    alloc.adults,
+                    alloc.children || 0,
+                    undefined,
+                    undefined,
+                    dto.currency || 'INR',
+                    false,
+                    undefined,
+                    1,
+                    undefined,
+                    undefined,
+                    true,
+                    alloc.extraAdults,
+                    alloc.extraChildren,
+                    alloc.infants || 0,
+                    alloc.childAges,
+                );
+                rawAllocPrices.push(rawPrice);
+                accumulatedBaseAmount += rawPrice.baseAmount;
+                accumulatedExtraAdultAmount += rawPrice.extraAdultAmount;
+                accumulatedExtraChildAmount += rawPrice.extraChildAmount;
+                accumulatedOfferDiscountAmount += (rawPrice.offerDiscountAmount || 0);
+                const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                combinedSubtotal += Math.max(0, roomSubtotal);
+            }
+
+            let combinedReferralDiscount = 0;
+            let effectiveReferralPartnerId: string | undefined;
+            const resolvedCode = (dto.generalCode || dto.couponCode || dto.referralCode || '').trim().toUpperCase();
+
+            if (resolvedCode) {
+                const cp = await this.prisma.channelPartner.findFirst({
+                    where: { referralCode: resolvedCode, status: 'APPROVED' as any }
+                });
+                if (cp) {
+                    effectiveReferralPartnerId = cp.id;
+                    const rate = cp.referralDiscountRate ? Number(cp.referralDiscountRate) : 5.0;
+                    combinedReferralDiscount = Math.min(combinedSubtotal, (combinedSubtotal * rate) / 100);
+                }
+            }
+
+            let combinedCouponDiscount = 0;
+            if (resolvedCode && !effectiveReferralPartnerId) {
+                const coupon = await this.prisma.coupon.findUnique({
+                    where: { code: resolvedCode }
+                });
+                if (coupon) {
+                    if (!coupon.isActive) throw new BadRequestException('Coupon is no longer active');
+                    const now = new Date();
+                    if (now < coupon.validFrom || now > coupon.validUntil) throw new BadRequestException('Coupon has expired');
+                    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) throw new BadRequestException('Coupon usage limit reached');
+                    if (coupon.minBookingAmount && combinedSubtotal < Number(coupon.minBookingAmount)) {
+                        throw new BadRequestException(`Minimum booking amount for this coupon is ₹${coupon.minBookingAmount}`);
+                    }
+                    if (coupon.discountType === 'PERCENTAGE') {
+                        combinedCouponDiscount = (combinedSubtotal * Number(coupon.discountValue)) / 100;
+                    } else if (coupon.discountType === 'FIXED_AMOUNT') {
+                        combinedCouponDiscount = Number(coupon.discountValue);
+                    }
+                    combinedCouponDiscount = Math.min(combinedCouponDiscount, combinedSubtotal);
+                } else if (dto.couponCode || dto.generalCode) {
+                    throw new BadRequestException('Invalid coupon code');
+                }
+            }
+
+            const maxDiscountPctSetting = await this.systemSettings.getSetting('MAX_DISCOUNT_PCT');
+            const maxDiscountPct = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : 30) / 100;
+            const maxAllowedDiscount = (accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount) * maxDiscountPct;
+            let totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+
+            if (totalDiscount > maxAllowedDiscount) {
+                const overage = totalDiscount - maxAllowedDiscount;
+                let remainingOverage = overage;
+                if (combinedCouponDiscount > 0) {
+                    const couponTrim = Math.min(combinedCouponDiscount, remainingOverage);
+                    combinedCouponDiscount -= couponTrim;
+                    remainingOverage -= couponTrim;
+                }
+                if (remainingOverage > 0) {
+                    const referralTrim = Math.min(combinedReferralDiscount, remainingOverage);
+                    combinedReferralDiscount -= referralTrim;
+                }
+                totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+            }
+
+            const isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
+            const gstTiers = isPropertyGstApplicable ? (await this.systemSettings.getSetting('GST_TIERS') as any[]) : [];
+            let accumulatedTaxAmount = 0;
+            let accumulatedTotalAmount = 0;
+            let pricingRef: any = rawAllocPrices[0];
+            const roomBreakdown: any[] = [];
+
+            for (let i = 0; i < dto.roomAllocations.length; i++) {
+                const alloc = dto.roomAllocations[i];
+                const rawPrice = rawAllocPrices[i];
+                const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                const weight = combinedSubtotal > 0 ? (roomSubtotal / combinedSubtotal) : (1 / dto.roomAllocations.length);
+
+                const allocCouponDiscount = Number((combinedCouponDiscount * weight).toFixed(2));
+                const allocReferralDiscount = Number((combinedReferralDiscount * weight).toFixed(2));
+                const allocTotalDiscount = (rawPrice.offerDiscountAmount || 0) + allocCouponDiscount + allocReferralDiscount;
+
+                const netRoomSubtotal = Math.max(0, (rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount) - allocTotalDiscount);
+                const numberOfNights = rawPrice.numberOfNights || 1;
+                const netTariffPerNight = netRoomSubtotal / numberOfNights;
+
+                let allocTax = 0;
+                let roomTaxRate = 0;
+                if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
+                    const applicableTier = this.pricingService.getApplicableTier(netTariffPerNight, gstTiers);
+                    roomTaxRate = applicableTier ? applicableTier.rate : 0;
+                    const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
+                    allocTax = Number((taxPerNight * numberOfNights).toFixed(2));
+                }
+
+                const allocTotal = Number((netRoomSubtotal + allocTax).toFixed(2));
+                accumulatedTaxAmount += allocTax;
+                accumulatedTotalAmount += allocTotal;
+
+                roomBreakdown.push({
+                    roomTypeId: alloc.roomTypeId,
+                    adults: alloc.adults,
+                    children: alloc.children || 0,
+                    infants: alloc.infants || 0,
+                    baseAmount: Number((rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount).toFixed(2)),
+                    discountAmount: Number(allocTotalDiscount.toFixed(2)),
+                    netBaseAmount: Number(netRoomSubtotal.toFixed(2)),
+                    taxAmount: allocTax,
+                    taxRate: roomTaxRate,
+                    totalAmount: allocTotal,
+                    pricePerNight: Number((allocTotal / numberOfNights).toFixed(2)),
+                });
+            }
+
+            const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
+            const effectiveTaxRate = (isPropertyGstApplicable && totalTaxable > 0 && accumulatedTaxAmount > 0)
+                ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
+                : (isPropertyGstApplicable ? (pricingRef?.taxRate || 0) : 0);
+
+            const result: any = {
+                ...pricingRef,
+                baseAmount: Number(accumulatedBaseAmount.toFixed(2)),
+                extraAdultAmount: Number(accumulatedExtraAdultAmount.toFixed(2)),
+                extraChildAmount: Number(accumulatedExtraChildAmount.toFixed(2)),
+                taxAmount: Number(accumulatedTaxAmount.toFixed(2)),
+                taxRate: effectiveTaxRate,
+                offerDiscountAmount: Number(accumulatedOfferDiscountAmount.toFixed(2)),
+                couponDiscountAmount: Number(combinedCouponDiscount.toFixed(2)),
+                referralDiscountAmount: Number(combinedReferralDiscount.toFixed(2)),
+                discountAmount: Number(totalDiscount.toFixed(2)),
+                totalAmount: Number(accumulatedTotalAmount.toFixed(2)),
+                convertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                roomCount: dto.roomAllocations.length,
+                roomBreakdown,
+                appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
+                referralPartnerId: effectiveReferralPartnerId,
+            };
+
+            if (dto.overrideTotal !== undefined && dto.overrideTotal !== null) {
+                const totalRooms = dto.roomAllocations.length;
+                const numberOfNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                let overrideBreakdown: any;
+                if (dto.isOverrideInclusive ?? true) {
+                    overrideBreakdown = await this.pricingService.calculateReverseGST(
+                        dto.overrideTotal,
+                        numberOfNights,
+                        totalRooms,
+                        undefined,
+                        isPropertyGstApplicable
+                    );
+                } else {
+                    overrideBreakdown = await this.pricingService.calculateExclusiveGST(
+                        dto.overrideTotal,
+                        numberOfNights,
+                        totalRooms,
+                        undefined,
+                        isPropertyGstApplicable
+                    );
+                }
+                result.baseAmount = overrideBreakdown.baseAmount;
+                result.grossBaseAmount = (dto.isOverrideInclusive ?? true) ? dto.overrideTotal : overrideBreakdown.baseAmount;
+                result.taxAmount = overrideBreakdown.taxAmount;
+                result.taxRate = overrideBreakdown.taxRate;
+                result.totalAmount = result.baseAmount + result.taxAmount;
+                result.convertedTotal = result.totalAmount;
+                result.extraAdultAmount = 0;
+                result.extraChildAmount = 0;
+                result.offerDiscountAmount = 0;
+                result.couponDiscountAmount = 0;
+                result.referralDiscountAmount = 0;
+                result.discountAmount = 0;
+
+                const perRoomBase = Number((result.baseAmount / totalRooms).toFixed(2));
+                const perRoomTax = Number((result.taxAmount / totalRooms).toFixed(2));
+                const perRoomTotal = Number((result.totalAmount / totalRooms).toFixed(2));
+                result.roomBreakdown = (result.roomBreakdown || []).map((rb: any) => ({
+                    ...rb,
+                    baseAmount: perRoomBase,
+                    netBaseAmount: perRoomBase,
+                    taxAmount: perRoomTax,
+                    taxRate: overrideBreakdown.taxRate,
+                    discountAmount: 0,
+                    totalAmount: perRoomTotal,
+                    pricePerNight: Number((perRoomTotal / numberOfNights).toFixed(2)),
+                }));
+            }
+
+            return result;
+        }
+
+        if (!dto.roomTypeId) {
+            throw new BadRequestException('Either roomTypeId or roomAllocations must be provided');
+        }
+
+        const singlePrice = await this.pricingService.calculatePrice(
+            dto.roomTypeId,
+            checkIn,
+            checkOut,
+            dto.adultsCount || 1,
+            dto.childrenCount || 0,
+            dto.couponCode,
+            dto.referralCode,
+            dto.currency || 'INR',
+            dto.isGroupBooking,
+            dto.groupSize,
+            dto.roomCount || dto.roomsCount,
+            dto.generalCode,
+            dto.overrideTotal,
+            dto.isOverrideInclusive ?? true,
+            dto.extraAdultsCount,
+            dto.extraChildrenCount,
+            dto.infantsCount || 0,
+            dto.childAges,
+        );
+
+        const singleBreakdown = [{
+            roomTypeId: dto.roomTypeId,
+            adults: dto.adultsCount || 1,
+            children: dto.childrenCount || 0,
+            infants: dto.infantsCount || 0,
+            baseAmount: singlePrice.baseAmount,
+            taxAmount: singlePrice.taxAmount,
+            taxRate: singlePrice.taxRate,
+            discountAmount: singlePrice.discountAmount,
+            totalAmount: singlePrice.totalAmount,
+            pricePerNight: singlePrice.pricePerNight,
+        }];
+
+        return {
+            ...singlePrice,
+            roomBreakdown: singleBreakdown,
+        };
     }
 
     /**
@@ -192,87 +519,137 @@ export class BookingsService {
         // Calculate required rooms for standard booking
         let requiredRooms = 1;
         if (!isGroupBooking) {
-            const roomType = await this.prisma.roomType.findUnique({
-                where: { id: roomTypeId },
-                include: { property: true },
-            }) as any;
-            if (!roomType) {
-                throw new NotFoundException('Room type not found');
-            }
-
-            const isV2Property = roomType.property?.occupancyVersion === 'V2';
-            if (isV2Property) {
-                // Under a V2 Property, all RoomTypes must be V2-ready with non-null canonical fields
-                if (
-                    roomType.occupancyVersion !== 'V2' ||
-                    roomType.totalBaseOccupancy === null || roomType.totalBaseOccupancy === undefined ||
-                    roomType.totalMaxOccupancy === null || roomType.totalMaxOccupancy === undefined ||
-                    roomType.maxPhysicalAdults === null || roomType.maxPhysicalAdults === undefined ||
-                    roomType.maxPhysicalChildren === null || roomType.maxPhysicalChildren === undefined
-                ) {
-                    throw new BadRequestException(
-                        `RoomType ${roomTypeId} (${roomType.name}) under V2 Property is not V2-ready or is missing required canonical occupancy fields.`
-                    );
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+                requiredRooms = createBookingDto.roomAllocations.length;
+                if (!roomTypeId) {
+                    roomTypeId = createBookingDto.roomAllocations[0].roomTypeId;
                 }
-
-                const targetRoomsCount = Math.max(1, createBookingDto.roomsCount || 1);
-                if (targetRoomsCount === 1) {
-                    const feasibility = validatePhysicalFeasibility(
-                        { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0 },
-                        {
-                            totalMaxOccupancy: roomType.totalMaxOccupancy,
-                            maxPhysicalAdults: roomType.maxPhysicalAdults,
-                            maxPhysicalChildren: roomType.maxPhysicalChildren,
-                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                for (const alloc of createBookingDto.roomAllocations) {
+                    const rt = await this.prisma.roomType.findUnique({
+                        where: { id: alloc.roomTypeId },
+                        include: { property: true },
+                    }) as any;
+                    if (!rt) {
+                        throw new NotFoundException(`Room type ${alloc.roomTypeId} not found`);
+                    }
+                    if (rt.property?.occupancyVersion === 'V2') {
+                        if (alloc.children && alloc.children > 0) {
+                            validateChildAges(alloc.children, alloc.childAges);
                         }
-                    );
-                    if (!feasibility.isValid) {
-                        throw new BadRequestException(`Occupancy exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                        const feasibility = validatePhysicalFeasibility(
+                            { adults: alloc.adults, children: alloc.children || 0, infants: alloc.infants || 0, childAges: alloc.childAges },
+                            {
+                                totalMaxOccupancy: rt.totalMaxOccupancy ?? (rt.maxPhysicalAdults + (rt.maxPhysicalChildren || 0)),
+                                maxPhysicalAdults: rt.maxPhysicalAdults ?? 2,
+                                maxPhysicalChildren: rt.maxPhysicalChildren ?? 0,
+                                maxPhysicalInfants: rt.maxPhysicalInfants ?? 1,
+                            }
+                        );
+                        if (!feasibility.isValid) {
+                            throw new BadRequestException(`Room allocation for ${rt.name} exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                        }
                     }
-                    requiredRooms = 1;
-                } else {
-                    const solutions = solveAccommodationOptions(
-                        { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0, requestedRooms: targetRoomsCount },
-                        [{
-                            id: roomType.id,
-                            name: roomType.name,
-                            totalBaseOccupancy: roomType.totalBaseOccupancy,
-                            totalMaxOccupancy: roomType.totalMaxOccupancy,
-                            maxPhysicalAdults: roomType.maxPhysicalAdults,
-                            maxPhysicalChildren: roomType.maxPhysicalChildren,
-                            maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
-                            baseMaxAdults: roomType.baseMaxAdults,
-                            baseMaxChildren: roomType.baseMaxChildren,
-                            freeChildrenCount: roomType.freeChildrenCount ?? 0,
-                            basePrice: Number(roomType.basePrice),
-                            extraAdultPrice: Number(roomType.extraAdultPrice),
-                            extraChildPrice: Number(roomType.extraChildPrice),
-                            availableQuantity: targetRoomsCount,
-                        }]
-                    );
-                    if (solutions.length === 0) {
-                        throw new BadRequestException(`Guest party (${adultsCount} adults, ${childrenCount} children, ${createBookingDto.infantsCount || 0} infants) cannot be accommodated in ${targetRoomsCount} room(s) of type ${roomType.name}`);
-                    }
-                    requiredRooms = targetRoomsCount;
                 }
             } else {
-                // V1 Legacy Path (Unchanged)
-                const maxAdults = Math.max(1, roomType.maxAdults || 2);
-                const maxChildren = Math.max(1, roomType.maxChildren || 2);
-                const requiredRoomsByAdults = Math.ceil(adultsCount / maxAdults);
-                const requiredRoomsByChildren = childrenCount > 0 ? Math.ceil(childrenCount / maxChildren) : 0;
-                const calculatedRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
-                requiredRooms = Math.max(createBookingDto.roomsCount || 0, calculatedRooms);
+                const roomType = await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    include: { property: true },
+                }) as any;
+                if (!roomType) {
+                    throw new NotFoundException('Room type not found');
+                }
+
+                const isV2Property = roomType.property?.occupancyVersion === 'V2';
+                if (isV2Property) {
+                    // Under a V2 Property, all RoomTypes must be V2-ready with non-null canonical fields
+                    if (
+                        roomType.occupancyVersion !== 'V2' ||
+                        roomType.totalBaseOccupancy === null || roomType.totalBaseOccupancy === undefined ||
+                        roomType.totalMaxOccupancy === null || roomType.totalMaxOccupancy === undefined ||
+                        roomType.maxPhysicalAdults === null || roomType.maxPhysicalAdults === undefined ||
+                        roomType.maxPhysicalChildren === null || roomType.maxPhysicalChildren === undefined
+                    ) {
+                        throw new BadRequestException(
+                            `RoomType ${roomTypeId} (${roomType.name}) under V2 Property is not V2-ready or is missing required canonical occupancy fields.`
+                        );
+                    }
+
+                    if (childrenCount > 0) {
+                        validateChildAges(childrenCount, createBookingDto.childAges);
+                    }
+
+                    const targetRoomsCount = Math.max(1, createBookingDto.roomsCount || 1);
+                    if (targetRoomsCount === 1) {
+                        const feasibility = validatePhysicalFeasibility(
+                            { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0, childAges: createBookingDto.childAges },
+                            {
+                                totalMaxOccupancy: roomType.totalMaxOccupancy,
+                                maxPhysicalAdults: roomType.maxPhysicalAdults,
+                                maxPhysicalChildren: roomType.maxPhysicalChildren,
+                                maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                            }
+                        );
+                        if (!feasibility.isValid) {
+                            throw new BadRequestException(`Occupancy exceeds physical capacity: ${feasibility.violations.join('; ')}`);
+                        }
+                        requiredRooms = 1;
+                    } else {
+                        const solutions = solveAccommodationOptions(
+                            { adults: adultsCount, children: childrenCount, infants: createBookingDto.infantsCount || 0, childAges: createBookingDto.childAges, requestedRooms: targetRoomsCount },
+                            [{
+                                id: roomType.id,
+                                name: roomType.name,
+                                totalBaseOccupancy: roomType.totalBaseOccupancy,
+                                totalMaxOccupancy: roomType.totalMaxOccupancy,
+                                maxPhysicalAdults: roomType.maxPhysicalAdults,
+                                maxPhysicalChildren: roomType.maxPhysicalChildren,
+                                maxPhysicalInfants: roomType.maxPhysicalInfants ?? 1,
+                                baseMaxAdults: roomType.baseMaxAdults,
+                                baseMaxChildren: roomType.baseMaxChildren,
+                                freeChildrenCount: roomType.freeChildrenCount ?? 0,
+                                basePrice: Number(roomType.basePrice),
+                                extraAdultPrice: Number(roomType.extraAdultPrice),
+                                extraChildPrice: Number(roomType.extraChildPrice),
+                                availableQuantity: targetRoomsCount,
+                            }]
+                        );
+                        if (solutions.length === 0) {
+                            throw new BadRequestException(`Guest party (${adultsCount} adults, ${childrenCount} children, ${createBookingDto.infantsCount || 0} infants) cannot be accommodated in ${targetRoomsCount} room(s) of type ${roomType.name}`);
+                        }
+                        requiredRooms = targetRoomsCount;
+                    }
+                } else {
+                    // V1 Legacy Path (Unchanged)
+                    const maxAdults = Math.max(1, roomType.maxAdults || 2);
+                    const maxChildren = Math.max(1, roomType.maxChildren || 2);
+                    const requiredRoomsByAdults = Math.ceil(adultsCount / maxAdults);
+                    const requiredRoomsByChildren = childrenCount > 0 ? Math.ceil(childrenCount / maxChildren) : 0;
+                    const calculatedRooms = Math.max(requiredRoomsByAdults, requiredRoomsByChildren, 1);
+                    requiredRooms = Math.max(createBookingDto.roomsCount || 0, calculatedRooms);
+                }
             }
         }
 
         // 2. Check availability (standard booking only — group bookings validate via allocateRoomsForGroup below)
         if (!isGroupBooking) {
-            // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
-            // but we don't care about "Today's" status.
-            const availableCount = await this.availabilityService.getAvailableRoomCount(roomTypeId!, checkIn, checkOut);
-            if (availableCount < requiredRooms) {
-                throw new BadRequestException(`Not enough rooms available for the selected dates. Required: ${requiredRooms}, Available: ${availableCount}`);
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+                const rtCounts: Record<string, number> = {};
+                for (const alloc of createBookingDto.roomAllocations) {
+                    rtCounts[alloc.roomTypeId] = (rtCounts[alloc.roomTypeId] || 0) + 1;
+                }
+                for (const [rtId, neededCount] of Object.entries(rtCounts)) {
+                    const availableCount = await this.availabilityService.getAvailableRoomCount(rtId, checkIn, checkOut);
+                    if (availableCount < neededCount) {
+                        throw new BadRequestException(`Not enough rooms available for room type ${rtId}. Required: ${neededCount}, Available: ${availableCount}`);
+                    }
+                }
+            } else {
+                // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
+                // but we don't care about "Today's" status.
+                const availableCount = await this.availabilityService.getAvailableRoomCount(roomTypeId!, checkIn, checkOut);
+                if (availableCount < requiredRooms) {
+                    throw new BadRequestException(`Not enough rooms available for the selected dates. Required: ${requiredRooms}, Available: ${availableCount}`);
+                }
             }
         }
 
@@ -293,31 +670,223 @@ export class BookingsService {
 
         // 3. Calculate pricing (standard bookings only — group bookings price after room allocation)
         let pricing: any;
+        let allocationPricingList: any[] = [];
         // Determine room count for pricing
         const roomCount = (selectedRoomIds && selectedRoomIds.length > 0)
             ? selectedRoomIds.length
             : (isGroupBooking ? 1 : requiredRooms);
 
         if (!isGroupBooking) {
-            pricing = await this.pricingService.calculatePrice(
-                roomTypeId!,
-                checkIn,
-                checkOut,
-                adultsCount,
-                childrenCount,
-                couponCode,
-                referralCode,
-                createBookingDto.currency || 'INR',
-                isGroupBooking,
-                groupSize,
-                roomCount,
-                generalCode,
-                overrideTotal,
-                createBookingDto.isOverrideInclusive ?? true,
-                createBookingDto.extraAdultsCount,
-                createBookingDto.extraChildrenCount,
-                createBookingDto.infantsCount || 0,
-            );
+            if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+                if (createBookingDto.roomAllocations.length === 1) {
+                    const alloc = createBookingDto.roomAllocations[0];
+                    pricing = await this.pricingService.calculatePrice(
+                        alloc.roomTypeId,
+                        checkIn,
+                        checkOut,
+                        alloc.adults,
+                        alloc.children || 0,
+                        couponCode,
+                        referralCode,
+                        createBookingDto.currency || 'INR',
+                        false,
+                        undefined,
+                        1,
+                        generalCode,
+                        overrideTotal,
+                        createBookingDto.isOverrideInclusive ?? true,
+                        createBookingDto.extraAdultsCount,
+                        createBookingDto.extraChildrenCount,
+                        alloc.infants || 0,
+                        alloc.childAges,
+                    );
+                    allocationPricingList.push(pricing);
+                } else {
+                    // Multi-room allocation: evaluate coupons and referral codes at aggregate booking level
+                    const rawAllocPrices: any[] = [];
+                    let combinedSubtotal = 0;
+                    let accumulatedOfferDiscountAmount = 0;
+                    let accumulatedExtraAdultAmount = 0;
+                    let accumulatedExtraChildAmount = 0;
+                    let accumulatedBaseAmount = 0;
+
+                    for (const alloc of createBookingDto.roomAllocations) {
+                        const rawPrice = await this.pricingService.calculatePrice(
+                            alloc.roomTypeId,
+                            checkIn,
+                            checkOut,
+                            alloc.adults,
+                            alloc.children || 0,
+                            undefined,
+                            undefined,
+                            createBookingDto.currency || 'INR',
+                            false,
+                            undefined,
+                            1,
+                            undefined,
+                            undefined,
+                            true,
+                            undefined,
+                            undefined,
+                            alloc.infants || 0,
+                            alloc.childAges,
+                        );
+                        rawAllocPrices.push(rawPrice);
+                        accumulatedBaseAmount += rawPrice.baseAmount;
+                        accumulatedExtraAdultAmount += rawPrice.extraAdultAmount;
+                        accumulatedExtraChildAmount += rawPrice.extraChildAmount;
+                        accumulatedOfferDiscountAmount += (rawPrice.offerDiscountAmount || 0);
+                        const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                        combinedSubtotal += Math.max(0, roomSubtotal);
+                    }
+
+                    let combinedReferralDiscount = 0;
+                    let effectiveReferralPartnerId: string | undefined;
+                    const resolvedCode = (generalCode || couponCode || referralCode || '').trim().toUpperCase();
+
+                    if (resolvedCode) {
+                        const cp = await this.prisma.channelPartner.findFirst({
+                            where: { referralCode: resolvedCode, status: 'APPROVED' as any }
+                        });
+                        if (cp) {
+                            effectiveReferralPartnerId = cp.id;
+                            const rate = cp.referralDiscountRate ? Number(cp.referralDiscountRate) : 5.0;
+                            combinedReferralDiscount = Math.min(combinedSubtotal, (combinedSubtotal * rate) / 100);
+                        }
+                    }
+
+                    let combinedCouponDiscount = 0;
+                    if (resolvedCode && !effectiveReferralPartnerId) {
+                        const coupon = await this.prisma.coupon.findUnique({
+                            where: { code: resolvedCode }
+                        });
+                        if (coupon) {
+                            if (!coupon.isActive) throw new BadRequestException('Coupon is no longer active');
+                            const now = new Date();
+                            if (now < coupon.validFrom || now > coupon.validUntil) throw new BadRequestException('Coupon has expired');
+                            if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) throw new BadRequestException('Coupon usage limit reached');
+                            if (coupon.minBookingAmount && combinedSubtotal < Number(coupon.minBookingAmount)) {
+                                throw new BadRequestException(`Minimum booking amount for this coupon is ₹${coupon.minBookingAmount}`);
+                            }
+                            if (coupon.discountType === 'PERCENTAGE') {
+                                combinedCouponDiscount = (combinedSubtotal * Number(coupon.discountValue)) / 100;
+                            } else if (coupon.discountType === 'FIXED_AMOUNT') {
+                                combinedCouponDiscount = Number(coupon.discountValue);
+                            }
+                            combinedCouponDiscount = Math.min(combinedCouponDiscount, combinedSubtotal);
+                        } else if (couponCode || generalCode) {
+                            throw new BadRequestException('Invalid coupon code');
+                        }
+                    }
+
+                    const maxDiscountPctSetting = await this.systemSettings.getSetting('MAX_DISCOUNT_PCT');
+                    const maxDiscountPct = (typeof maxDiscountPctSetting === 'number' ? maxDiscountPctSetting : 30) / 100;
+                    const maxAllowedDiscount = (accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount) * maxDiscountPct;
+                    let totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+
+                    if (totalDiscount > maxAllowedDiscount) {
+                        const overage = totalDiscount - maxAllowedDiscount;
+                        let remainingOverage = overage;
+                        if (combinedCouponDiscount > 0) {
+                            const couponTrim = Math.min(combinedCouponDiscount, remainingOverage);
+                            combinedCouponDiscount -= couponTrim;
+                            remainingOverage -= couponTrim;
+                        }
+                        if (remainingOverage > 0) {
+                            const referralTrim = Math.min(combinedReferralDiscount, remainingOverage);
+                            combinedReferralDiscount -= referralTrim;
+                        }
+                        totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
+                    }
+
+                    const gstTiers = await this.systemSettings.getSetting('GST_TIERS') as any[];
+                    let accumulatedTaxAmount = 0;
+                    let accumulatedTotalAmount = 0;
+                    let pricingRef: any = rawAllocPrices[0];
+
+                    for (let i = 0; i < createBookingDto.roomAllocations.length; i++) {
+                        const rawPrice = rawAllocPrices[i];
+                        const roomSubtotal = rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount - (rawPrice.offerDiscountAmount || 0);
+                        const weight = combinedSubtotal > 0 ? (roomSubtotal / combinedSubtotal) : (1 / createBookingDto.roomAllocations.length);
+
+                        const allocCouponDiscount = Number((combinedCouponDiscount * weight).toFixed(2));
+                        const allocReferralDiscount = Number((combinedReferralDiscount * weight).toFixed(2));
+                        const allocTotalDiscount = (rawPrice.offerDiscountAmount || 0) + allocCouponDiscount + allocReferralDiscount;
+
+                        const netRoomSubtotal = Math.max(0, (rawPrice.baseAmount + rawPrice.extraAdultAmount + rawPrice.extraChildAmount) - allocTotalDiscount);
+                        const numberOfNights = rawPrice.numberOfNights || 1;
+                        const netTariffPerNight = netRoomSubtotal / numberOfNights;
+
+                        let allocTax = 0;
+                        if (rawPrice.taxRate > 0 || rawPrice.isGstInclusive !== undefined) {
+                            const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
+                            allocTax = Number((taxPerNight * numberOfNights).toFixed(2));
+                        }
+
+                        const allocTotal = Number((netRoomSubtotal + allocTax).toFixed(2));
+                        accumulatedTaxAmount += allocTax;
+                        accumulatedTotalAmount += allocTotal;
+
+                        const updatedAllocPrice = {
+                            ...rawPrice,
+                            couponDiscountAmount: allocCouponDiscount,
+                            referralDiscountAmount: allocReferralDiscount,
+                            discountAmount: allocTotalDiscount,
+                            taxAmount: allocTax,
+                            totalAmount: allocTotal,
+                            appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
+                            referralPartnerId: effectiveReferralPartnerId,
+                        };
+                        allocationPricingList.push(updatedAllocPrice);
+                        pricingRef = updatedAllocPrice;
+                    }
+
+                    const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
+                    const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
+                        ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
+                        : (pricingRef?.taxRate || 0);
+
+                    pricing = {
+                        ...pricingRef,
+                        baseAmount: Number(accumulatedBaseAmount.toFixed(2)),
+                        extraAdultAmount: Number(accumulatedExtraAdultAmount.toFixed(2)),
+                        extraChildAmount: Number(accumulatedExtraChildAmount.toFixed(2)),
+                        taxAmount: Number(accumulatedTaxAmount.toFixed(2)),
+                        taxRate: effectiveTaxRate,
+                        offerDiscountAmount: Number(accumulatedOfferDiscountAmount.toFixed(2)),
+                        couponDiscountAmount: Number(combinedCouponDiscount.toFixed(2)),
+                        referralDiscountAmount: Number(combinedReferralDiscount.toFixed(2)),
+                        discountAmount: Number(totalDiscount.toFixed(2)),
+                        totalAmount: Number(accumulatedTotalAmount.toFixed(2)),
+                        convertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                        originalTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                        originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
+                        appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
+                        referralPartnerId: effectiveReferralPartnerId,
+                    };
+                }
+            } else {
+                pricing = await this.pricingService.calculatePrice(
+                    roomTypeId!,
+                    checkIn,
+                    checkOut,
+                    adultsCount,
+                    childrenCount,
+                    couponCode,
+                    referralCode,
+                    createBookingDto.currency || 'INR',
+                    isGroupBooking,
+                    groupSize,
+                    roomCount,
+                    generalCode,
+                    overrideTotal,
+                    createBookingDto.isOverrideInclusive ?? true,
+                    createBookingDto.extraAdultsCount,
+                    createBookingDto.extraChildrenCount,
+                    createBookingDto.infantsCount || 0,
+                    createBookingDto.childAges,
+                );
+            }
         }
 
         finalTotal = pricing?.totalAmount ?? 0;
@@ -438,7 +1007,7 @@ export class BookingsService {
                 targetPropertyId,
                 roomTypeId,
                 checkIn,
-                checkOut,
+                checkOut
             );
         }
 
@@ -446,6 +1015,43 @@ export class BookingsService {
         let selectedRooms: any[] = [];
         if (isGroupBooking && allocatedRooms.length > 0) {
             selectedRooms = allocatedRooms;
+        } else if (createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0) {
+            selectedRooms = [];
+            const seenRoomIds = new Set<string>();
+            for (const alloc of createBookingDto.roomAllocations) {
+                if (alloc.roomId) {
+                    if (seenRoomIds.has(alloc.roomId)) {
+                        throw new BadRequestException(`Duplicate physical room ${alloc.roomId} selected across allocations.`);
+                    }
+                    seenRoomIds.add(alloc.roomId);
+
+                    const sr = await this.prisma.room.findUnique({
+                        where: { id: alloc.roomId },
+                        include: { roomType: true },
+                    });
+                    if (!sr) {
+                        throw new NotFoundException(`Selected physical room ${alloc.roomId} not found`);
+                    }
+                    if (sr.roomTypeId !== alloc.roomTypeId) {
+                        throw new BadRequestException(`Selected physical room ${sr.roomNumber || alloc.roomId} does not match room type ${alloc.roomTypeId}`);
+                    }
+                    if (!sr.isEnabled) {
+                        throw new BadRequestException(`Selected physical room ${sr.roomNumber || alloc.roomId} is disabled or not bookable`);
+                    }
+                    const isAvailable = await this.availabilityService.isRoomAvailable(alloc.roomId, checkIn, checkOut);
+                    if (!isAvailable) {
+                        throw new BadRequestException(`Room ${sr.roomNumber || alloc.roomId} is no longer available for the selected dates. Please choose another available room.`);
+                    }
+                    selectedRooms.push(sr);
+                } else {
+                    const availableRooms = await this.availabilityService.getAvailableRooms(alloc.roomTypeId, checkIn, checkOut);
+                    const unassigned = availableRooms.filter(ar => !selectedRooms.some(sr => sr.id === ar.id));
+                    if (unassigned.length === 0) {
+                        throw new BadRequestException(`Not enough available rooms for room type ${alloc.roomTypeId}`);
+                    }
+                    selectedRooms.push(unassigned[0]);
+                }
+            }
         } else {
             if (selectedRoomIds && selectedRoomIds.length > 0) {
                 // Fetch all specifically selected rooms
@@ -876,6 +1482,7 @@ export class BookingsService {
                     numberOfNights: pricing.numberOfNights,
                     adultsCount,
                     childrenCount,
+                    childAges: createBookingDto.childAges || [],
                     infantsCount: createBookingDto.infantsCount || 0,
                     extraAdultsCount: createBookingDto.extraAdultsCount || 0,
                     extraChildrenCount: createBookingDto.extraChildrenCount || 0,
@@ -899,7 +1506,7 @@ export class BookingsService {
                     transactionDate: transactionDate ? new Date(transactionDate) : null,
                     createdBy,
                     paymentOption: isHistoricalEntry ? 'FULL' : (createBookingDto.paymentOption || 'FULL'),
-                    status: bookingStatus,
+                    status: bookingStatus as any,
                     isSeenByProperty: isAuthorizedStaff,
                     roomId: selectedRoom.id,
                     roomTypeId: roomTypeId!,
@@ -946,9 +1553,65 @@ export class BookingsService {
                     },
                     isGroupBooking,
                     groupSize,
-                    // Phase 3: Dual write to the unified BookingRoom schema
-                    // The any-cast is used to avoid TS errors prior to the user running npx prisma generate
-                    ...({ bookingRooms: { create: (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).map(r => ({ roomId: r.id })) } } as any),
+                    // Phase 3: Persist room-level demographic and pricing allocation snapshots
+                    bookingRooms: {
+                        create: (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).map((r, idx) => {
+                            const alloc = createBookingDto.roomAllocations && createBookingDto.roomAllocations.length > 0
+                                ? (createBookingDto.roomAllocations.find(a => a.roomId === r.id) || createBookingDto.roomAllocations[idx] || {})
+                                : undefined;
+
+                            const rChildAges: number[] = alloc?.childAges || (alloc ? [] : (createBookingDto.childAges || []));
+                            const rAdults = alloc?.adults ?? (alloc ? 1 : adultsCount);
+                            const rChildren = alloc?.children ?? (alloc ? rChildAges.length : childrenCount);
+                            const rInfants = alloc?.infants ?? (alloc ? 0 : (createBookingDto.infantsCount || 0));
+                            const rExtraAdults = alloc?.extraAdults ?? (alloc ? 0 : (createBookingDto.extraAdultsCount || 0));
+                            const rExtraChildren = alloc?.extraChildren ?? (alloc ? 0 : (createBookingDto.extraChildrenCount || 0));
+                            const rFreeChildren = rChildAges.filter(a => a >= 3 && a <= 6).length;
+                            const rPaidChildren = rChildAges.filter(a => a >= 7 && a <= 12).length;
+
+                            const totalRooms = (isGroupBooking && allocatedRooms.length > 0 ? allocatedRooms : selectedRooms).length || 1;
+                            const nights = pricing.numberOfNights || 1;
+
+                            // Per-allocation pricing fidelity (Fix G4)
+                            const hasAllocPricing = allocationPricingList.length > 0;
+                            const allocPricing = hasAllocPricing
+                                ? (allocationPricingList[idx] || pricing)
+                                : pricing;
+
+                            const roomBasePerNight = hasAllocPricing
+                                ? (allocPricing.baseAmount != null ? (allocPricing.baseAmount / nights) : undefined)
+                                : (pricing.baseAmount != null ? (pricing.baseAmount / (nights * totalRooms)) : undefined);
+
+                            const roomExtraAdultPerNight = hasAllocPricing
+                                ? (allocPricing.extraAdultAmount != null ? (allocPricing.extraAdultAmount / nights) : undefined)
+                                : (pricing.extraAdultAmount != null ? (pricing.extraAdultAmount / (nights * totalRooms)) : undefined);
+
+                            const roomExtraChildPerNight = hasAllocPricing
+                                ? (allocPricing.extraChildAmount != null ? (allocPricing.extraChildAmount / nights) : undefined)
+                                : (pricing.extraChildAmount != null ? (pricing.extraChildAmount / (nights * totalRooms)) : undefined);
+
+                            const roomTotalPerNight = hasAllocPricing
+                                ? (allocPricing.totalAmount != null ? (allocPricing.totalAmount / nights) : undefined)
+                                : (pricing.totalAmount != null ? (pricing.totalAmount / (nights * totalRooms)) : undefined);
+
+                            return {
+                                roomId: r.id,
+                                roomTypeId: alloc?.roomTypeId || r.roomTypeId || roomTypeId,
+                                adultsCount: rAdults,
+                                childrenCount: rChildren,
+                                infantsCount: rInfants,
+                                extraAdultsCount: rExtraAdults,
+                                extraChildrenCount: rExtraChildren,
+                                childAges: rChildAges,
+                                freeChildrenCount: rFreeChildren,
+                                paidChildrenCount: rPaidChildren,
+                                basePricePerNight: roomBasePerNight != null ? Number(roomBasePerNight.toFixed(2)) : undefined,
+                                extraAdultChargePerNight: roomExtraAdultPerNight != null ? Number(roomExtraAdultPerNight.toFixed(2)) : undefined,
+                                extraChildChargePerNight: roomExtraChildPerNight != null ? Number(roomExtraChildPerNight.toFixed(2)) : undefined,
+                                totalPricePerNight: roomTotalPerNight != null ? Number(roomTotalPerNight.toFixed(2)) : undefined,
+                            };
+                        }),
+                    },
                 },
                 include: {
                     property: {
@@ -2144,7 +2807,7 @@ export class BookingsService {
         const anyBooking = booking as any;
         const applicablePolicy = anyBooking.roomType?.cancellationPolicy || anyBooking.property?.defaultCancellationPolicy;
 
-        let refundPercentage = 100;
+        let refundPercentage = 0; // Default to 0% (zero refund if no policy or only text override is present)
         if (refundPercentageOverride !== undefined && refundPercentageOverride !== null) {
             refundPercentage = Math.max(0, Math.min(100, Number(refundPercentageOverride)));
         } else if (applicablePolicy) {
@@ -2227,13 +2890,19 @@ export class BookingsService {
                         payment.id
                     );
 
+                    const commissionRate = Number(payment.commissionRate ?? 10);
+                    const refundPlatformFee = (Number(actualRefundAmount) * commissionRate) / 100;
+                    const refundNetAmount = Number(actualRefundAmount) - refundPlatformFee;
+
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
                             status: refundPercentage === 100 ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
                             refundAmount: actualRefundAmount,
                             refundDate: new Date(),
-                            refundReason: reason || `Booking cancellation (${refundPercentage}% refund)`
+                            refundReason: reason || `Booking cancellation (${refundPercentage}% refund)`,
+                            platformFee: { decrement: refundPlatformFee },
+                            netAmount: { decrement: refundNetAmount },
                         }
                     });
 
@@ -2247,13 +2916,19 @@ export class BookingsService {
                 } else if (payment.razorpayPaymentId) {
                     await this.paymentsService.requestRefund(user, payment.id, actualRefundAmount, reason || `Booking cancellation (${refundPercentage}% refund)`);
                 } else {
+                    const commissionRate = Number(payment.commissionRate ?? 10);
+                    const refundPlatformFee = (Number(actualRefundAmount) * commissionRate) / 100;
+                    const refundNetAmount = Number(actualRefundAmount) - refundPlatformFee;
+
                     await this.prisma.payment.update({
                         where: { id: payment.id },
                         data: {
                             status: refundPercentage === 100 ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
                             refundAmount: actualRefundAmount,
                             refundDate: new Date(),
-                            refundReason: reason || `Manual refund pending (${refundPercentage}% of ${payment.paymentMethod} payment)`
+                            refundReason: reason || `Manual refund pending (${refundPercentage}% of ${payment.paymentMethod} payment)`,
+                            platformFee: { decrement: refundPlatformFee },
+                            netAmount: { decrement: refundNetAmount },
                         }
                     });
 
@@ -2399,6 +3074,7 @@ export class BookingsService {
                     roomId: primaryRoomId,
                     adultsCount: dto.adultsCount,
                     childrenCount: dto.childrenCount,
+                    childAges: dto.childAges !== undefined ? dto.childAges : undefined,
                     specialRequests: dto.specialRequests,
                     gstNumber: dto.gstNumber,
                     whatsappNumber: dto.whatsappNumber,
@@ -2958,6 +3634,7 @@ export class BookingsService {
                     roomTypeId: targetRoomTypeId,
                     adultsCount: dto.adultsCount !== undefined ? Number(dto.adultsCount) : undefined,
                     childrenCount: dto.childrenCount !== undefined ? Number(dto.childrenCount) : undefined,
+                    childAges: dto.childAges !== undefined ? dto.childAges : undefined,
                     infantsCount: dto.infantsCount !== undefined ? Number(dto.infantsCount) : undefined,
                     extraAdultsCount: dto.extraAdultsCount !== undefined ? Number(dto.extraAdultsCount) : undefined,
                     extraChildrenCount: dto.extraChildrenCount !== undefined ? Number(dto.extraChildrenCount) : undefined,
@@ -3099,6 +3776,22 @@ export class BookingsService {
 
         if (!booking) throw new NotFoundException('Booking not found');
 
+        const roles = user?.roles || [];
+        const isSuperAdmin = roles.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || roles.includes('Admin');
+        const isPropertyOwner = roles.includes('PropertyOwner');
+
+        const propId = booking.propertyId || (booking as any).room?.propertyId || (booking as any).property?.id;
+        const property = propId ? await this.prisma.property.findUnique({
+            where: { id: propId },
+            select: { ownerId: true }
+        }) : null;
+        const isOwnerOfThisProperty = property ? property.ownerId === user?.id : false;
+
+        if (!isGlobalAdmin && !(isPropertyOwner && isOwnerOfThisProperty)) {
+            throw new ForbiddenException('Only the property owner can delete bookings.');
+        }
+
         return {
             guests: booking.guests.length,
             payments: booking.payments.length,
@@ -3115,6 +3808,22 @@ export class BookingsService {
 
     async remove(id: string, user: any) {
         const booking = await this.findOne(id, user);
+
+        const roles = user?.roles || [];
+        const isSuperAdmin = roles.includes('SuperAdmin');
+        const isGlobalAdmin = isSuperAdmin || roles.includes('Admin');
+        const isPropertyOwner = roles.includes('PropertyOwner');
+
+        const propId = booking.propertyId || (booking as any).room?.propertyId || (booking as any).property?.id;
+        const property = propId ? await this.prisma.property.findUnique({
+            where: { id: propId },
+            select: { ownerId: true }
+        }) : null;
+        const isOwnerOfThisProperty = property ? property.ownerId === user?.id : false;
+
+        if (!isGlobalAdmin && !(isPropertyOwner && isOwnerOfThisProperty)) {
+            throw new ForbiddenException('Only the property owner can delete bookings.');
+        }
 
         if (['CHECKED_IN', 'CHECKED_OUT'].includes(booking.status)) {
             throw new BadRequestException('Checked-in bookings cannot be deleted.');
@@ -3443,6 +4152,8 @@ export class BookingsService {
                         user: true,
                     },
                 },
+                payments: true,
+                creditNotes: true,
             },
         });
 
@@ -3483,6 +4194,8 @@ export class BookingsService {
                             user: true,
                         },
                     },
+                    payments: true,
+                    creditNotes: true,
                 },
             });
         }
@@ -3547,6 +4260,8 @@ export class BookingsService {
                         user: true,
                     },
                 },
+                payments: true,
+                creditNotes: true,
             },
         });
 

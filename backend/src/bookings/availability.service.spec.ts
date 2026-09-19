@@ -236,7 +236,17 @@ describe('AvailabilityService - Canonical V2 Search & Accommodation Integration'
                 undefined,
                 undefined,
                 false,
-                2
+                2,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                'INR',
+                undefined,
+                false,
+                undefined,
+                0,
+                [4, 5, 8, 9, 10]
             );
 
             expect(results.length).toBe(1);
@@ -319,7 +329,17 @@ describe('AvailabilityService - Canonical V2 Search & Accommodation Integration'
                 undefined,
                 undefined,
                 false,
-                2
+                2,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                'INR',
+                undefined,
+                false,
+                undefined,
+                0,
+                [4, 5, 8, 9]
             );
 
             expect(results.length).toBeGreaterThanOrEqual(1);
@@ -567,7 +587,17 @@ describe('AvailabilityService - Canonical V2 Search & Accommodation Integration'
                 undefined,
                 undefined,
                 false,
-                2 // requested 2 rooms
+                2, // requested 2 rooms
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                'INR',
+                undefined,
+                false,
+                undefined,
+                0,
+                [4, 5, 8, 9]
             );
 
             expect(results.length).toBe(1);

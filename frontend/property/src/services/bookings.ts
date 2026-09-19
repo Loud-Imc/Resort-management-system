@@ -57,12 +57,18 @@ export const bookingsService = {
         checkOutDate: string;
         adults: number;
         children?: number;
+        childAges?: number[];
+        infants?: number;
         rooms?: number;
         includeSoldOut?: boolean;
         isGroupBooking?: boolean;
         groupSize?: number;
+        roomTypeIds?: string[];
+        roomTypeId?: string;
+        roomIds?: string[];
+        roomId?: string;
     }) => {
-        const response = await api.post<{ availableRoomTypes: any[] }>('/bookings/search', data);
+        const response = await api.post<{ availableRoomTypes: any[]; accommodationSolutions?: any[] }>('/bookings/search', data);
         return response.data;
     },
 

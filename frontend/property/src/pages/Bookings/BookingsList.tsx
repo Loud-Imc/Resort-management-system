@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useProperty } from '../../context/PropertyContext';
+import { useAuth } from '../../context/AuthContext';
 import { bookingsService } from '../../services/bookings';
 import api from '../../services/api';
 import { BookingStatus } from '../../types/booking';
@@ -36,6 +37,8 @@ export default function BookingsList() {
     const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || '');
     const [searchTerm, setSearchTerm] = useState<string>(searchParams.get('search') || '');
     const { selectedProperty } = useProperty();
+    const { user } = useAuth();
+    const isOwner = user?.roles?.includes('PropertyOwner') || user?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin');
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
@@ -715,16 +718,18 @@ export default function BookingsList() {
                                                                             <Pencil className="h-4 w-4" />
                                                                             Edit Booking
                                                                         </Link>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setActiveMenu(null);
-                                                                                handleOpenDelete(booking);
-                                                                            }}
-                                                                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/5 transition-colors"
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                            Delete Booking
-                                                                        </button>
+                                                                        {isOwner && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setActiveMenu(null);
+                                                                                    handleOpenDelete(booking);
+                                                                                }}
+                                                                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/5 transition-colors"
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                                Delete Booking
+                                                                            </button>
+                                                                        )}
                                                                     </>
                                                                 )}
                                                             </div>

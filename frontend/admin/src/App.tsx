@@ -59,6 +59,7 @@ import CategoryList from './pages/PropertyCategories/CategoryList';
 // Notifications
 import Notifications from './pages/Notifications';
 import PlatformSettings from './pages/Settings/PlatformSettings';
+import AppUpdateSettings from './pages/Settings/AppUpdateSettings';
 import AccountSettings from './pages/Settings/AccountSettings';
 import ScrollToTop from './components/ScrollToTop';
 
@@ -137,6 +138,7 @@ function App() {
 
                     {/* System Settings */}
                     <Route path="platform-settings" element={<PlatformSettings />} />
+                    <Route path="mobile-updates" element={<AppUpdateSettings />} />
                     <Route path="account-settings" element={<AccountSettings />} />
                   </Route>
 

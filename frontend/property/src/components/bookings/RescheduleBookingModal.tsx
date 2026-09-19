@@ -617,7 +617,7 @@ export function RescheduleBookingModal({
                         {/* 5. Stay Capacity Rows */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Adults (13+)</label>
+                                <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Adults (12+)</label>
                                 <input
                                     type="number"
                                     min="1"
@@ -627,7 +627,7 @@ export function RescheduleBookingModal({
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Children (6-12)</label>
+                                <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Children (2–12)</label>
                                 <input
                                     type="number"
                                     min="0"

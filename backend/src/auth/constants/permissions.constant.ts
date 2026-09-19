@@ -27,6 +27,12 @@ export const PERMISSIONS = {
         CHECK_OUT: 'bookings.checkOut',
     },
 
+    // OTA Messaging & Guest Communications
+    OTA_MESSAGING: {
+        READ: 'otaMessaging.read',
+        RESPOND: 'otaMessaging.respond',
+    },
+
     // Reports & Analytics
     REPORTS: {
         VIEW_DASHBOARD: 'reports.viewDashboard',
@@ -173,6 +179,7 @@ export const PERMISSION_GROUPS = {
         ...Object.values(PERMISSIONS.ROOMS),
         ...Object.values(PERMISSIONS.ROOM_TYPES),
         ...Object.values(PERMISSIONS.BOOKINGS),
+        ...Object.values(PERMISSIONS.OTA_MESSAGING),
         ...Object.values(PERMISSIONS.REPORTS),
         PERMISSIONS.USERS.READ, PERMISSIONS.USERS.CREATE, PERMISSIONS.USERS.UPDATE,
         PERMISSIONS.PROPERTIES.READ, PERMISSIONS.PROPERTIES.UPDATE,
@@ -189,7 +196,12 @@ export const PERMISSION_GROUPS = {
 
     MANAGER: [
         PERMISSIONS.ROOMS.READ, PERMISSIONS.ROOMS.UPDATE, PERMISSIONS.ROOMS.BLOCK,
-        ...Object.values(PERMISSIONS.BOOKINGS),
+        PERMISSIONS.BOOKINGS.CREATE,
+        PERMISSIONS.BOOKINGS.READ,
+        PERMISSIONS.BOOKINGS.UPDATE,
+        PERMISSIONS.BOOKINGS.CHECK_IN,
+        PERMISSIONS.BOOKINGS.CHECK_OUT,
+        ...Object.values(PERMISSIONS.OTA_MESSAGING),
         PERMISSIONS.REPORTS.VIEW_DASHBOARD, PERMISSIONS.REPORTS.VIEW_OCCUPANCY,
         PERMISSIONS.PROPERTIES.READ,
         PERMISSIONS.PAYMENTS.READ, PERMISSIONS.PAYMENTS.UPDATE,
@@ -204,6 +216,7 @@ export const PERMISSION_GROUPS = {
     STAFF: [
         PERMISSIONS.ROOMS.READ,
         PERMISSIONS.BOOKINGS.READ, PERMISSIONS.BOOKINGS.CHECK_IN, PERMISSIONS.BOOKINGS.CHECK_OUT,
+        ...Object.values(PERMISSIONS.OTA_MESSAGING),
         PERMISSIONS.REPORTS.VIEW_DASHBOARD,
         PERMISSIONS.PROPERTIES.READ,
         PERMISSIONS.EXPENSES.CREATE,
@@ -220,8 +233,11 @@ export const PERMISSION_GROUPS = {
         // Room Types: Full Control
         ...Object.values(PERMISSIONS.ROOM_TYPES),
 
-        // Bookings: Full Control
+        // Bookings: Full Control (Property Owner can delete)
         ...Object.values(PERMISSIONS.BOOKINGS),
+
+        // OTA Messaging
+        ...Object.values(PERMISSIONS.OTA_MESSAGING),
 
         // Reports: Financials & Dashboard
         ...Object.values(PERMISSIONS.REPORTS),
@@ -308,6 +324,7 @@ export const PERMISSION_GROUPS = {
 // --- Strict Permission Segregation & Siloing ---
 
 export const ADMIN_ONLY_PERMISSIONS = [
+    PERMISSIONS.BOOKINGS.DELETE, // Only Property Owner (direct role) or SuperAdmin can delete bookings
     PERMISSIONS.PROPERTIES.APPROVE,
     PERMISSIONS.PROPERTIES.CREATE,
     PERMISSIONS.PROPERTIES.DELETE,
@@ -323,7 +340,12 @@ export const ADMIN_ONLY_PERMISSIONS = [
 export const PROPERTY_ONLY_PERMISSIONS = [
     ...Object.values(PERMISSIONS.ROOMS),
     ...Object.values(PERMISSIONS.ROOM_TYPES),
-    ...Object.values(PERMISSIONS.BOOKINGS),
+    PERMISSIONS.BOOKINGS.CREATE,
+    PERMISSIONS.BOOKINGS.READ,
+    PERMISSIONS.BOOKINGS.UPDATE,
+    PERMISSIONS.BOOKINGS.CHECK_IN,
+    PERMISSIONS.BOOKINGS.CHECK_OUT,
+    ...Object.values(PERMISSIONS.OTA_MESSAGING),
     ...Object.values(PERMISSIONS.EXPENSES),
     ...Object.values(PERMISSIONS.INCOME),
     ...Object.values(PERMISSIONS.BOOKING_SOURCES),

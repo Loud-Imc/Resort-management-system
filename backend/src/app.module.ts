@@ -47,11 +47,14 @@ import { OfflineCpsModule } from './offline-cps/offline-cps.module';
 import { OtaPortalModule } from './ota-portal/ota-portal.module';
 import { ConnectivityModule } from './connectivity/connectivity.module';
 
+import { AppUpdateModule } from './app-update/app-update.module';
+
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
+    AppUpdateModule,
     ConnectivityModule,
     OtaPortalModule,
     OfflineCpsModule,

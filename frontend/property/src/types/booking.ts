@@ -184,10 +184,25 @@ export interface CreateBookingDto {
     guestName?: string;
     guestEmail?: string;
     guestPhone?: string;
+    childAges?: number[];
+    infants?: number;
+    roomAllocations?: {
+        roomTypeId: string;
+        roomId?: string;
+        adults: number;
+        children: number;
+        childAges?: number[];
+        infants?: number;
+        extraAdults?: number;
+        extraChildren?: number;
+    }[];
 }
 
 export interface CheckAvailabilityDto {
     roomTypeId?: string;
+    roomTypeIds?: string[];
+    roomId?: string;
+    roomIds?: string[];
     checkInDate: string;
     checkOutDate: string;
     isGroupBooking?: boolean;
@@ -207,10 +222,12 @@ export interface CheckAvailabilityResult {
 
 export interface PriceCalculationDto {
     roomTypeId?: string;
+    propertyId?: string;
+    roomAllocations?: any[];
     checkInDate: string;
     checkOutDate: string;
-    adultsCount: number;
-    childrenCount: number;
+    adultsCount?: number;
+    childrenCount?: number;
     extraAdultsCount?: number;
     extraChildrenCount?: number;
     couponCode?: string;
@@ -222,6 +239,8 @@ export interface PriceCalculationDto {
     roomCount?: number;
     overrideTotal?: number;
     isOverrideInclusive?: boolean;
+    childAges?: number[];
+    infantsCount?: number;
 }
 
 export interface PriceCalculationResult {
@@ -250,4 +269,17 @@ export interface PriceCalculationResult {
     taxRate: number;
     appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
     referralPartnerId?: string;
+    roomBreakdown?: {
+        roomTypeId: string;
+        adults: number;
+        children: number;
+        infants: number;
+        baseAmount: number;
+        discountAmount: number;
+        netBaseAmount?: number;
+        taxAmount: number;
+        taxRate: number;
+        totalAmount: number;
+        pricePerNight: number;
+    }[];
 }

@@ -1119,7 +1119,7 @@ export class PaymentsService {
         }
 
         const finalFilter = {
-            status: 'PAID' as any,
+            status: { in: ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] } as any,
             ...((propertyId || !isGlobalAdmin) ? {
                 OR: [
                     { booking: { property: propertyFilter } },
@@ -1133,6 +1133,7 @@ export class PaymentsService {
             where: finalFilter,
             _sum: {
                 amount: true,
+                refundAmount: true,
                 platformFee: true,
                 netAmount: true,
             },
@@ -1141,10 +1142,14 @@ export class PaymentsService {
             },
         });
 
+        const grossAmount = Number(stats._sum.amount || 0);
+        const refunded = Number(stats._sum.refundAmount || 0);
+        const totalVolume = Math.max(0, grossAmount - refunded);
+
         return {
-            totalVolume: Number(stats._sum.amount || 0),
-            totalFees: Number(stats._sum.platformFee || 0),
-            netEarnings: Number(stats._sum.netAmount || 0),
+            totalVolume: Number(totalVolume.toFixed(2)),
+            totalFees: Number((stats._sum.platformFee || 0).toFixed(2)),
+            netEarnings: Number((stats._sum.netAmount || 0).toFixed(2)),
             count: stats._count.id,
         };
     }
