@@ -662,17 +662,33 @@ export class PricingService {
         roomTypeId: string,
         checkInDate: Date,
         checkOutDate: Date,
+        ratePlanId?: string,
     ) {
         const pricingRules = await this.prisma.pricingRule.findMany({
             where: {
                 roomTypeId,
                 isActive: true,
+                ...(ratePlanId ? { OR: [{ ratePlanId }, { ratePlanId: null }] } : {}),
             },
+            orderBy: [
+                { isFestivalRule: 'desc' }, // Festival rules take highest priority
+                { createdAt: 'desc' },
+            ],
         });
 
-        return pricingRules.find(rule =>
-            DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, rule.startDate, rule.endDate)
-        );
+        const dayOfWeek = checkInDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+
+        return pricingRules.find(rule => {
+            const isOverlapping = DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, rule.startDate, rule.endDate);
+            if (!isOverlapping) return false;
+
+            // If rule specifies daysOfWeek (e.g. weekends [5,6,0] or weekdays [1,2,3,4]), check matching
+            if (rule.daysOfWeek && rule.daysOfWeek.length > 0) {
+                return rule.daysOfWeek.includes(dayOfWeek);
+            }
+
+            return true;
+        });
     }
 
     /**
