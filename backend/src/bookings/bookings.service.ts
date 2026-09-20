@@ -4144,7 +4144,11 @@ export class BookingsService {
                 },
                 bookingRooms: {
                     include: {
-                        room: true,
+                        room: {
+                            include: {
+                                roomType: true,
+                            },
+                        },
                     },
                 },
                 channelPartner: {
