@@ -165,6 +165,7 @@ model RoomType {
   rooms                      Room[]
   channelMappings            ChannelRoomTypeMapping[]
   connectivityMappings       ConnectivityRoomTypeMapping[]
+  ratePlans                  RatePlan[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
   restrictionRules           RestrictionRule[]
 
@@ -381,13 +382,18 @@ model PricingRule {
   description     String?
   startDate       DateTime
   endDate         DateTime
+  daysOfWeek      Int[]                 @default([])
   adjustmentType  PricingAdjustmentType
   adjustmentValue Decimal               @db.Decimal(10, 2)
   roomTypeId      String?
+  ratePlanId      String?
+  isFestivalRule  Boolean               @default(false)
+  festivalName    String?
   isActive        Boolean               @default(true)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   roomType        RoomType?             @relation(fields: [roomTypeId], references: [id])
+  ratePlan        RatePlan?             @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
 
   @@map("pricing_rules")
 }
@@ -622,6 +628,7 @@ model Property {
   stopSellRestrictions        StopSellRestriction[]
   connectivityConnections   ConnectivityPartnerConnection[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
+  calendarEventMarkers      CalendarEventMarker[]
   restrictionRules           RestrictionRule[]
   otaThreads                 OtaMessageThread[]
   otaRequests                OtaGuestRequest[]
@@ -667,11 +674,13 @@ model ChannelRoomTypeMapping {
   id                 String                 @id @default(uuid())
   propertyMappingId  String
   roomTypeId         String
+  ratePlanId         String?
   externalRoomTypeId String                 // e.g., Booking.com / Channex room type ID
   externalRatePlanId String?                // Optional rate plan ID
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
   roomType           RoomType               @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  ratePlan           RatePlan?              @relation(fields: [ratePlanId], references: [id], onDelete: SetNull)
   propertyMapping    ChannelPropertyMapping @relation(fields: [propertyMappingId], references: [id], onDelete: Cascade)
 
   @@unique([propertyMappingId, roomTypeId])
@@ -770,7 +779,7 @@ model OfflineCP {
   phone             String?
   email             String?
   companyName       String?
-  defaultCommission Decimal?  @db.Decimal(5, 2)
+  defaultCommission Decimal?  @db.Decimal(10, 2)
   notes             String?
   isActive          Boolean   @default(true)
   propertyId        String
@@ -1183,6 +1192,7 @@ enum BookingPaymentOption {
 enum PricingAdjustmentType {
   PERCENTAGE
   FIXED_AMOUNT
+  SET_FIXED_PRICE
 }
 
 enum DiscountType {
@@ -1597,6 +1607,7 @@ model ConnectivityRoomTypeMapping {
   id                 String                        @id @default(uuid())
   connectionId       String
   roomTypeId         String
+  ratePlanId         String?
   externalRoomTypeId String
   externalRatePlanId String?
   createdAt          DateTime                      @default(now())
@@ -1604,9 +1615,9 @@ model ConnectivityRoomTypeMapping {
 
   connection         ConnectivityPartnerConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   roomType           RoomType                      @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  ratePlan           RatePlan?                     @relation(fields: [ratePlanId], references: [id], onDelete: SetNull)
 
   @@unique([connectionId, roomTypeId])
-  @@unique([connectionId, externalRoomTypeId])
   @@map("connectivity_room_type_mappings")
 }
 
@@ -1823,5 +1834,61 @@ model AppUpdatePolicy {
   updatedById             String?
 
   @@map("app_update_policies")
+}
+
+enum MealPlan {
+  EP  // European Plan (Room Only)
+  CP  // Continental Plan (Room + Breakfast)
+  MAP // Modified American Plan (Half Board: Room + Breakfast + Lunch/Dinner)
+  AP  // American Plan (Full Board: Room + Breakfast + Lunch + Dinner)
+}
+
+enum RatePlanPricingType {
+  ABSOLUTE // Fixed rate per rate plan
+  DERIVED  // Derived formula (e.g. EP + offset/percentage)
+}
+
+model RatePlan {
+  id                   String              @id @default(uuid())
+  roomTypeId           String
+  name                 String
+  code                 String?
+  mealPlan             MealPlan            @default(EP)
+  isPrimary            Boolean             @default(false)
+  pricingType          RatePlanPricingType @default(ABSOLUTE)
+  derivedFromId        String?
+  derivedAmount        Decimal?            @db.Decimal(10, 2)
+  derivedPercentage    Decimal?            @db.Decimal(5, 2)
+  basePrice            Decimal             @db.Decimal(10, 2)
+  extraAdultPrice      Decimal             @db.Decimal(10, 2)
+  extraChildPrice      Decimal             @db.Decimal(10, 2)
+  cancellationPolicyId String?
+  isActive             Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  roomType             RoomType            @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  derivedFrom          RatePlan?           @relation("DerivedRatePlans", fields: [derivedFromId], references: [id])
+  derivedChildren      RatePlan[]          @relation("DerivedRatePlans")
+  pricingRules         PricingRule[]
+  channelMappings      ChannelRoomTypeMapping[]
+  connectivityMappings ConnectivityRoomTypeMapping[]
+
+  @@map("rate_plans")
+}
+
+model CalendarEventMarker {
+  id          String   @id @default(uuid())
+  propertyId  String?
+  title       String
+  startDate   DateTime
+  endDate     DateTime
+  colorTag    String   @default("#EF4444")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_event_markers")
 }
 

@@ -19,7 +19,7 @@ export class CreateOfflineCpDto {
     @IsOptional()
     @IsNumber()
     @Min(0)
-    @Max(100)
+    @Max(99999999)
     defaultCommission?: number;
 
     @IsOptional()
