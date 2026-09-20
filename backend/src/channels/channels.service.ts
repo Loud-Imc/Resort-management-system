@@ -450,26 +450,45 @@ export class ChannelsService {
       // 1. Fetch total room counts in a single query
       const rooms = await this.prisma.room.findMany({
         where: {
-          roomTypeId: { in: roomTypeIds },
+          propertyId,
           isEnabled: true,
           status: { in: ['AVAILABLE', 'OCCUPIED'] },
         },
-        select: { roomTypeId: true },
+        select: { id: true, roomTypeId: true },
       });
       const roomsMap = new Map<string, number>();
       for (const rtId of roomTypeIds) {
         roomsMap.set(rtId, rooms.filter((r) => r.roomTypeId === rtId).length);
       }
 
-      // 2. Fetch all active bookings for the range in a single query
+      // 2. Fetch all active bookings for the property in the date range with physical room allocations
       const bookings = await this.prisma.booking.findMany({
         where: {
-          roomTypeId: { in: roomTypeIds },
+          propertyId,
           status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'PENDING_PAYMENT'] },
           checkOutDate: { gte: checkInStart },
           checkInDate: { lte: checkOutEnd },
         },
-        select: { roomTypeId: true, checkInDate: true, checkOutDate: true },
+        select: {
+          id: true,
+          roomId: true,
+          roomTypeId: true,
+          checkInDate: true,
+          checkOutDate: true,
+          room: { select: { id: true, roomTypeId: true } },
+          bookingRooms: {
+            select: {
+              roomId: true,
+              room: { select: { id: true, roomTypeId: true } },
+            },
+          },
+          roomBlocks: {
+            select: {
+              roomId: true,
+              room: { select: { id: true, roomTypeId: true } },
+            },
+          },
+        },
       });
 
       // 3. Fetch active stop sell restrictions in a single query
@@ -493,7 +512,7 @@ export class ChannelsService {
 
         const totalRooms = roomsMap.get(roomMapping.roomTypeId) || 0;
 
-        // Calculate daily inventory for each date in-memory
+        // Calculate daily inventory for each date in-memory based on physical room allocations
         for (let i = 0; i < daysToSync; i++) {
           const checkIn = addDays(today, i);
           const checkOut = addDays(checkIn, 1);
@@ -508,16 +527,51 @@ export class ChannelsService {
             return (!ss.roomTypeId || ss.roomTypeId === roomMapping.roomTypeId) && checkIn <= ssEnd && checkOut >= ssStart;
           });
 
-          // Count bookings overlapping with this date in-memory
-          const bookedCount = bookings.filter(b => {
-            if (b.roomTypeId !== roomMapping.roomTypeId) return false;
+          // Count physical occupied rooms for this roomType on this date
+          const occupiedPhysicalRoomIds = new Set<string>();
+          let unassignedCount = 0;
+
+          for (const b of bookings) {
             const bStart = new Date(b.checkInDate);
             bStart.setHours(0, 0, 0, 0);
             const bEnd = new Date(b.checkOutDate);
             bEnd.setHours(0, 0, 0, 0);
-            return checkIn < bEnd && checkOut > bStart;
-          }).length;
 
+            if (checkIn < bEnd && checkOut > bStart) {
+              let hasAssignedRooms = false;
+
+              if (b.roomId) {
+                hasAssignedRooms = true;
+                if (b.room?.roomTypeId === roomMapping.roomTypeId) {
+                  occupiedPhysicalRoomIds.add(b.roomId);
+                }
+              }
+
+              if (b.bookingRooms && b.bookingRooms.length > 0) {
+                hasAssignedRooms = true;
+                for (const br of b.bookingRooms) {
+                  if (br.room?.roomTypeId === roomMapping.roomTypeId && br.roomId) {
+                    occupiedPhysicalRoomIds.add(br.roomId);
+                  }
+                }
+              }
+
+              if (b.roomBlocks && b.roomBlocks.length > 0) {
+                hasAssignedRooms = true;
+                for (const rb of b.roomBlocks) {
+                  if (rb.room?.roomTypeId === roomMapping.roomTypeId && rb.roomId) {
+                    occupiedPhysicalRoomIds.add(rb.roomId);
+                  }
+                }
+              }
+
+              if (!hasAssignedRooms && b.roomTypeId === roomMapping.roomTypeId) {
+                unassignedCount++;
+              }
+            }
+          }
+
+          const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
           const availableRoomsCount = Math.max(0, totalRooms - bookedCount);
 
           inventoryUpdates.push({
@@ -551,9 +605,9 @@ export class ChannelsService {
 
   async pushAvailabilityForDates(
     propertyId: string,
-    roomTypeId: string,
-    startDate: Date,
-    endDate: Date,
+    roomTypeId?: string,
+    startDate?: Date,
+    endDate?: Date,
     oldStartDate?: Date,
     oldEndDate?: Date,
     oldRoomTypeId?: string
@@ -571,54 +625,72 @@ export class ChannelsService {
 
     // Collect all dates to recalculate availability
     const datesToRecalculate = new Set<string>();
-    const roomTypeIds = new Set<string>([roomTypeId]);
-    if (oldRoomTypeId) roomTypeIds.add(oldRoomTypeId);
 
-    // Helper to add interval dates
     const addIntervalDates = (start: Date, end: Date) => {
       const days = differenceInDays(end, start);
-      for (let i = 0; i < days; i++) {
+      for (let i = 0; i < Math.max(1, days); i++) {
         const d = addDays(start, i);
         datesToRecalculate.add(format(d, 'yyyy-MM-dd'));
       }
     };
 
-    addIntervalDates(startDate, endDate);
+    if (startDate && endDate) {
+      addIntervalDates(startDate, endDate);
+    }
     if (oldStartDate && oldEndDate) {
       addIntervalDates(oldStartDate, oldEndDate);
     }
 
-    // Load total room counts and active bookings for the range (using our optimized queries)
-    const checkInStart = new Date(Math.min(
-      startDate.getTime(),
-      oldStartDate ? oldStartDate.getTime() : startDate.getTime()
-    ));
-    const checkOutEnd = new Date(Math.max(
-      endDate.getTime(),
-      oldEndDate ? oldEndDate.getTime() : endDate.getTime()
-    ));
+    if (datesToRecalculate.size === 0) return;
+
+    const dateTimes = Array.from(datesToRecalculate).map((d) => new Date(d).getTime());
+    const checkInStart = new Date(Math.min(...dateTimes));
+    const checkOutEnd = addDays(new Date(Math.max(...dateTimes)), 1);
+
+    const allPropertyRoomTypeIds = Array.from(
+      new Set(mappings.flatMap((m) => m.roomMappings.map((rm) => rm.roomTypeId)))
+    );
 
     const rooms = await this.prisma.room.findMany({
       where: {
-        roomTypeId: { in: Array.from(roomTypeIds) },
+        propertyId,
         isEnabled: true,
         status: { in: ['AVAILABLE', 'OCCUPIED'] },
       },
-      select: { roomTypeId: true },
+      select: { id: true, roomTypeId: true },
     });
     const roomsMap = new Map<string, number>();
-    for (const rtId of roomTypeIds) {
+    for (const rtId of allPropertyRoomTypeIds) {
       roomsMap.set(rtId, rooms.filter((r) => r.roomTypeId === rtId).length);
     }
 
     const bookings = await this.prisma.booking.findMany({
       where: {
-        roomTypeId: { in: Array.from(roomTypeIds) },
+        propertyId,
         status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'PENDING_PAYMENT'] },
         checkOutDate: { gte: checkInStart },
         checkInDate: { lte: checkOutEnd },
       },
-      select: { roomTypeId: true, checkInDate: true, checkOutDate: true },
+      select: {
+        id: true,
+        roomId: true,
+        roomTypeId: true,
+        checkInDate: true,
+        checkOutDate: true,
+        room: { select: { id: true, roomTypeId: true } },
+        bookingRooms: {
+          select: {
+            roomId: true,
+            room: { select: { id: true, roomTypeId: true } },
+          },
+        },
+        roomBlocks: {
+          select: {
+            roomId: true,
+            room: { select: { id: true, roomTypeId: true } },
+          },
+        },
+      },
     });
 
     const stopSells = await this.prisma.stopSellRestriction.findMany({
@@ -634,10 +706,8 @@ export class ChannelsService {
       const adapter = this.getAdapter(mapping.channelName);
       const inventoryUpdates: InventoryUpdateDto[] = [];
 
-      for (const rtId of roomTypeIds) {
-        const roomMapping = mapping.roomMappings.find(rm => rm.roomTypeId === rtId);
-        if (!roomMapping) continue;
-
+      for (const roomMapping of mapping.roomMappings) {
+        const rtId = roomMapping.roomTypeId;
         const totalRooms = roomsMap.get(rtId) || 0;
 
         for (const dateStr of datesToRecalculate) {
@@ -645,7 +715,7 @@ export class ChannelsService {
           checkIn.setHours(0, 0, 0, 0);
           const checkOut = addDays(checkIn, 1);
 
-          const hasStopSell = stopSells.some(ss => {
+          const hasStopSell = stopSells.some((ss) => {
             const ssStart = new Date(ss.startDate);
             ssStart.setHours(0, 0, 0, 0);
             const ssEnd = new Date(ss.endDate);
@@ -653,15 +723,50 @@ export class ChannelsService {
             return (!ss.roomTypeId || ss.roomTypeId === rtId) && checkIn <= ssEnd && checkOut >= ssStart;
           });
 
-          const bookedCount = bookings.filter(b => {
-            if (b.roomTypeId !== rtId) return false;
+          const occupiedPhysicalRoomIds = new Set<string>();
+          let unassignedCount = 0;
+
+          for (const b of bookings) {
             const bStart = new Date(b.checkInDate);
             bStart.setHours(0, 0, 0, 0);
             const bEnd = new Date(b.checkOutDate);
             bEnd.setHours(0, 0, 0, 0);
-            return checkIn < bEnd && checkOut > bStart;
-          }).length;
 
+            if (checkIn < bEnd && checkOut > bStart) {
+              let hasAssignedRooms = false;
+
+              if (b.roomId) {
+                hasAssignedRooms = true;
+                if (b.room?.roomTypeId === rtId) {
+                  occupiedPhysicalRoomIds.add(b.roomId);
+                }
+              }
+
+              if (b.bookingRooms && b.bookingRooms.length > 0) {
+                hasAssignedRooms = true;
+                for (const br of b.bookingRooms) {
+                  if (br.room?.roomTypeId === rtId && br.roomId) {
+                    occupiedPhysicalRoomIds.add(br.roomId);
+                  }
+                }
+              }
+
+              if (b.roomBlocks && b.roomBlocks.length > 0) {
+                hasAssignedRooms = true;
+                for (const rb of b.roomBlocks) {
+                  if (rb.room?.roomTypeId === rtId && rb.roomId) {
+                    occupiedPhysicalRoomIds.add(rb.roomId);
+                  }
+                }
+              }
+
+              if (!hasAssignedRooms && b.roomTypeId === rtId) {
+                unassignedCount++;
+              }
+            }
+          }
+
+          const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
           const availableRoomsCount = Math.max(0, totalRooms - bookedCount);
 
           inventoryUpdates.push({
