@@ -33,6 +33,61 @@ export class PropertiesController {
     constructor(private readonly propertiesService: PropertiesService) { }
 
     // ============================================
+    // AGREEMENTS & CONTRACT ENGINE
+    // ============================================
+
+    @Get('agreements/template')
+    @ApiOperation({ summary: 'Get master property listing & platform agreement template' })
+    getAgreementTemplate() {
+        return this.propertiesService.getAgreementTemplate();
+    }
+
+    @Get('requests/:id/agreement')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get tailored property listing agreement payload for onboarding request' })
+    getAgreementForRequest(@Request() req, @Param('id') id: string) {
+        return this.propertiesService.getAgreementForRequest(req.user, id);
+    }
+
+    @Post('requests/:id/accept-agreement')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Record electronic acceptance for onboarding request agreement' })
+    acceptRequestAgreement(@Request() req, @Param('id') id: string, @Body() body: any) {
+        const ipAddress = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
+        const userAgent = req.headers['user-agent'] || 'Web / Mobile Client';
+        return this.propertiesService.acceptRequestAgreement(req.user, id, body, { ipAddress, userAgent });
+    }
+
+    @Get('requests/:id/agreement-audit')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.READ)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get agreement contract payload and electronic audit details (Admin)' })
+    getAgreementAuditDetails(@Request() req, @Param('id') id: string) {
+        return this.propertiesService.getAgreementAuditDetails(req.user, id);
+    }
+
+    @Get(':id/agreement')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get tailored agreement payload for existing property' })
+    getAgreementForProperty(@Request() req, @Param('id') id: string) {
+        return this.propertiesService.getAgreementForProperty(req.user, id);
+    }
+
+    @Post(':id/accept-agreement')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Record electronic acceptance for existing property agreement' })
+    acceptPropertyAgreement(@Request() req, @Param('id') id: string, @Body() body: any) {
+        const ipAddress = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
+        const userAgent = req.headers['user-agent'] || 'Web / Mobile Client';
+        return this.propertiesService.acceptPropertyAgreement(req.user, id, body, { ipAddress, userAgent });
+    }
+
+    // ============================================
     // VETTING & OVERSIGHT (ONBOARDING REQUESTS)
     // ============================================
 

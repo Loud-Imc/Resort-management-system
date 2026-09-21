@@ -18,6 +18,12 @@ import {
 import { validateAndMapChannexOccupancy } from '../channels/adapters/channex.adapter';
 
 import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
+import {
+    buildAgreementContractPayload,
+    AGREEMENT_VERSION,
+    OREEDU_CORPORATE_INFO,
+    AGREEMENT_SECTIONS,
+} from '../agreements/agreement-template.data';
 
 @Injectable()
 export class PropertiesService {
@@ -249,10 +255,6 @@ export class PropertiesService {
             throw new BadRequestException('Cannot approve: Missing owner contact details.');
         }
 
-        if (details.agreementAccepted !== true) {
-            throw new BadRequestException('Cannot approve property: The property owner has not accepted the platform agreement yet.');
-        }
-
         // Finalize the creation
         return this.prisma.$transaction(async (tx) => {
             // 1. Find Owner — use the user who submitted the request first,
@@ -292,6 +294,7 @@ export class PropertiesService {
 
             // 2. Create Property
             const slug = await this.generateUniqueSlug(request.name);
+            const isAgreementSigned = Boolean(details.agreementAccepted);
             const property = await tx.property.create({
                 data: {
                     name: request.name,
@@ -317,11 +320,11 @@ export class PropertiesService {
                     documents: details.documents || [],
                     documentDetails: {
                         ...(details.documentDetails || {}),
-                        agreementAccepted: true,
-                        agreementAcceptedAt: details.agreementAcceptedAt || new Date().toISOString(),
-                        agreementVersion: details.agreementVersion || 'v1.0',
-                        agreementDesignation: details.agreementDesignation || 'Authorized Representative',
-                        agreementSignatureName: details.agreementSignatureName || `${details.ownerFirstName || ''} ${details.ownerLastName || ''}`.trim(),
+                        agreementAccepted: isAgreementSigned,
+                        agreementAcceptedAt: details.agreementAcceptedAt || (isAgreementSigned ? new Date().toISOString() : null),
+                        agreementVersion: details.agreementVersion || 'v1.0 (India Operations)',
+                        agreementDesignation: details.agreementDesignation || '',
+                        agreementSignatureName: details.agreementSignatureName || '',
                         agreementAuditId: details.agreementAuditId || null
                     },
                     isGstApplicable: details.isGstApplicable !== undefined ? Boolean(details.isGstApplicable) : Boolean(details.gstNumber && details.gstNumber.trim()),
@@ -1816,12 +1819,29 @@ export class PropertiesService {
             throw new NotFoundException(`Property ${propertyId} not found`);
         }
 
-        return auditPropertyReadiness(
+        const readinessResult = auditPropertyReadiness(
             property.id,
             property.name,
             (property as any).occupancyVersion || 'V1',
             property.roomTypes as any
         );
+
+        const docDetails = (property.documentDetails as any) || {};
+        const isAgreementSigned = Boolean(docDetails.agreementAccepted);
+
+        return {
+            ...readinessResult,
+            agreementReadiness: {
+                isAgreementSigned,
+                agreementAuditId: docDetails.agreementAuditId || null,
+                agreementAcceptedAt: docDetails.agreementAcceptedAt || null,
+                agreementVersion: docDetails.agreementVersion || 'v1.0 (India Operations)',
+                status: isAgreementSigned ? 'SIGNED' : 'PENDING_OWNER_SIGNATURE',
+                message: isAgreementSigned
+                    ? 'Electronic Listing Agreement accepted and verified'
+                    : 'Property is approved by Admin, but Electronic Listing Agreement is pending signature by Property Owner'
+            }
+        };
     }
 
     /**
@@ -1942,6 +1962,241 @@ export class PropertiesService {
             message: `Property "${property.name}" reverted to V1 legacy occupancy`,
             propertyId: property.id,
             occupancyVersion: (updated as any).occupancyVersion || 'V1',
+        };
+    }
+
+    // ============================================
+    // AGREEMENTS & PLATFORM CONTRACT MANAGEMENT
+    // ============================================
+
+    getAgreementTemplate() {
+        return {
+            agreementVersion: AGREEMENT_VERSION,
+            oreeduEntity: OREEDU_CORPORATE_INFO,
+            sections: AGREEMENT_SECTIONS,
+        };
+    }
+
+    async getAgreementForRequest(user: any, requestId: string) {
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId },
+            include: { requestedBy: true }
+        });
+        if (!request) throw new NotFoundException('Property request not found');
+
+        const details = (request.details as any) || {};
+        const ownerName = request.requestedBy
+            ? `${request.requestedBy.firstName || ''} ${request.requestedBy.lastName || ''}`.trim()
+            : (details.ownerFirstName ? `${details.ownerFirstName} ${details.ownerLastName || ''}`.trim() : '');
+
+        return buildAgreementContractPayload({
+            requestId: request.id,
+            propertyName: request.name,
+            address: details.address || request.location,
+            city: details.city || '',
+            state: details.state || '',
+            country: details.country || 'India',
+            pincode: details.pincode || '',
+            propertyEmail: details.propertyEmail || request.ownerEmail,
+            propertyPhone: details.propertyPhone || request.ownerPhone,
+            ownerFirstName: details.ownerFirstName || ownerName || request.name,
+            ownerLastName: details.ownerLastName || '',
+            ownerEmail: request.ownerEmail,
+            ownerPhone: request.ownerPhone,
+            platformCommission: details.platformCommission ?? 15,
+            gstNumber: details.gstNumber,
+            isGstApplicable: details.isGstApplicable,
+            ownerAadhaarNumber: details.ownerAadhaarNumber,
+            defaultCheckInTime: details.defaultCheckInTime,
+            defaultCheckOutTime: details.defaultCheckOutTime,
+            agreementAccepted: details.agreementAccepted,
+            agreementAcceptedAt: details.agreementAcceptedAt,
+            agreementVersion: details.agreementVersion,
+            agreementDesignation: details.agreementDesignation,
+            agreementSignatureName: details.agreementSignatureName,
+            agreementAuditId: details.agreementAuditId,
+        });
+    }
+
+    async getAgreementForProperty(user: any, propertyIdOrSlug: string) {
+        const property = await this.prisma.property.findFirst({
+            where: {
+                OR: [
+                    { id: propertyIdOrSlug },
+                    { slug: propertyIdOrSlug }
+                ]
+            },
+            include: { owner: true }
+        });
+        if (!property) throw new NotFoundException('Property not found');
+
+        const docDetails = (property.documentDetails as any) || {};
+
+        return buildAgreementContractPayload({
+            propertyId: property.id,
+            propertyName: property.name,
+            propertyType: property.type,
+            address: property.address,
+            city: property.city,
+            state: property.state,
+            country: property.country,
+            pincode: property.pincode || '',
+            propertyEmail: property.email,
+            propertyPhone: property.phone,
+            ownerFirstName: property.owner?.firstName || '',
+            ownerLastName: property.owner?.lastName || '',
+            ownerEmail: property.owner?.email || property.email,
+            ownerPhone: property.owner?.phone || property.phone,
+            platformCommission: Number(property.platformCommission || 15),
+            gstNumber: property.gstNumber || undefined,
+            isGstApplicable: property.isGstApplicable,
+            ownerAadhaarNumber: property.ownerAadhaarNumber || undefined,
+            agreementAccepted: docDetails.agreementAccepted,
+            agreementAcceptedAt: docDetails.agreementAcceptedAt,
+            agreementVersion: docDetails.agreementVersion,
+            agreementDesignation: docDetails.agreementDesignation,
+            agreementSignatureName: docDetails.agreementSignatureName,
+            agreementAuditId: docDetails.agreementAuditId,
+        });
+    }
+
+    async acceptRequestAgreement(user: any, requestId: string, payload: any, reqMeta?: { ipAddress?: string; userAgent?: string }) {
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId }
+        });
+        if (!request) throw new NotFoundException('Property request not found');
+
+        const details = (request.details as any) || {};
+        const auditId = payload.agreementAuditId || `ORD-AGR-${Math.random().toString(36).substring(2, 9).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+        const acceptedAt = payload.agreementAcceptedAt || new Date().toISOString();
+        const designation = payload.agreementDesignation || details.agreementDesignation || 'Owner / Proprietor';
+        const signatureName = payload.agreementSignatureName || details.agreementSignatureName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Authorized Signatory';
+        const version = payload.agreementVersion || AGREEMENT_VERSION;
+        const ipAddress = reqMeta?.ipAddress || '127.0.0.1';
+        const userAgent = reqMeta?.userAgent || 'Web / Mobile Client';
+
+        const updatedDetails = {
+            ...details,
+            agreementAccepted: true,
+            agreementAcceptedAt: acceptedAt,
+            agreementVersion: version,
+            agreementDesignation: designation,
+            agreementSignatureName: signatureName,
+            agreementAuditId: auditId,
+            agreementAcceptanceIp: ipAddress,
+            agreementAcceptanceUserAgent: userAgent,
+        };
+
+        const updatedRequest = await this.prisma.propertyRequest.update({
+            where: { id: requestId },
+            data: { details: updatedDetails }
+        });
+
+        await this.audit.createLog({
+            action: 'PROPERTY_AGREEMENT_ACCEPTED',
+            entity: 'PropertyRequest',
+            entityId: requestId,
+            userId: user.id,
+            newValue: {
+                agreementAuditId: auditId,
+                agreementAcceptedAt: acceptedAt,
+                agreementDesignation: designation,
+                agreementSignatureName: signatureName,
+                ipAddress,
+            }
+        });
+
+        return {
+            success: true,
+            message: 'Agreement accepted successfully',
+            auditId,
+            acceptedAt,
+            request: updatedRequest,
+        };
+    }
+
+    async acceptPropertyAgreement(user: any, propertyId: string, payload: any, reqMeta?: { ipAddress?: string; userAgent?: string }) {
+        const property = await this.prisma.property.findUnique({
+            where: { id: propertyId }
+        });
+        if (!property) throw new NotFoundException('Property not found');
+
+        const docDetails = (property.documentDetails as any) || {};
+        const auditId = payload.agreementAuditId || `ORD-AGR-${Math.random().toString(36).substring(2, 9).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+        const acceptedAt = payload.agreementAcceptedAt || new Date().toISOString();
+        const designation = payload.agreementDesignation || docDetails.agreementDesignation || 'Owner / Proprietor';
+        const signatureName = payload.agreementSignatureName || docDetails.agreementSignatureName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Authorized Signatory';
+        const version = payload.agreementVersion || AGREEMENT_VERSION;
+        const ipAddress = reqMeta?.ipAddress || '127.0.0.1';
+        const userAgent = reqMeta?.userAgent || 'Web / Mobile Client';
+
+        const updatedDocDetails = {
+            ...docDetails,
+            agreementAccepted: true,
+            agreementAcceptedAt: acceptedAt,
+            agreementVersion: version,
+            agreementDesignation: designation,
+            agreementSignatureName: signatureName,
+            agreementAuditId: auditId,
+            agreementAcceptanceIp: ipAddress,
+            agreementAcceptanceUserAgent: userAgent,
+        };
+
+        const updatedProperty = await this.prisma.property.update({
+            where: { id: propertyId },
+            data: { documentDetails: updatedDocDetails }
+        });
+
+        await this.audit.createLog({
+            action: 'PROPERTY_AGREEMENT_ACCEPTED',
+            entity: 'Property',
+            entityId: propertyId,
+            userId: user.id,
+            newValue: {
+                agreementAuditId: auditId,
+                agreementAcceptedAt: acceptedAt,
+                agreementDesignation: designation,
+                agreementSignatureName: signatureName,
+                ipAddress,
+            }
+        });
+
+        return {
+            success: true,
+            message: 'Agreement accepted successfully',
+            auditId,
+            acceptedAt,
+            property: updatedProperty,
+        };
+    }
+
+    async getAgreementAuditDetails(user: any, requestId: string) {
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId },
+            include: { requestedBy: true }
+        });
+        if (!request) throw new NotFoundException('Property request not found');
+
+        const details = (request.details as any) || {};
+        const contract = await this.getAgreementForRequest(user, requestId);
+
+        return {
+            contract,
+            auditTrail: {
+                requestId: request.id,
+                requestStatus: request.status,
+                ownerEmail: request.ownerEmail,
+                ownerPhone: request.ownerPhone,
+                agreementAccepted: Boolean(details.agreementAccepted),
+                agreementAcceptedAt: details.agreementAcceptedAt || null,
+                agreementVersion: details.agreementVersion || null,
+                agreementDesignation: details.agreementDesignation || null,
+                agreementSignatureName: details.agreementSignatureName || null,
+                agreementAuditId: details.agreementAuditId || null,
+                ipAddress: details.agreementAcceptanceIp || '127.0.0.1',
+                userAgent: details.agreementAcceptanceUserAgent || 'Unknown',
+                documentHash: details.agreementAuditId ? `SHA-256 (Oreedu-Listing-Agr-${details.agreementAuditId})` : null,
+            }
         };
     }
 }

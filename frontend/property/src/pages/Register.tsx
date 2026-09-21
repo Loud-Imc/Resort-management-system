@@ -777,6 +777,8 @@ export default function Register() {
         setStep(prev => prev - 1);
     };
 
+    const [createdRequestId, setCreatedRequestId] = useState<string | null>(null);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -788,14 +790,9 @@ export default function Register() {
             return;
         }
 
-        // Open Agreement Review Modal
-        setShowAgreementModal(true);
-    };
-
-    const submitRegistration = async (agreementData: AgreementAcceptancePayload) => {
+        // Scenario A: Register Property Request first on server
         setIsLoading(true);
         try {
-            // Format phone numbers to include country code for backend validation
             const { googleMapsLink, ...rest } = formData;
             const formattedData = {
                 ...rest,
@@ -810,16 +807,41 @@ export default function Register() {
                 existingOwnerId: selectedExistingOwner?.id || undefined,
                 ownerPassword: formData.ownerPassword,
                 documentDetails: Object.keys(documentExpiry).length > 0 ? documentExpiry : undefined,
-                // Electronic Agreement fields
-                agreementAccepted: agreementData.agreementAccepted,
-                agreementAcceptedAt: agreementData.agreementAcceptedAt,
-                agreementVersion: agreementData.agreementVersion,
-                agreementDesignation: agreementData.agreementDesignation,
-                agreementSignatureName: agreementData.agreementSignatureName,
-                agreementAuditId: agreementData.agreementAuditId
+                agreementAccepted: false,
             };
 
-            await registerProperty(formattedData);
+            const response = await registerProperty(formattedData);
+            const requestId = response?.id || response?.request?.id;
+            if (requestId) {
+                setCreatedRequestId(requestId);
+            }
+
+            // Open Agreement Review Modal with backend-backed request ID
+            setShowAgreementModal(true);
+        } catch (error: any) {
+            console.error('Registration error:', error);
+            const message = error?.response?.data?.message;
+            if (Array.isArray(message)) {
+                message.forEach((msg: string) => toast.error(msg));
+            } else {
+                toast.error(message || 'Registration failed');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const submitRegistration = async (agreementData: AgreementAcceptancePayload) => {
+        setIsLoading(true);
+        try {
+            if (createdRequestId && agreementData.agreementAccepted) {
+                try {
+                    await api.post(`/properties/requests/${createdRequestId}/accept-agreement`, agreementData);
+                } catch (e) {
+                    console.warn('Post accept-agreement fallback:', e);
+                }
+            }
+
             setShowAgreementModal(false);
             clearRegistrationDraft();
             setRestoredDraftInfo(null);
@@ -836,14 +858,8 @@ export default function Register() {
                 }
             });
         } catch (error: any) {
-            console.error('Registration error:', error);
-            const message = error?.response?.data?.message;
-            if (Array.isArray(message)) {
-                // If it's an array of validation errors, show them one by one or join them
-                message.forEach((msg: string) => toast.error(msg));
-            } else {
-                toast.error(message || 'Registration failed');
-            }
+            console.error('Agreement submission error:', error);
+            toast.error(error?.response?.data?.message || 'Failed to record agreement acceptance');
         } finally {
             setIsLoading(false);
         }
@@ -1994,7 +2010,8 @@ export default function Register() {
                     platformCommission: formData.platformCommission,
                     gstNumber: formData.gstNumber,
                     isGstApplicable: formData.isGstApplicable,
-                    ownerAadhaarNumber: formData.ownerAadhaarNumber
+                    ownerAadhaarNumber: formData.ownerAadhaarNumber,
+                    requestId: createdRequestId || undefined
                 }}
                 onAgree={submitRegistration}
                 onDecline={submitRegistration}
