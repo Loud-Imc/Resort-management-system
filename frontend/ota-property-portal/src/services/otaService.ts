@@ -70,6 +70,14 @@ export const otaService = {
     }>('/room-types/preview-occupancy', params);
     return data;
   },
+  getMasterOptions: async () => {
+    const { data } = await api.get<{
+      highlights: string[];
+      inclusions: string[];
+      amenities: string[];
+    }>('/room-types/master-options');
+    return data;
+  },
 
   // Rooms
   getRooms: async () => {

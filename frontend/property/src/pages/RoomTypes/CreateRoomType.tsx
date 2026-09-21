@@ -13,14 +13,14 @@ import type { RoomType } from '../../types/room';
 import { cancellationPoliciesService, type CancellationPolicy } from '../../services/cancellationPolicies';
 import CancellationPolicyModal from '../../components/CancellationPolicyModal';
 
-const COMMON_HIGHLIGHTS = [
+const FALLBACK_HIGHLIGHTS = [
     'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
     'Valley View', 'Forest View', 'Sunset View', 'Private Balcony', 'Jacuzzi',
     'Fireplace', 'King Size Bed', 'Queen Size Bed', 'Twin Beds', 'Spacious Room',
     'Interconnected Rooms', 'Soundproofed', 'Attached Washroom', 'Bathtub'
 ];
 
-const COMMON_INCLUSIONS = [
+const FALLBACK_INCLUSIONS = [
     'Breakfast Included', 'Lunch Included', 'Dinner Included',
     'All Meals Included (MAP)', 'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
     'Airport Transfer', 'Railway Station Pickup', 'Evening Snacks',
@@ -28,7 +28,7 @@ const COMMON_INCLUSIONS = [
     'Plantation Tour', 'Campfire', 'Bird Watching', 'Indoor Games'
 ];
 
-const COMMON_AMENITIES = [
+const FALLBACK_AMENITIES = [
     'Wi-Fi', 'Air Conditioning (AC)', 'Fan', 'Room Heater', 'TV',
     'Mini Fridge', 'Electric Kettle', 'Safe Box', 'Telephone', 'Hair Dryer',
     'Iron box', 'Daily Housekeeping', 'Toiletries', 'Desk & Chair',
@@ -261,6 +261,16 @@ export default function CreateRoomType() {
         queryFn: () => roomTypesService.getById(id!),
         enabled: !!id,
     });
+
+    const { data: masterOptions } = useQuery({
+        queryKey: ['roomTypeMasterOptions'],
+        queryFn: () => roomTypesService.getMasterOptions(),
+        staleTime: 1000 * 60 * 60,
+    });
+
+    const commonHighlights = masterOptions?.highlights || FALLBACK_HIGHLIGHTS;
+    const commonInclusions = masterOptions?.inclusions || FALLBACK_INCLUSIONS;
+    const commonAmenities = masterOptions?.amenities || FALLBACK_AMENITIES;
 
     const {
         register, handleSubmit, control, setValue, watch,
@@ -1135,9 +1145,9 @@ export default function CreateRoomType() {
 
                 {/* Highlights, Inclusions, Amenities */}
                 {[
-                    { label: 'Room Highlights', fields: highlightFields, append: appendHighlight, remove: removeHighlight, name: 'highlights' as const, common: COMMON_HIGHLIGHTS },
-                    { label: "What's Included", fields: inclusionFields, append: appendInclusion, remove: removeInclusion, name: 'inclusions' as const, common: COMMON_INCLUSIONS },
-                    { label: 'Amenities', fields: amenityFields, append: appendAmenity, remove: removeAmenity, name: 'amenities' as const, common: COMMON_AMENITIES },
+                    { label: 'Room Highlights', fields: highlightFields, append: appendHighlight, remove: removeHighlight, name: 'highlights' as const, common: commonHighlights },
+                    { label: "What's Included", fields: inclusionFields, append: appendInclusion, remove: removeInclusion, name: 'inclusions' as const, common: commonInclusions },
+                    { label: 'Amenities', fields: amenityFields, append: appendAmenity, remove: removeAmenity, name: 'amenities' as const, common: commonAmenities },
                 ].map((section) => (
                     <div key={section.label} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-6">
                         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-4">

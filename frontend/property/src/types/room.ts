@@ -53,8 +53,12 @@ export interface RoomType {
         name: string;
         city: string;
         occupancyVersion?: 'V1' | 'V2' | string | null;
+        groupPriceAdult?: number;
+        groupPriceChild?: number;
+        groupPricePerHead?: number;
     };
     rooms?: Room[];
+    ratePlans?: any[];
     _count?: {
         rooms: number;
     };
