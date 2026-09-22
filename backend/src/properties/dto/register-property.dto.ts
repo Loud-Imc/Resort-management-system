@@ -30,7 +30,6 @@ export class RegisterPropertyDto {
 
     @IsString()
     @IsNotEmpty()
-    @IsPhoneNumber()
     ownerPhone: string;
 
     // Property details
@@ -72,7 +71,6 @@ export class RegisterPropertyDto {
 
     @IsString()
     @IsNotEmpty()
-    @IsPhoneNumber()
     propertyPhone: string;
 
     @IsEmail()

@@ -25,6 +25,8 @@ import {
     AGREEMENT_SECTIONS,
 } from '../agreements/agreement-template.data';
 
+import { JwtService } from '@nestjs/jwt';
+
 @Injectable()
 export class PropertiesService {
     private readonly logger = new Logger(PropertiesService.name);
@@ -36,6 +38,7 @@ export class PropertiesService {
         @Inject(forwardRef(() => PricingService))
         private readonly pricingService: PricingService,
         private readonly mailService: MailService,
+        @Optional() private readonly jwtService?: JwtService,
         @Optional() @Inject(forwardRef(() => ConnectivityOutboxService))
         private readonly outboxService?: ConnectivityOutboxService,
     ) { }
@@ -881,10 +884,31 @@ export class PropertiesService {
             request
         );
 
+        let access_token: string | undefined = undefined;
+        try {
+            if (this.jwtService) {
+                access_token = this.jwtService.sign({
+                    sub: owner.id,
+                    email: owner.email,
+                    roles: ['PropertyOwner'],
+                });
+            }
+        } catch (e) {
+            this.logger.warn('Failed to generate JWT token on public registration:', e);
+        }
+
         return {
             id: request.id,
             status: request.status,
             ownerId: owner.id,
+            access_token,
+            user: {
+                id: owner.id,
+                email: owner.email,
+                firstName: owner.firstName,
+                lastName: owner.lastName,
+                roles: ['PropertyOwner']
+            },
             message: 'Registration submitted! Your account is ready — you can log in now. Your property will be visible after admin approval.'
         };
     }
@@ -1983,6 +2007,14 @@ export class PropertiesService {
             include: { requestedBy: true }
         });
         if (!request) throw new NotFoundException('Property request not found');
+
+        const userRoles = (user?.roles || []).map((r: any) => typeof r === 'string' ? r : r?.name || r?.role?.name);
+        const isAdmin = userRoles.includes('SuperAdmin') || userRoles.includes('Admin');
+        const isOwner = user?.id === request.requestedById || user?.email === request.ownerEmail;
+
+        if (!isAdmin && !isOwner) {
+            throw new ForbiddenException('You do not have permission to access this agreement request');
+        }
 
         const details = (request.details as any) || {};
         const ownerName = request.requestedBy
