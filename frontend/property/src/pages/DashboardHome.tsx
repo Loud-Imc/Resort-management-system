@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useProperty } from '../context/PropertyContext';
 import { reportsService } from '../services/reports';
-import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle, CheckSquare, Check, CheckCircle2, FileText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Loader2, IndianRupee, Users, BedDouble, Plus, Clock, Calendar, TrendingUp, ArrowRight, MoreVertical, Lock, CalendarDays, AlertTriangle, CheckSquare, Check, CheckCircle2, FileText, ShieldAlert, ShieldCheck, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from '../types/room';
 import clsx from 'clsx';
@@ -270,9 +270,19 @@ export default function DashboardHome() {
                             : "This property is currently inactive. Please contact the administrator to re-enable it."}
                     </p>
 
-                    <div className="inline-flex items-center gap-3 px-6 py-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-200 dark:border-amber-800 font-bold text-sm">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                        Status: {selectedProperty.status}
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        <div className="inline-flex items-center gap-3 px-6 py-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-200 dark:border-amber-800 font-bold text-sm">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                            Status: {selectedProperty.status}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/my-property')}
+                            className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary-600/10 hover:bg-primary-600/20 text-primary-600 dark:text-primary-400 font-bold text-sm rounded-2xl transition-all border border-primary-600/20 cursor-pointer"
+                        >
+                            <Building2 className="h-4 w-4" />
+                            Add / Edit Property Details
+                        </button>
                     </div>
 
                     {/* Agreement Status Action Box */}
