@@ -358,9 +358,22 @@ export default function DashboardHome() {
         const now = new Date();
         const in30 = new Date();
         in30.setDate(in30.getDate() + 30);
+
+        // Keys to skip — these are not document expiry dates
+        const NON_EXPIRY_KEYS = new Set([
+            'agreementAccepted', 'agreementAcceptedAt', 'agreementVersion',
+            'agreementDesignation', 'agreementSignatureName', 'agreementAuditId',
+            'isPmsActive', 'platformCommission', 'isGstApplicable',
+        ]);
+
         return Object.entries(details as Record<string, string>).map(([key, dateStr]) => {
-            if (!dateStr) return null;
-            const expiry = new Date(dateStr as string);
+            // Skip non-expiry fields and any field whose value is not a non-empty string
+            if (NON_EXPIRY_KEYS.has(key)) return null;
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            // Must look like a date string (contains digits and separators)
+            if (!/\d{4}/.test(dateStr)) return null;
+            const expiry = new Date(dateStr);
+            if (isNaN(expiry.getTime())) return null;
             const label = key === 'licenceImage' ? 'Property Licence' : key.startsWith('document_') ? `Additional Document ${parseInt(key.replace('document_', '')) + 1}` : key;
             if (expiry < now) return { label, dateStr: dateStr as string, type: 'expired' as const };
             if (expiry <= in30) return { label, dateStr: dateStr as string, type: 'expiring' as const };

@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
 import { PropertyStaffController } from './property-staff.controller';
@@ -16,6 +17,10 @@ import { ConnectivityModule } from '../connectivity/connectivity.module';
         AuditModule,
         SystemSettingsModule,
         MailModule,
+        JwtModule.register({
+            secret: process.env.JWT_SECRET || 'super-secret-key-for-development-env-only-change-in-prod',
+            signOptions: { expiresIn: '7d' },
+        }),
         forwardRef(() => BookingsModule),
         forwardRef(() => ConnectivityModule),
     ],

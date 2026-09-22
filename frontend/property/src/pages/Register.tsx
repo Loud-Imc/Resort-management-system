@@ -369,8 +369,9 @@ export default function Register() {
             return `+${cleaned}`;
         }
 
-        // 6. Otherwise, if it was long enough and already starts with +, just return it cleaned
-        return phone.startsWith('+') ? `+${cleaned}` : `+${cleaned}`;
+        // 6. Otherwise, format cleanly with + or +91
+        if (!cleaned) return phone || '';
+        return phone.startsWith('+') ? `+${cleaned}` : `+91${cleaned}`;
     };
 
     const handleSendOtp = async () => {

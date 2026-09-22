@@ -4,6 +4,7 @@ import { CheckCircle2, Download, AlertTriangle, X, User } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import oreeduStamp from '../assets/oreedu-stamp.jpg';
 import oreeduSignature from '../assets/oreedu-signature.jpg';
+import api from '../services/api';
 
 export interface AgreementPropertyData {
     propertyName: string;
@@ -55,7 +56,7 @@ const OREEDU_REGISTERED_OFFICE = 'Oreedu Tech Hub, Beach Road, Calicut, Kerala, 
 export default function PropertyAgreementModal({
     isOpen,
     onClose,
-    data,
+    data: initialData,
     mode = 'registration',
     onAgree,
     onDecline,
@@ -65,6 +66,37 @@ export default function PropertyAgreementModal({
     const [designation, setDesignation] = useState('Owner / Proprietor');
     const [customDesignation, setCustomDesignation] = useState('');
     const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
+
+    const [remoteData, setRemoteData] = useState<AgreementPropertyData | null>(null);
+    const [, setIsFetchingRemote] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const reqId = initialData?.requestId;
+        const propId = (initialData as any)?.propertyId;
+        const targetId = reqId || propId;
+        if (!targetId) return;
+
+        const fetchRemoteAgreement = async () => {
+            setIsFetchingRemote(true);
+            try {
+                const endpoint = reqId ? `/properties/requests/${reqId}/agreement` : `/properties/${propId}/agreement`;
+                const res = await api.get(endpoint);
+                const backendPayload = res.data?.data || res.data;
+                if (backendPayload && (backendPayload.propertyName || backendPayload.ownerFirstName)) {
+                    setRemoteData(backendPayload);
+                }
+            } catch (e) {
+                console.warn('Remote agreement fetch fallback to initial props:', e);
+            } finally {
+                setIsFetchingRemote(false);
+            }
+        };
+
+        fetchRemoteAgreement();
+    }, [isOpen, initialData?.requestId, (initialData as any)?.propertyId]);
+
+    const data = remoteData || initialData;
 
     // Scroll locking on document body & html when modal is open
     useEffect(() => {

@@ -100,6 +100,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const registerProperty = async (formData: any) => {
         const res = await api.post('/properties/public-register', formData);
+        if (res.data?.access_token) {
+            localStorage.setItem('property_token', res.data.access_token);
+            api.defaults.headers.common['Authorization'] = `Bearer ${res.data.access_token}`;
+            if (res.data.user) {
+                localStorage.setItem('property_user', JSON.stringify(res.data.user));
+                setUser(res.data.user);
+                setIsAuthenticated(true);
+            }
+        }
         return res.data;
     };
 
