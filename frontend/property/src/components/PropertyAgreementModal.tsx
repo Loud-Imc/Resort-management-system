@@ -1276,13 +1276,15 @@ export default function PropertyAgreementModal({
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={onClose}
-                                    className="px-3 py-1.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all cursor-pointer"
-                                >
-                                    Back to Edit
-                                </button>
+                                {mode !== 'registration' && (
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="px-3 py-1.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all cursor-pointer"
+                                    >
+                                        Close
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={handleAgreeSubmit}

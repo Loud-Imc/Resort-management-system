@@ -1848,12 +1848,19 @@ enum RatePlanPricingType {
   DERIVED  // Derived formula (e.g. EP + offset/percentage)
 }
 
+enum AcType {
+  AC
+  NON_AC
+  DEFAULT
+}
+
 model RatePlan {
   id                   String              @id @default(uuid())
   roomTypeId           String
   name                 String
   code                 String?
   mealPlan             MealPlan            @default(EP)
+  acType               AcType              @default(DEFAULT)
   isPrimary            Boolean             @default(false)
   pricingType          RatePlanPricingType @default(ABSOLUTE)
   derivedFromId        String?

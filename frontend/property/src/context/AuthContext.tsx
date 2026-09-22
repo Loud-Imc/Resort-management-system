@@ -8,7 +8,7 @@ interface AuthContextType {
     isLoading: boolean;
     login: (credentials: LoginCredentials) => Promise<void>;
     register: (data: any) => Promise<void>;
-    registerProperty: (data: any) => Promise<void>;
+    registerProperty: (data: any) => Promise<any>;
     logout: () => void;
     updateUser: (userData: Partial<User>) => void;
     refreshUser: () => Promise<void>;
@@ -99,7 +99,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const registerProperty = async (formData: any) => {
-        await api.post('/properties/public-register', formData);
+        const res = await api.post('/properties/public-register', formData);
+        return res.data;
     };
 
     const logout = () => {

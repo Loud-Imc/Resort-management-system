@@ -12,6 +12,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ChannelsModule } from '../channels/channels.module';
 import { ConnectivityModule } from '../connectivity/connectivity.module';
 
+import { RatePlansService } from './services/rate-plans.service';
+import { RatePlansController } from './rate-plans.controller';
+
 @Module({
     imports: [
         AuditModule,
@@ -22,8 +25,8 @@ import { ConnectivityModule } from '../connectivity/connectivity.module';
         forwardRef(() => ChannelsModule),
         forwardRef(() => ConnectivityModule),
     ],
-    controllers: [BookingsController],
-    providers: [BookingsService, AvailabilityService, PricingService, InvoiceNumberService],
-    exports: [BookingsService, AvailabilityService, PricingService, InvoiceNumberService],
+    controllers: [BookingsController, RatePlansController],
+    providers: [BookingsService, AvailabilityService, PricingService, InvoiceNumberService, RatePlansService],
+    exports: [BookingsService, AvailabilityService, PricingService, InvoiceNumberService, RatePlansService],
 })
 export class BookingsModule { }

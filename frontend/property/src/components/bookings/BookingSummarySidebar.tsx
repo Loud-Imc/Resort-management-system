@@ -151,6 +151,56 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         </div>
                         <p className="text-xs font-black text-foreground">{solTitle}</p>
                         
+                        {isGroupBooking && (() => {
+                            const adultRate = Number(
+                                (selectedSolution as any)?.property?.groupPriceAdult ?? 
+                                (roomTypes?.[0]?.property as any)?.groupPriceAdult ?? 
+                                (selectedSolution as any)?.property?.groupPricePerHead ?? 
+                                (roomTypes?.[0]?.property as any)?.groupPricePerHead ?? 
+                                0
+                            );
+                            const childRate = Number(
+                                (selectedSolution as any)?.property?.groupPriceChild ?? 
+                                (roomTypes?.[0]?.property as any)?.groupPriceChild ?? 
+                                0
+                            );
+
+                            return (
+                                <div className="p-2.5 bg-primary/10 rounded-lg border border-primary/20 space-y-1 text-xs">
+                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-primary tracking-wider border-b border-primary/10 pb-1">
+                                        <span>Group Per-Head Rates</span>
+                                        <span>Rate × Guests</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs pt-0.5">
+                                        <span className="text-muted-foreground font-medium">
+                                            Adults ({adultsCount}):
+                                        </span>
+                                        <span className="font-bold text-foreground">
+                                            {adultRate > 0 ? (
+                                                `₹${adultRate.toLocaleString()} × ${adultsCount} Adults = ₹${(adultRate * adultsCount * nights).toLocaleString()}`
+                                            ) : (
+                                                `₹${Math.round(details ? (details.baseAmount / (Math.max(1, adultsCount + childrenCount) * nights)) : 0).toLocaleString()} × ${adultsCount} Adults`
+                                            )}
+                                        </span>
+                                    </div>
+                                    {childrenCount > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-muted-foreground font-medium">
+                                                Children ({childrenCount}):
+                                            </span>
+                                            <span className="font-bold text-foreground">
+                                                {childRate > 0 ? (
+                                                    `₹${childRate.toLocaleString()} × ${childrenCount} Children = ₹${(childRate * childrenCount * nights).toLocaleString()}`
+                                                ) : (
+                                                    `₹0`
+                                                )}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
                         <div className="space-y-1.5 pt-1.5 border-t border-primary/10">
                             {allocatedRooms.map((ar: any, idx: number) => {
                                 const assignedId = solutionRoomAssignments[idx];
@@ -193,7 +243,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                                 {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
                                             </span>
                                         </div>
-                                        {roomPrice > 0 && (
+                                        {!isGroupBooking && roomPrice > 0 && (
                                             <span className="font-black text-foreground shrink-0 text-xs text-right pl-1 min-w-[45px] flex items-center justify-end">
                                                 {isPriceLoading ? (
                                                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
@@ -224,7 +274,10 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         {/* Base Room Rate */}
                         <div className="flex justify-between text-xs">
                             <span className="text-muted-foreground font-medium">
-                                Accommodation ({allocatedRooms.length || 1} Rms × {nights} Nts)
+                                {isGroupBooking 
+                                    ? `Group Accommodation (${groupSize || (adultsCount + childrenCount)} Guests × ${nights} Nt${nights > 1 ? 's' : ''})`
+                                    : `Accommodation (${allocatedRooms.length || 1} Rms × ${nights} Nt${nights > 1 ? 's' : ''})`
+                                }
                             </span>
                             <span className="font-semibold text-foreground flex items-center gap-1">
                                 {isPriceLoading ? (

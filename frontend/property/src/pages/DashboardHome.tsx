@@ -69,14 +69,22 @@ export default function DashboardHome() {
         setIsSigningAgreement(true);
         try {
             if (selectedProperty?.id) {
-                await api.patch(`/properties/requests/${selectedProperty.id}/my`, {
-                    agreementAccepted: payload.agreementAccepted,
-                    agreementAcceptedAt: payload.agreementAcceptedAt,
-                    agreementVersion: payload.agreementVersion,
-                    agreementDesignation: payload.agreementDesignation,
-                    agreementSignatureName: payload.agreementSignatureName,
-                    agreementAuditId: payload.agreementAuditId
-                });
+                try {
+                    await api.post(`/properties/requests/${selectedProperty.id}/accept-agreement`, payload);
+                } catch {
+                    try {
+                        await api.post(`/properties/${selectedProperty.id}/accept-agreement`, payload);
+                    } catch {
+                        await api.patch(`/properties/requests/${selectedProperty.id}/my`, {
+                            agreementAccepted: payload.agreementAccepted,
+                            agreementAcceptedAt: payload.agreementAcceptedAt,
+                            agreementVersion: payload.agreementVersion,
+                            agreementDesignation: payload.agreementDesignation,
+                            agreementSignatureName: payload.agreementSignatureName,
+                            agreementAuditId: payload.agreementAuditId
+                        });
+                    }
+                }
             }
             toast.success('Agreement successfully accepted! Your property can now be approved by the admin.');
             setIsAgreementModalOpen(false);
@@ -364,6 +372,29 @@ export default function DashboardHome() {
 
     return (
         <div className="space-y-6">
+            {!isAgreementAccepted && (
+                <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20 border-2 border-amber-300 dark:border-amber-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <ShieldAlert className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                            <h3 className="text-sm font-bold text-amber-950 dark:text-amber-200">
+                                Action Required: Sign Platform Listing Agreement
+                            </h3>
+                            <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
+                                Your property is approved, but the electronic listing agreement is pending your signature. Please complete signing to maintain active listing status.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsAgreementModalOpen(true)}
+                        className="px-4 py-2 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-all shadow-md flex items-center gap-2 shrink-0 cursor-pointer"
+                    >
+                        <FileText className="h-4 w-4" /> Review &amp; Sign Agreement
+                    </button>
+                </div>
+            )}
+
             <PropertyReadiness />
 
             {/* Document Expiry Alerts */}
@@ -855,6 +886,38 @@ export default function DashboardHome() {
                 isOpen={isScheduleModalOpen}
                 onClose={() => setIsScheduleModalOpen(false)}
             />
+
+            {/* Agreement Modal in PMS Mode */}
+            {selectedProperty && (
+                <PropertyAgreementModal
+                    isOpen={isAgreementModalOpen}
+                    onClose={() => setIsAgreementModalOpen(false)}
+                    mode="pms"
+                    data={{
+                        propertyName: selectedProperty.name,
+                        propertyType: selectedProperty.type || details.propertyType,
+                        categoryName: (selectedProperty as any).category?.name || details.categoryName,
+                        address: selectedProperty.address || details.address || '',
+                        city: selectedProperty.city || details.city || '',
+                        state: selectedProperty.state || details.state || '',
+                        country: selectedProperty.country || details.country || 'India',
+                        pincode: selectedProperty.pincode || details.pincode || '',
+                        propertyEmail: selectedProperty.email || details.propertyEmail || '',
+                        propertyPhone: selectedProperty.phone || details.propertyPhone || '',
+                        ownerFirstName: details.ownerFirstName || selectedProperty.name,
+                        ownerLastName: details.ownerLastName || '',
+                        ownerEmail: details.ownerEmail || selectedProperty.email || '',
+                        ownerPhone: details.ownerPhone || selectedProperty.phone || '',
+                        platformCommission: details.platformCommission || (selectedProperty as any).platformCommission || 10,
+                        gstNumber: selectedProperty.gstNumber || details.gstNumber,
+                        isGstApplicable: selectedProperty.isGstApplicable || details.isGstApplicable,
+                        ownerAadhaarNumber: (selectedProperty as any).ownerAadhaarNumber || details.ownerAadhaarNumber,
+                        requestId: selectedProperty.id
+                    }}
+                    onAgree={handlePmsAcceptAgreement}
+                    isSubmitting={isSigningAgreement}
+                />
+            )}
         </div>
     );
 }

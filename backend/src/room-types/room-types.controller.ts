@@ -20,6 +20,12 @@ export class RoomTypesController {
         return this.roomTypesService.previewOccupancy(query);
     }
 
+    @Get('master-options')
+    @ApiOperation({ summary: 'Get predefined master options for room highlights, inclusions, and amenities' })
+    getMasterOptions() {
+        return this.roomTypesService.getMasterOptions();
+    }
+
     @Post('preview-occupancy')
     @ApiOperation({ summary: 'Calculate and preview occupancy compositions (POST)' })
     previewOccupancyPost(@Body() body: PreviewOccupancyDto) {
@@ -44,6 +50,15 @@ export class RoomTypesController {
         return this.roomTypesService.findAll(publicOnly === 'true', propertyId);
     }
 
+    @Get('admin/all')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.ROOM_TYPES.READ)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'List all room types (Admin)' })
+    findAllAdmin(@Req() req, @Query('propertyId') propertyId?: string) {
+        return this.roomTypesService.findAllAdmin(req.user, propertyId);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get room type by ID' })
     findOne(@Param('id') id: string, @Req() req: any) {
@@ -66,14 +81,5 @@ export class RoomTypesController {
     @ApiOperation({ summary: 'Delete room type' })
     remove(@Param('id') id: string, @Req() req: any) {
         return this.roomTypesService.remove(id, req?.user);
-    }
-
-    @Get('admin/all')
-    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-    @Permissions(PERMISSIONS.ROOM_TYPES.READ)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'List all room types (Admin)' })
-    findAllAdmin(@Req() req, @Query('propertyId') propertyId?: string) {
-        return this.roomTypesService.findAllAdmin(req.user, propertyId);
     }
 }

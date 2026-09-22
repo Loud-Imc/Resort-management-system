@@ -6,6 +6,7 @@ import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 import { PreviewOccupancyDto } from './dto/preview-occupancy.dto';
 import { generateOccupancyCompositions, OccupancyComposition } from '../common/utils/occupancy.util';
+import { ROOM_HIGHLIGHTS, ROOM_INCLUSIONS, ROOM_AMENITIES } from './constants/room-type-options.constant';
 
 @Injectable()
 export class RoomTypesService {
@@ -16,6 +17,17 @@ export class RoomTypesService {
         @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
         @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private outboxService?: ConnectivityOutboxService,
     ) { }
+
+    /**
+     * Get predefined master options for room highlights, inclusions, and amenities.
+     */
+    public getMasterOptions() {
+        return {
+            highlights: [...ROOM_HIGHLIGHTS],
+            inclusions: [...ROOM_INCLUSIONS],
+            amenities: [...ROOM_AMENITIES],
+        };
+    }
 
     /**
      * Preview occupancy compositions for mobile apps and web clients.
@@ -410,6 +422,7 @@ export class RoomTypesService {
                     where: { isEnabled: true },
                 },
                 cancellationPolicy: true,
+                ratePlans: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
             },
         });
         return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
@@ -435,6 +448,7 @@ export class RoomTypesService {
                 property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
                 rooms: true,
                 cancellationPolicy: true,
+                ratePlans: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
             },
         });
         return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
@@ -456,6 +470,7 @@ export class RoomTypesService {
                 },
                 rooms: true,
                 cancellationPolicy: true,
+                ratePlans: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
             },
         });
 

@@ -1020,4 +1020,17 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             });
         });
     });
+
+    describe('getMasterOptions', () => {
+        it('returns predefined master arrays for highlights, inclusions, and amenities', () => {
+            const masterOptions = service.getMasterOptions();
+            expect(masterOptions).toBeDefined();
+            expect(masterOptions.highlights).toContain('Mountain View');
+            expect(masterOptions.inclusions).toContain('Breakfast Included');
+            expect(masterOptions.amenities).toContain('Wi-Fi');
+            expect(masterOptions.highlights.length).toBeGreaterThan(0);
+            expect(masterOptions.inclusions.length).toBeGreaterThan(0);
+            expect(masterOptions.amenities.length).toBeGreaterThan(0);
+        });
+    });
 });

@@ -4,14 +4,14 @@ import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 
-const COMMON_HIGHLIGHTS = [
+const FALLBACK_HIGHLIGHTS = [
   'Mountain View', 'River View', 'Pool View', 'Garden View', 'Ocean View',
   'Valley View', 'Forest View', 'Sunset View', 'Private Balcony', 'Jacuzzi',
   'Fireplace', 'King Size Bed', 'Queen Size Bed', 'Twin Beds', 'Spacious Room',
   'Interconnected Rooms', 'Soundproofed', 'Attached Washroom', 'Bathtub'
 ];
 
-const COMMON_INCLUSIONS = [
+const FALLBACK_INCLUSIONS = [
   'Breakfast Included', 'Lunch Included', 'Dinner Included',
   'All Meals Included (MAP)', 'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
   'Airport Transfer', 'Railway Station Pickup', 'Evening Snacks',
@@ -19,7 +19,7 @@ const COMMON_INCLUSIONS = [
   'Plantation Tour', 'Campfire', 'Bird Watching', 'Indoor Games'
 ];
 
-const COMMON_AMENITIES = [
+const FALLBACK_AMENITIES = [
   'Wi-Fi', 'Air Conditioning (AC)', 'Fan', 'Room Heater', 'TV',
   'Mini Fridge', 'Electric Kettle', 'Safe Box', 'Telephone', 'Hair Dryer',
   'Iron box', 'Daily Housekeeping', 'Toiletries', 'Desk & Chair',
@@ -61,6 +61,11 @@ export default function OtaRoomTypes() {
   const [isAvailableForGroupBooking, setIsAvailableForGroupBooking] = useState(false);
   const [allowPayAtProperty, setAllowPayAtProperty] = useState(false);
   const [groupMaxOccupancy, setGroupMaxOccupancy] = useState('0');
+
+  // Master Options
+  const [masterHighlights, setMasterHighlights] = useState<string[]>(FALLBACK_HIGHLIGHTS);
+  const [masterInclusions, setMasterInclusions] = useState<string[]>(FALLBACK_INCLUSIONS);
+  const [masterAmenities, setMasterAmenities] = useState<string[]>(FALLBACK_AMENITIES);
 
   // Tag arrays & inputs
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
@@ -112,14 +117,20 @@ export default function OtaRoomTypes() {
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const [rtRes, policiesRes, propRes] = await Promise.all([
+      const [rtRes, policiesRes, propRes, optionsRes] = await Promise.all([
         otaService.getRoomTypes(),
         otaService.getMyPolicies(),
-        otaService.getMyProperty().catch(() => null)
+        otaService.getMyProperty().catch(() => null),
+        otaService.getMasterOptions().catch(() => null),
       ]);
       setRoomTypes(rtRes);
       setPolicies(policiesRes);
       setProperty(propRes);
+      if (optionsRes) {
+        if (optionsRes.highlights) setMasterHighlights(optionsRes.highlights);
+        if (optionsRes.inclusions) setMasterInclusions(optionsRes.inclusions);
+        if (optionsRes.amenities) setMasterAmenities(optionsRes.amenities);
+      }
     } catch (e) {
       toast.error('Failed to retrieve room categories catalog');
     } finally {
@@ -708,7 +719,7 @@ export default function OtaRoomTypes() {
             <div className="space-y-3">
               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Room Amenities</label>
               <div className="flex flex-wrap gap-1.5 p-3 bg-muted/20 border border-border rounded-xl max-h-[120px] overflow-y-auto">
-                {COMMON_AMENITIES.map((a) => {
+                {masterAmenities.map((a) => {
                   const selected = selectedAmenities.includes(a);
                   return (
                     <button
@@ -750,7 +761,7 @@ export default function OtaRoomTypes() {
             <div className="space-y-3">
               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Room Highlights</label>
               <div className="flex flex-wrap gap-1.5 p-3 bg-muted/20 border border-border rounded-xl max-h-[120px] overflow-y-auto">
-                {COMMON_HIGHLIGHTS.map((h) => {
+                {masterHighlights.map((h) => {
                   const selected = selectedHighlights.includes(h);
                   return (
                     <button
@@ -792,7 +803,7 @@ export default function OtaRoomTypes() {
             <div className="space-y-3">
               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Room Inclusions</label>
               <div className="flex flex-wrap gap-1.5 p-3 bg-muted/20 border border-border rounded-xl max-h-[120px] overflow-y-auto">
-                {COMMON_INCLUSIONS.map((i) => {
+                {masterInclusions.map((i) => {
                   const selected = selectedInclusions.includes(i);
                   return (
                     <button
