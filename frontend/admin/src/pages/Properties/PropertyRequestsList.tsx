@@ -38,12 +38,20 @@ export default function PropertyRequestsList() {
 
     const handleApprove = async (request: any) => {
         const details = request.details || {};
-        if (details.agreementAccepted !== true) {
-            toast.error('Cannot approve property: The property owner has not accepted the platform agreement yet.');
-            return;
-        }
+        // Check agreement in both possible locations (request.details or request.documentDetails)
+        const isAgreementSigned = details.agreementAccepted === true || (request.documentDetails as any)?.agreementAccepted === true;
 
-        if (!confirm('Are you sure you want to approve this property? This will create the property, owner account, and roles automatically.')) return;
+        if (!isAgreementSigned) {
+            // Warn the admin but allow them to proceed (admin has override authority)
+            const proceed = confirm(
+                'Warning: The property owner has NOT yet accepted the platform listing agreement.\n\n' +
+                'You can still approve this property and the owner can sign the agreement later from their PMS dashboard.\n\n' +
+                'Do you want to proceed with approval anyway?'
+            );
+            if (!proceed) return;
+        } else {
+            if (!confirm('Are you sure you want to approve this property? This will create the property, owner account, and roles automatically.')) return;
+        }
 
         try {
             setProcessingId(request.id);
@@ -258,16 +266,16 @@ export default function PropertyRequestsList() {
                                             <div className="flex gap-1.5">
                                                 <button
                                                     onClick={() => handleApprove(request)}
-                                                    disabled={processingId === request.id || !request.details?.agreementAccepted}
+                                                    disabled={processingId === request.id}
                                                     className={`p-2 rounded-lg transition-colors shadow-sm ${
-                                                        request.details?.agreementAccepted 
+                                                        (request.details?.agreementAccepted || (request.documentDetails as any)?.agreementAccepted)
                                                             ? 'bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer' 
-                                                            : 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed opacity-60'
+                                                            : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
                                                     }`}
                                                     title={
-                                                        request.details?.agreementAccepted 
+                                                        (request.details?.agreementAccepted || (request.documentDetails as any)?.agreementAccepted)
                                                             ? 'Approve & Onboard' 
-                                                            : 'Cannot approve: Agreement has not been accepted by property owner'
+                                                            : 'Approve & Onboard (Agreement Pending — Admin Override)'
                                                     }
                                                 >
                                                     {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
