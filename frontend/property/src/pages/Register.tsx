@@ -70,6 +70,8 @@ export default function Register() {
     const [showPassword, setShowPassword] = useState(false);
     const [isExtractingCoords, setIsExtractingCoords] = useState(false);
     const [showAgreementModal, setShowAgreementModal] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [createdRequestId, setCreatedRequestId] = useState<string | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const scrollToField = (fieldName: string) => {
@@ -117,6 +119,8 @@ export default function Register() {
     const [commissionOtp, setCommissionOtp] = useState('');
     const [commissionResendTimer, setCommissionResendTimer] = useState(0);
 
+    const IS_DEV = import.meta.env.DEV || typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const SKIP_PHONE_OTP = IS_DEV;
     // TODO: Set to false once MSG91 is fully set up
     const SKIP_COMMISSION_OTP = true;
 
@@ -375,6 +379,13 @@ export default function Register() {
             return;
         }
 
+        if (SKIP_PHONE_OTP) {
+            setIsPhoneVerified(true);
+            setVerifiedPhone(formData.ownerPhone);
+            toast.success('Phone verified (Localhost Dev Mode)');
+            return;
+        }
+
         setIsVerifyingPhone(true);
         try {
             // Clean up existing recaptchaVerifier instance if any
@@ -613,7 +624,7 @@ export default function Register() {
         const errs: Record<string, string> = {};
         if (!formData.ownerPhone?.trim()) {
             errs.ownerPhone = 'Phone number is required';
-        } else if (!isPhoneVerified) {
+        } else if (!SKIP_PHONE_OTP && !isPhoneVerified) {
             errs.ownerPhone = 'Please verify your phone number via OTP';
         }
         if (!formData.ownerFirstName?.trim()) {
@@ -767,6 +778,11 @@ export default function Register() {
                     setIsVerifyingPassword(false);
                 }
             }
+
+            if (SKIP_PHONE_OTP && !isPhoneVerified && formData.ownerPhone) {
+                setIsPhoneVerified(true);
+                setVerifiedPhone(formData.ownerPhone);
+            }
         }
         setErrors({});
         setStep(prev => prev + 1);
@@ -776,8 +792,6 @@ export default function Register() {
         setErrors({});
         setStep(prev => prev - 1);
     };
-
-    const [createdRequestId, setCreatedRequestId] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -816,8 +830,12 @@ export default function Register() {
                 setCreatedRequestId(requestId);
             }
 
-            // Open Agreement Review Modal with backend-backed request ID
-            setShowAgreementModal(true);
+            // Clear draft info since registration is now recorded in DB
+            clearRegistrationDraft();
+            setRestoredDraftInfo(null);
+
+            // Open Registration Success Confirmation Modal
+            setShowSuccessModal(true);
         } catch (error: any) {
             console.error('Registration error:', error);
             const message = error?.response?.data?.message;
@@ -1987,10 +2005,78 @@ export default function Register() {
                 </p>
             </div>
 
+            {/* Registration Success Confirmation Modal */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-slate-100 text-center relative animate-in fade-in zoom-in-95 duration-200">
+                        <div className="mx-auto h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50">
+                            <CheckCircle2 className="h-9 w-9 text-emerald-600" />
+                        </div>
+
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                            Property Registration Submitted!
+                        </h3>
+                        
+                        <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                            Your property onboarding request has been successfully recorded in our system.
+                        </p>
+
+                        {createdRequestId && (
+                            <div className="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
+                                <span className="text-slate-500">Request ID:</span>
+                                <strong className="text-slate-900 font-bold">{createdRequestId}</strong>
+                            </div>
+                        )}
+
+                        {/* Notice Box */}
+                        <div className="mt-6 p-4 rounded-xl bg-amber-50/80 border border-amber-200 text-left">
+                            <div className="flex items-center gap-2 text-amber-800 font-bold text-sm mb-1">
+                                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                                <span>Platform Listing Agreement Acknowledgment</span>
+                            </div>
+                            <p className="text-xs text-amber-900/80 leading-relaxed">
+                                To complete your onboarding and activate your listing, you must review and accept the Oreedu Property Partner Listing Agreement. You can review and accept it now, or log in to your PMS dashboard at any time to complete it.
+                            </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/login', {
+                                    state: {
+                                        message: 'Property registration submitted successfully! Please sign in to view your dashboard.'
+                                    }
+                                })}
+                                className="flex-1 px-4 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <User className="h-4 w-4" />
+                                <span>Go to Login</span>
+                            </button>
+                            
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSuccessModal(false);
+                                    setShowAgreementModal(true);
+                                }}
+                                className="flex-1 px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <FileText className="h-4 w-4" />
+                                <span>Review &amp; Accept Agreement</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Agreement Review Modal */}
             <PropertyAgreementModal
                 isOpen={showAgreementModal}
-                onClose={() => setShowAgreementModal(false)}
+                onClose={() => {
+                    setShowAgreementModal(false);
+                    setShowSuccessModal(true);
+                }}
                 mode="registration"
                 data={{
                     propertyName: formData.propertyName,
