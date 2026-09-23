@@ -1,32 +1,46 @@
-import  { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, CheckCircle2, Download, X, ShieldAlert } from 'lucide-react';
-import oreeduStamp from '../assets/oreedu-stamp.jpg';
-import oreeduSignature from '../assets/oreedu-signature.jpg';
+import { Download, AlertTriangle, X, ShieldCheck, Loader2, RefreshCw } from 'lucide-react';
+import logo from '../assets/logo.svg';
+import api from '../services/api';
+
+const resolveAssetUrl = (url?: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+        return url;
+    }
+    const envUrl = import.meta.env.VITE_API_URL;
+    const baseApi = envUrl && !envUrl.includes('localhost') ? envUrl : (import.meta.env.DEV ? 'http://localhost:3000' : '');
+    const cleanBase = baseApi.replace(/\/api\/?$/, '');
+    if (cleanBase && url.startsWith('/')) {
+        return `${cleanBase}${url}`;
+    }
+    return url;
+};
 
 export interface AdminAgreementData {
-    propertyName: string;
+    propertyName?: string;
     propertyType?: string;
     categoryName?: string;
-    address: string;
-    city: string;
-    state: string;
-    country: string;
-    pincode: string;
-    propertyEmail: string;
-    propertyPhone: string;
-    ownerFirstName: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    pincode?: string;
+    propertyEmail?: string;
+    propertyPhone?: string;
+    ownerFirstName?: string;
     ownerLastName?: string;
-    ownerEmail: string;
-    ownerPhone: string;
-    platformCommission: number | string;
+    ownerEmail?: string;
+    ownerPhone?: string;
+    platformCommission?: number | string;
     gstNumber?: string;
     isGstApplicable?: boolean;
     ownerAadhaarNumber?: string;
     defaultCheckInTime?: string;
     defaultCheckOutTime?: string;
     requestId?: string;
-    // Acceptance details
+    propertyId?: string;
     agreementAccepted?: boolean;
     agreementAcceptedAt?: string;
     agreementVersion?: string;
@@ -35,21 +49,135 @@ export interface AdminAgreementData {
     agreementAuditId?: string;
 }
 
+export interface AgreementSection {
+    id: number;
+    title: string;
+    paragraphs: string[];
+    bulletPoints?: string[];
+}
+
+export interface AdminAgreementContractPayload {
+    agreementVersion: string;
+    isAccepted?: boolean;
+    acceptedAt?: string | null;
+    auditId?: string;
+    oreeduEntity: {
+        legalName: string;
+        registeredOffice: string;
+        signatoryName: string;
+        signatoryDesignation: string;
+        stampUrl?: string;
+        signatureUrl?: string;
+    };
+    propertyDetails: {
+        propertyId?: string;
+        propertyName?: string;
+        propertyType?: string;
+        address?: string;
+        city?: string;
+        state?: string;
+        country?: string;
+        pincode?: string;
+        gstNumber?: string;
+        panNumber?: string;
+        primaryContactName?: string;
+        designation?: string;
+        email?: string;
+        phone?: string;
+        platformCommission?: number | string;
+        checkInTime?: string;
+        checkOutTime?: string;
+    };
+    sections: AgreementSection[];
+    schedules: {
+        scheduleA?: Array<{ field: string; value: string }>;
+        scheduleB?: Array<{ item: string; term: string }>;
+        scheduleC?: Array<{ policyItem: string; configuredRule: string }>;
+        scheduleE?: Array<{ field: string; record: string }>;
+        scheduleF?: Array<{ subject: string; customTerm: string; approvedBy: string }>;
+    };
+}
+
 interface AdminAgreementViewerModalProps {
     isOpen: boolean;
     onClose: () => void;
     data: AdminAgreementData;
 }
 
-const DEFAULT_AGREEMENT_VERSION = 'v1.0 (India Operations)';
-const OREEDU_LEGAL_ENTITY = 'Oreedu Private Limited';
-const OREEDU_REGISTERED_OFFICE = 'Oreedu Tech Hub, Beach Road, Calicut, Kerala, India - 673001';
-
 export default function AdminAgreementViewerModal({
     isOpen,
     onClose,
     data
 }: AdminAgreementViewerModalProps) {
+    const [contract, setContract] = useState<AdminAgreementContractPayload | null>(null);
+    const [isFetchingRemote, setIsFetchingRemote] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
+    const targetId = data?.requestId || data?.propertyId;
+
+    const fetchAgreement = async () => {
+        setIsFetchingRemote(true);
+        setFetchError(null);
+
+        try {
+            let res;
+            if (targetId) {
+                try {
+                    res = await api.get(`/properties/requests/${targetId}/agreement`);
+                } catch (firstErr: any) {
+                    if (firstErr?.response?.status === 404) {
+                        try {
+                            res = await api.get(`/properties/${targetId}/agreement`);
+                        } catch {
+                            res = await api.get('/properties/agreements/template');
+                        }
+                    } else {
+                        throw firstErr;
+                    }
+                }
+            } else {
+                res = await api.get('/properties/agreements/template');
+            }
+
+            const backendPayload: AdminAgreementContractPayload = res.data?.data || res.data;
+            if (!backendPayload) {
+                throw new Error('Agreement contract data not returned by server.');
+            }
+
+            // Overlay any specific historical acceptance fields passed from props
+            if (data?.agreementAccepted !== undefined) {
+                backendPayload.isAccepted = data.agreementAccepted;
+            }
+            if (data?.agreementAcceptedAt) {
+                backendPayload.acceptedAt = data.agreementAcceptedAt;
+            }
+            if (data?.agreementVersion) {
+                backendPayload.agreementVersion = data.agreementVersion;
+            }
+            if (data?.agreementAuditId) {
+                backendPayload.auditId = data.agreementAuditId;
+            }
+            if (data?.agreementSignatureName && backendPayload.propertyDetails) {
+                backendPayload.propertyDetails.primaryContactName = data.agreementSignatureName;
+            }
+            if (data?.agreementDesignation && backendPayload.propertyDetails) {
+                backendPayload.propertyDetails.designation = data.agreementDesignation;
+            }
+
+            setContract(backendPayload);
+        } catch (err: any) {
+            console.error('Failed to load agreement in admin viewer:', err);
+            setFetchError(err?.response?.data?.message || err?.message || 'Failed to load official agreement from server.');
+        } finally {
+            setIsFetchingRemote(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!isOpen) return;
+        fetchAgreement();
+    }, [isOpen, targetId]);
+
     // Lock background scrolling when modal is open
     useEffect(() => {
         if (isOpen) {
@@ -66,23 +194,25 @@ export default function AdminAgreementViewerModal({
 
     if (!isOpen) return null;
 
-    const fullName = data.agreementSignatureName || `${data.ownerFirstName || ''} ${data.ownerLastName || ''}`.trim() || 'Authorized Signatory';
-    const effectiveDateStr = data.agreementAcceptedAt 
-        ? new Date(data.agreementAcceptedAt).toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        })
-        : 'Pending Acceptance';
+    const propDetails = contract?.propertyDetails || {};
+    const oreeduEntity = contract?.oreeduEntity || {
+        legalName: 'Oreedu Private Limited',
+        registeredOffice: '',
+        signatoryName: 'Shahoor PK',
+        signatoryDesignation: 'CEO',
+    };
 
-    const auditId = data.agreementAuditId || data.requestId || 'ORD-AGR-AUDIT';
-    const version = data.agreementVersion || DEFAULT_AGREEMENT_VERSION;
-    const designation = data.agreementDesignation || 'Owner / Authorized Representative';
-    const panNumber = data.gstNumber && data.gstNumber.length === 15 
-        ? data.gstNumber.substring(2, 12) 
-        : (data.ownerAadhaarNumber ? `Linked to Aadhaar (***${data.ownerAadhaarNumber.slice(-4)})` : 'To be provided');
+    const propertyDisplayName = propDetails.propertyName || data?.propertyName || 'Property Operating Entity';
+    const fullName = propDetails.primaryContactName || data?.agreementSignatureName || `${data?.ownerFirstName || ''} ${data?.ownerLastName || ''}`.trim() || 'Authorized Signatory';
+    const effectiveDateStr = contract?.acceptedAt 
+        ? new Date(contract.acceptedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+        : (data?.agreementAcceptedAt 
+            ? new Date(data.agreementAcceptedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) 
+            : 'Pending Electronic Acceptance');
+
+    const auditId = contract?.auditId || data?.agreementAuditId || `ORD-AGR-${(propDetails.propertyId || targetId || 'VERIFIED').slice(-8).toUpperCase()}`;
+    const commissionPct = propDetails.platformCommission ?? data?.platformCommission ?? 15;
+    const isAccepted = contract?.isAccepted ?? data?.agreementAccepted ?? false;
 
     const handleDownloadOrPrint = () => {
         const el = document.getElementById('admin-agreement-paper');
@@ -108,7 +238,7 @@ export default function AdminAgreementViewerModal({
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Oreedu Property Listing Agreement - ${data.propertyName || 'Agreement'}</title>
+                <title>Oreedu Property Listing Agreement - ${propertyDisplayName}</title>
                 <style>
                     @page {
                         size: A4 portrait;
@@ -118,95 +248,43 @@ export default function AdminAgreementViewerModal({
                         box-sizing: border-box;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
-                        color-adjust: exact !important;
                     }
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                        font-size: 11px;
-                        line-height: 1.5;
-                        color: #111827;
-                        background: #ffffff;
+                        color: #1a1a1a;
+                        background: #fff;
                         margin: 0;
                         padding: 0;
-                        text-align: justify;
-                    }
-                    h1, h2, h3, h4 {
-                        margin: 0;
-                        color: #0F2942;
+                        font-size: 11pt;
+                        line-height: 1.5;
                     }
                     table {
                         width: 100%;
                         border-collapse: collapse;
+                        page-break-inside: avoid;
                         margin: 8px 0;
-                        font-size: 10.5px;
+                        font-size: 9.5pt;
                     }
                     th, td {
-                        border: 1px solid #9CA3AF;
+                        border: 1px solid #999;
                         padding: 5px 8px;
-                        vertical-align: top;
+                        text-align: left;
                     }
                     th {
                         background-color: #0F2942 !important;
                         color: #ffffff !important;
-                        font-weight: bold;
-                        text-align: left;
+                        font-weight: 700;
                     }
-                    tr:nth-child(even) td {
-                        background-color: #F9FAFB !important;
-                    }
-                    ul {
-                        margin: 4px 0;
-                        padding-left: 20px;
-                    }
-                    li {
-                        margin-bottom: 3px;
-                    }
-                    .running-header, .flex.justify-between {
-                        display: flex !important;
-                        justify-content: space-between !important;
-                        align-items: center !important;
-                        width: 100% !important;
-                        border-bottom: 1px solid #D1D5DB !important;
-                        padding-bottom: 5px !important;
-                        margin-bottom: 8px !important;
-                        font-size: 9.5px !important;
-                        color: #6B7280 !important;
-                        font-weight: 600 !important;
-                        text-transform: uppercase !important;
-                        letter-spacing: 0.05em !important;
-                    }
-                    .flex { display: flex !important; }
-                    .justify-between { justify-content: space-between !important; }
-                    .items-center { align-items: center !important; }
+                    h1 { font-size: 16pt; font-weight: 800; color: #0F2942; margin: 0 0 4px 0; }
+                    h2 { font-size: 13pt; font-weight: 700; color: #0F2942; margin: 16px 0 6px 0; border-bottom: 1.5px solid #0F2942; padding-bottom: 3px; }
+                    h3 { font-size: 10.5pt; font-weight: 700; color: #0F2942; margin: 12px 0 4px 0; }
+                    p { margin: 0 0 6px 0; text-align: justify; }
+                    ul { margin: 4px 0 8px 18px; padding: 0; }
+                    li { margin-bottom: 3px; text-align: justify; }
+                    .page-break { page-break-before: always; }
+                    .avoid-break { page-break-inside: avoid; }
                     .text-center { text-align: center; }
-                    .font-bold { font-weight: 700; }
-                    .uppercase { text-transform: uppercase; }
-                    .italic { font-style: italic; }
-                    .font-mono { font-family: monospace; }
-                    .p-4 { padding: 8px; }
-                    .space-y-2 > * + * { margin-top: 6px; }
-                    .space-y-3 > * + * { margin-top: 8px; }
-                    .space-y-4 > * + * { margin-top: 10px; }
-                    .space-y-8 > * + * { margin-top: 16px; }
-                    .border { border: 1px solid #D1D5DB; }
-                    .border-b { border-bottom: 1px solid #D1D5DB; }
-                    .border-t { border-top: 1px solid #D1D5DB; }
-                    .bg-gray-50 { background-color: #F9FAFB !important; }
-                    .text-gray-500 { color: #6B7280; }
-                    .text-gray-600 { color: #4B5563; }
-                    .text-gray-700 { color: #374151; }
-                    .text-gray-800 { color: #1F2937; }
-                    .text-gray-900 { color: #111827; }
-                    .text-teal-800 { color: #115E59; }
-                    .text-emerald-700 { color: #047857; }
-                    .text-amber-700 { color: #B45309; }
-                    .grid { display: grid !important; }
-                    .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-                    .gap-6 { gap: 16px !important; }
-                    .rounded { border-radius: 4px; }
-                    img { max-width: 100%; }
-                    .mix-blend-multiply { mix-blend-mode: multiply !important; }
-                    .print\\:hidden { display: none !important; }
+                    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
                 </style>
             </head>
             <body>
@@ -230,28 +308,28 @@ export default function AdminAgreementViewerModal({
             className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full bg-slate-950 flex flex-col overflow-hidden animate-in fade-in duration-150"
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', zIndex: 999999 }}
         >
-            
             {/* ── Top Bar (Sticky Full-Width) ── */}
             <div className="flex items-center justify-between px-4 sm:px-6 py-2 bg-slate-900 text-white border-b border-slate-800 shrink-0 shadow-md w-full">
                 <div className="flex items-center gap-3">
-                    <div className="p-1 bg-teal-500/20 text-teal-400 rounded-lg">
-                        <FileText className="h-4 w-4" />
-                    </div>
+                    <img src={logo} alt="Oreedu" className="h-6 w-auto brightness-200" />
+                    <div className="h-4 w-[1px] bg-slate-700 hidden sm:block"></div>
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="text-xs sm:text-sm font-bold text-white tracking-wide">
-                                Property Listing Agreement Record &bull; {data.propertyName}
+                                Oreedu Property Listing &amp; Platform Services Agreement (Admin Viewer)
                             </h2>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                data.agreementAccepted 
-                                    ? 'bg-emerald-950 text-emerald-300 border-emerald-700' 
-                                    : 'bg-amber-950 text-amber-300 border-amber-700'
-                            }`}>
-                                {data.agreementAccepted ? `✓ Verified (${version})` : '⚠️ Signature Pending'}
-                            </span>
+                            {isAccepted ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    <ShieldCheck className="h-3 w-3" /> Signed &amp; Accepted
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    Pending Acceptance
+                                </span>
+                            )}
                         </div>
                         <p className="text-[10px] text-slate-400 hidden sm:block">
-                            Audit Certificate ID: {auditId} &bull; Signed: {effectiveDateStr}
+                            Official Legal Template &bull; {propertyDisplayName}
                         </p>
                     </div>
                 </div>
@@ -260,7 +338,8 @@ export default function AdminAgreementViewerModal({
                     <button
                         type="button"
                         onClick={handleDownloadOrPrint}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all shadow-sm cursor-pointer"
+                        disabled={!contract || isFetchingRemote}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Download / Print Agreement as PDF"
                     >
                         <Download className="h-3.5 w-3.5 text-teal-400" />
@@ -277,761 +356,282 @@ export default function AdminAgreementViewerModal({
                 </div>
             </div>
 
-            {/* ── Full Continuous Document Body (A4 Paper View) ── */}
+            {/* ── Document Body View ── */}
             <div className="flex-1 overflow-y-auto bg-slate-900/60 p-2 sm:p-4 lg:p-5">
-                
-                <div 
-                    id="admin-agreement-paper" 
-                    className="max-w-4xl mx-auto bg-white text-gray-900 shadow-2xl border border-gray-300 p-6 sm:p-8 lg:p-10 pb-4 sm:pb-6 space-y-5 font-sans text-xs leading-relaxed text-justify rounded-sm"
-                >
-                    {/* Running Header */}
-                    <div className="running-header flex items-center justify-between border-b border-gray-200 pb-2 text-[10px] text-gray-500 font-semibold uppercase tracking-widest">
-                        <span>Oreedu Administration &bull; Legal Compliance</span>
-                        <span>OREEDU | PROPERTY LISTING &amp; PLATFORM SERVICES AGREEMENT</span>
-                    </div>
-
-                    {/* Title */}
-                    <div className="text-center space-y-2 py-4">
-                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0F2942] uppercase font-serif">
-                            OREEDU PRIVATE LIMITED
-                        </h1>
-                        <h2 className="text-lg sm:text-xl font-bold text-gray-900 uppercase tracking-tight">
-                            PROPERTY LISTING &amp; PLATFORM SERVICES AGREEMENT
-                        </h2>
-                        <p className="text-xs italic text-gray-600">
-                            Electronic Record for Property Onboarding &bull; Oreedu Connect / Oreedu PMS
+                {isFetchingRemote ? (
+                    <div className="flex flex-col items-center justify-center min-h-[450px] p-8 text-center bg-slate-900/80 rounded-2xl border border-slate-800 max-w-lg mx-auto mt-12 shadow-2xl">
+                        <Loader2 className="h-12 w-12 animate-spin text-teal-400 mb-4" />
+                        <h3 className="text-base font-bold text-white mb-2">Loading Verified Agreement...</h3>
+                        <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+                            Fetching official legal sections, commercial schedules, and property data directly from the server.
                         </p>
                     </div>
-
-                    {/* Template Note */}
-                    <div className="p-4 bg-gray-50 border border-gray-300 text-xs text-gray-700 leading-normal">
-                        <strong>IMPORTANT TEMPLATE NOTE:</strong> This document is drafted as a comprehensive business template for India-based operations. Complete all placeholders, align it with Oreedu&apos;s actual payment flow and commercial model, and obtain Indian legal/tax review before production deployment.
+                ) : fetchError ? (
+                    <div className="flex flex-col items-center justify-center min-h-[450px] p-8 text-center bg-slate-900/80 rounded-2xl border border-rose-900/50 max-w-lg mx-auto mt-12 shadow-2xl">
+                        <div className="p-3.5 bg-rose-500/10 text-rose-400 rounded-full border border-rose-500/20 mb-4">
+                            <AlertTriangle className="h-10 w-10 text-rose-400" />
+                        </div>
+                        <h3 className="text-base font-bold text-white mb-2">Failed to Load Agreement</h3>
+                        <p className="text-xs text-rose-200 max-w-sm mb-6 leading-relaxed bg-rose-950/40 p-3 rounded-lg border border-rose-900/40 font-mono">
+                            {fetchError}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={fetchAgreement}
+                            className="px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg cursor-pointer"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            <span>Retry Fetching Agreement</span>
+                        </button>
                     </div>
+                ) : contract ? (
+                    <div 
+                        id="admin-agreement-paper"
+                        className="max-w-4xl mx-auto bg-white text-gray-900 p-6 sm:p-10 lg:p-12 shadow-2xl rounded-sm border border-gray-200 font-sans text-xs leading-relaxed space-y-6"
+                    >
+                        {/* ── Document Header ── */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between border-b-2 border-[#0F2942] pb-5 gap-4">
+                            <div className="flex items-center gap-3">
+                                <img src={logo} alt="Oreedu" className="h-10 w-auto" />
+                                <div>
+                                    <h1 className="text-base sm:text-lg font-black tracking-tight text-[#0F2942] uppercase">
+                                        Oreedu Platform Agreement
+                                    </h1>
+                                    <p className="text-[10px] text-gray-500 tracking-wider uppercase font-semibold">
+                                        Standard Master Terms &bull; India Operations ({contract.agreementVersion})
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-right text-[11px] text-gray-500 border-l border-gray-300 pl-4 hidden sm:block">
+                                <p className="font-mono text-gray-700 font-bold">{auditId}</p>
+                                <p>Version: <span className="text-teal-800 font-semibold">{contract.agreementVersion}</span></p>
+                            </div>
+                        </div>
 
-                    {/* Document Field Details Table (Page 1) */}
-                    <div className="border border-gray-400 overflow-hidden">
-                        <table className="w-full border-collapse text-left text-xs">
-                            <thead>
-                                <tr className="bg-[#0F2942] text-white">
-                                    <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Document Field</th>
-                                    <th className="p-2.5 font-bold uppercase">Details</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-300">
-                                <tr>
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Agreement Version</td>
-                                    <td className="p-2.5 font-semibold text-teal-800">{version}</td>
-                                </tr>
-                                <tr className="bg-gray-50/60">
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Effective Date</td>
-                                    <td className="p-2.5">Date of electronic acceptance / <strong>{effectiveDateStr}</strong></td>
-                                </tr>
-                                <tr>
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Oreedu Legal Entity</td>
-                                    <td className="p-2.5"><strong>{OREEDU_LEGAL_ENTITY}</strong></td>
-                                </tr>
-                                <tr className="bg-gray-50/60">
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Registered Office</td>
-                                    <td className="p-2.5">{OREEDU_REGISTERED_OFFICE}</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property Legal / Trade Name</td>
-                                    <td className="p-2.5 font-bold text-[#0F2942] bg-teal-50/40">{data.propertyName}</td>
-                                </tr>
-                                <tr className="bg-gray-50/60">
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property ID</td>
-                                    <td className="p-2.5 font-mono font-semibold">{data.requestId || auditId}</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Commercial Model</td>
-                                    <td className="p-2.5 font-semibold">
-                                        As stated in Schedule B ({data.platformCommission}% Platform Commission per confirmed booking)
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="border-t border-gray-200 my-6"></div>
-
-                    {/* Section 1 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            1. Parties, Acceptance and Binding Effect
-                        </h3>
-                        <p>
-                            This Property Listing &amp; Platform Services Agreement (&quot;Agreement&quot;) is entered into between <strong>{OREEDU_LEGAL_ENTITY}</strong>, a company incorporated under the laws of India, having its registered office at <strong>{OREEDU_REGISTERED_OFFICE}</strong> (&quot;Oreedu&quot;), and the hotel, resort, villa, homestay, apartment, accommodation provider or other hospitality establishment identified in Schedule A (&quot;Property&quot;). Oreedu and the Property are each a &quot;Party&quot; and together the &quot;Parties&quot;.
-                        </p>
-                        <p>
-                            The Agreement becomes effective when an authorised representative of the Property affirmatively accepts it through Oreedu Connect, Oreedu PMS, an approved electronic onboarding flow, or another method accepted by Oreedu. The individual accepting confirms that he or she has authority to bind the Property and its operating/legal entity.
-                        </p>
-                        <p>
-                            The Property agrees that its electronic acceptance, together with the applicable agreement version, Property ID, authorised-user account, date/time and other system-generated acceptance records maintained by Oreedu, may constitute evidence of acceptance and formation of this Agreement to the extent permitted by applicable law.
-                        </p>
-                    </div>
-
-                    {/* Section 2 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            2. Definitions
-                        </h3>
-                        <p>
-                            For this Agreement: &quot;Platform&quot; means Oreedu&apos;s websites, mobile applications, Oreedu Connect, Oreedu PMS, APIs and related technology/services; &quot;Guest&quot; means an actual or prospective customer; &quot;Booking&quot; means a reservation facilitated, recorded or managed through the Platform; &quot;Property Content&quot; means names, trademarks, images, descriptions, amenities, policies, rates and other material supplied or authorised by the Property; &quot;Commercial Terms&quot; means the commission, fees, payment model and other financial terms in Schedule B or another written order form; and &quot;Applicable Law&quot; means laws, rules and legally binding governmental requirements applicable to the relevant Party, service or transaction.
-                        </p>
-                    </div>
-
-                    {/* Section 3 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            3. Appointment and Scope of Services
-                        </h3>
-                        <p>
-                            The Property appoints Oreedu, on a non-exclusive basis unless expressly stated otherwise in Schedule B, to display and market the Property, facilitate or manage Bookings, provide partner technology and operational tools, and perform related services described in the Platform or applicable commercial documents.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>Oreedu may display the Property on Oreedu-owned channels and, where agreed or enabled, distribute or facilitate distribution through approved channels, integrations or marketing partners.</li>
-                            <li>Oreedu does not acquire ownership or operational control of the Property by virtue of this Agreement.</li>
-                            <li>Unless Oreedu expressly contracts as principal for a specific product, the Property remains responsible for the accommodation and on-property services supplied to Guests.</li>
-                        </ul>
-                    </div>
-
-                    {/* Section 4 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            4. Property Eligibility, Authority and Compliance
-                        </h3>
-                        <p>
-                            The Property represents and warrants throughout the Term that it is lawfully entitled to operate, market and sell the accommodation offered through the Platform and that the person administering its Oreedu account is duly authorised.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>The Property shall maintain all licences, registrations, permissions, tax registrations (GSTIN/PAN) and approvals required for its operations.</li>
-                            <li>The Property shall comply with applicable hospitality, consumer, safety, fire, food, labour, tax, local-body and other regulatory requirements relevant to its operations.</li>
-                            <li>The Property shall promptly notify Oreedu of suspension, cancellation or material restriction of a licence or permission that may affect Guests or Bookings.</li>
-                        </ul>
-                    </div>
-
-                    {/* Section 5 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            5. Property Information and Content
-                        </h3>
-                        <p>
-                            The Property is responsible for the accuracy, completeness and currency of all Property Content. It shall not provide misleading photographs, false amenities, inaccurate location information, deceptive room descriptions or other information likely to mislead a Guest.
-                        </p>
-                        <p>
-                            The Property grants Oreedu, during the Term and for a reasonable wind-down/record-retention period, a non-exclusive, worldwide, royalty-free licence to host, reproduce, resize, adapt for technical formatting, display, distribute and use Property Content for operating, promoting and marketing the Property and Platform, subject to this Agreement. The Property confirms that it owns, licenses or otherwise has sufficient rights to provide the Property Content and to grant the foregoing licence.
-                        </p>
-                    </div>
-
-                    {/* Section 6 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            6. Rates, Taxes, Inventory and Availability
-                        </h3>
-                        <p>
-                            The Property shall maintain accurate rates, taxes, fees, occupancy limits, room/unit inventory, blackout dates, restrictions and availability in the Platform or through its connected systems. Where the Property controls inventory, it bears responsibility for inaccuracies caused by its failure to update or synchronise information in a timely manner.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>Rates displayed to Guests must reflect the agreed commercial configuration and applicable mandatory charges.</li>
-                            <li>The Property shall not use the Platform to advertise inventory it does not reasonably expect to honour.</li>
-                            <li>Rate parity, exclusivity or promotional obligations apply only if expressly stated in Schedule B or a campaign/order form.</li>
-                        </ul>
-                    </div>
-
-                    {/* Section 7 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            7. Bookings and Property Obligations
-                        </h3>
-                        <p>
-                            A Booking shown as confirmed in accordance with the Platform workflow must be honoured by the Property, subject to fraud controls, force majeure, lawful restrictions and other express terms of this Agreement.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>The Property shall provide the booked room/unit or an equal or better alternative where a substitution is accepted by the Guest.</li>
-                            <li>The Property shall not require a Guest to pay an amount inconsistent with the confirmed Booking except for clearly disclosed permitted extras, taxes or Guest-requested services.</li>
-                            <li>The Property shall promptly update check-in, cancellation, no-show and other status information required for reconciliation.</li>
-                            <li>The Property shall preserve reasonable records supporting disputes, no-shows, damages or additional charges.</li>
-                        </ul>
-                    </div>
-
-                    {/* Section 8 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            8. Overbooking, Relocation and Property Denial
-                        </h3>
-                        <p>
-                            If the Property cannot honour a confirmed Booking for reasons within its control, it shall immediately notify Oreedu and cooperate in arranging a reasonable remedy. Subject to the applicable Booking terms and law, the Property may be required to provide or fund equivalent or better alternative accommodation, transportation, rate difference and/or other reasonable Guest remediation caused by the Property&apos;s failure.
-                        </p>
-                        <p>
-                            Oreedu may take reasonable customer-protection action in urgent cases and may recover from the Property amounts properly attributable to the Property under the agreed commercial/payment model, subject to supporting records and dispute procedures.
-                        </p>
-                    </div>
-
-                    {/* Section 9 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            9. Cancellations, No-Shows, Modifications and Refunds
-                        </h3>
-                        <p>
-                            The cancellation/no-show policy applicable to a Booking shall be the policy displayed and accepted at the time of Booking, unless a later change is lawfully agreed with the Guest. The Property shall not retrospectively impose a more restrictive policy.
-                        </p>
-                        <p>
-                            Refunds, waivers and modifications shall follow the applicable Booking policy, payment model and authority controls. Where Oreedu processes a refund attributable to the Property, Oreedu may adjust the relevant settlement in accordance with Schedule B and applicable law.
-                        </p>
-                    </div>
-
-                    {/* Section 10 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            10. Commission, Fees, Taxes and Commercial Terms
-                        </h3>
-                        <p>
-                            The Property shall pay Oreedu the commission of <strong>{data.platformCommission}%</strong>, subscription, transaction, technology, marketing or other fees stated in Schedule B, an applicable order form, campaign acceptance or other written commercial instrument. Unless expressly stated otherwise, applicable taxes on Oreedu&apos;s fees are additional.
-                        </p>
-                        <p>
-                            The Parties shall issue invoices, credit notes and other tax documents as required by applicable law. Each Party remains responsible for taxes legally imposed on that Party. Nothing in this Agreement is intended to reallocate a statutory tax liability contrary to law.
-                        </p>
-                    </div>
-
-                    {/* Section 11 - 15 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            11. Guest Payments, Settlements and Reconciliation
-                        </h3>
-                        <p>
-                            The payment model for each Booking may be prepaid/collected through an approved payment provider, pay-at-property, credit-based, or another model identified in Schedule B or the Platform. The Property authorises Oreedu to perform settlements, adjustments and reconciliations consistent with that model.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>The Property shall maintain accurate bank and tax details and promptly report changes through an approved verification process.</li>
-                            <li>Oreedu may withhold or adjust amounts reasonably connected with refunds, chargebacks, duplicate payments, fraud, disputed Bookings, contractual deductions or legally required withholding.</li>
-                            <li>The Property must raise reconciliation disputes within <strong>30</strong> days after the relevant statement/settlement, with supporting records.</li>
-                        </ul>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            12. Chargebacks, Fraud and Payment Disputes
-                        </h3>
-                        <p>
-                            The Parties shall reasonably cooperate on suspected fraud, payment disputes and chargebacks. Responsibility for a chargeback or loss shall depend on the cause, applicable payment-network rules, Booking evidence, the payment model and the Parties&apos; respective acts or omissions. The Property shall not create fictitious Bookings, manipulate transactions, misuse payment credentials, circumvent Platform fees, or encourage Guests to misrepresent transaction facts.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            13. Oreedu Connect / Oreedu PMS Access
-                        </h3>
-                        <p>
-                            Oreedu may provide the Property with accounts and permissions for Oreedu Connect, Oreedu PMS and related tools. Accounts are for authorised business users only.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>The Property shall maintain current authorised-user information and promptly remove users who no longer require access.</li>
-                            <li>Credentials, OTPs and access tokens must not be shared with unauthorised persons.</li>
-                            <li>The Property is responsible for actions taken through its authorised accounts unless caused by Oreedu&apos;s breach.</li>
-                            <li>The Property shall not reverse engineer, interfere with, scrape, overload, introduce malicious code into or attempt unauthorised access to the Platform.</li>
-                        </ul>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            14. Guest Experience and Property Standards
-                        </h3>
-                        <p>
-                            The Property shall provide accommodation and services in a professional manner consistent with the listing, confirmed Booking and Applicable Law. It shall maintain reasonable standards of cleanliness, safety, security, hygiene and service. Serious safety, security, discrimination, harassment, fraud or criminal allegations must be escalated immediately through the designated Oreedu channel.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            15. Reviews, Ratings and Platform Integrity
-                        </h3>
-                        <p>
-                            Oreedu may collect and display Guest reviews, ratings and other feedback subject to its then-current review policies. The Property may respond through available tools but shall not threaten, bribe or improperly incentivise Guests to manipulate reviews, nor create or procure fake reviews.
-                        </p>
-                    </div>
-
-                    {/* Section 16 - 21 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            16. Marketing, Promotions and Discounts
-                        </h3>
-                        <p>
-                            The Property may participate in promotions, coupons, loyalty benefits or marketing campaigns through separate acceptance or campaign terms. Unless expressly authorised, Oreedu personnel and Property personnel may not create binding discounts or financial commitments outside their delegated authority. Where a promotion is co-funded, the contribution and settlement treatment shall be recorded in Schedule B.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            17. Personal Data, Privacy and Security
-                        </h3>
-                        <p>
-                            Each Party shall process personal data in accordance with Applicable Law and only for legitimate purposes connected with Bookings, guest service, fraud prevention, accounting, legal compliance and other properly disclosed purposes. The Parties shall implement reasonable security safeguards appropriate to the nature of the data. Guest information obtained through Oreedu shall not be sold or used for unrelated unsolicited marketing.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            18. Confidentiality &amp; 19. Intellectual Property
-                        </h3>
-                        <p>
-                            Each Party shall protect the other&apos;s non-public commercial, technical, financial and operational information using at least reasonable care. Except for the limited licences expressly granted in this Agreement, each Party retains ownership of its names, trademarks, software, content, data and other intellectual property. No implied transfer of ownership is created.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            20. Service Availability &amp; 21. Suspension, Restriction and Delisting
-                        </h3>
-                        <p>
-                            Oreedu may update, maintain or modify the Platform to improve functionality, security, compliance or business operations. Oreedu may temporarily restrict Bookings, suspend Platform access or delist the Property where reasonably necessary to protect Guests, the Platform or Oreedu, including for suspected fraud, material inaccuracies, repeated failure to honour Bookings, serious safety concerns, or material breach.
-                        </p>
-                    </div>
-
-                    {/* Section 22 - 27 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            22. Term and Termination
-                        </h3>
-                        <p>
-                            This Agreement begins on the Effective Date and continues until terminated in accordance with this clause. Either Party may terminate for convenience by giving <strong>30</strong> days&apos; written/electronic notice unless Schedule B states a committed term. Either Party may terminate for material breach if the breach is not cured within <strong>15</strong> days after notice. Termination does not automatically cancel existing Guest Bookings; the Property shall honour confirmed Bookings made before the effective termination date.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            23. Consequences of Termination &amp; 24. Representations and Warranties
-                        </h3>
-                        <p>
-                            On termination, outstanding fees, settlements, refunds, chargebacks and other accrued amounts remain payable. Each Party represents that it has authority to enter into this Agreement and that its performance will not knowingly violate Applicable Law or third-party rights.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            25. Indemnity &amp; 26. Limitation of Liability
-                        </h3>
-                        <p>
-                            Subject to Applicable Law, each Party shall indemnify the other Party against third-party claims, losses, damages, penalties and reasonable external costs arising from material breach, negligence, wilful misconduct, or violation of Applicable Law. To the maximum extent permitted by Applicable Law, neither Party shall be liable for indirect, incidental, special or consequential loss. Ordinary contractual claims shall be subject to an aggregate liability cap of <strong>total commissions paid in the preceding 3 months or INR 1,00,000 (whichever is lower)</strong>.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            27. Force Majeure &amp; 28. Complaints, Government Requests and Cooperation
-                        </h3>
-                        <p>
-                            Neither Party shall be liable for delay or failure caused by an event beyond its reasonable control, including natural disasters, epidemic/pandemic restrictions, war, civil disturbance, or governmental action. The Property shall reasonably cooperate with Oreedu in investigating Guest complaints, regulatory inquiries, payment disputes and safety incidents.
-                        </p>
-                    </div>
-
-                    {/* Section 29 - 34 */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            29. Audit and Record Support &amp; 30. Notices
-                        </h3>
-                        <p>
-                            The Property shall maintain reasonable records necessary to verify Bookings, cancellations, no-shows, Guest charges and settlements for at least the period required by Applicable Law or <strong>3</strong> years. Contractual notices may be sent to the registered email/address stated in Schedule A or through Oreedu Connect/PMS.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            31. Assignment and Subcontracting &amp; 32. Relationship of the Parties
-                        </h3>
-                        <p>
-                            The Property may not assign this Agreement without Oreedu&apos;s prior written approval. The Parties are independent contractors. Nothing in this Agreement creates a partnership, franchise, employment, fiduciary relationship or general agency.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            33. Governing Law and Dispute Resolution
-                        </h3>
-                        <p>
-                            This Agreement shall be governed by the laws of India. Before formal proceedings, authorised representatives shall attempt in good faith to resolve a dispute through written escalation for at least <strong>30</strong> days. Any unresolved disputes shall be referred to arbitration under the Arbitration and Conciliation Act, 1996, seated in <strong>Kerala, India</strong>, conducted in the English language by a sole arbitrator, with supervisory jurisdiction in the competent courts of <strong>Kerala, India</strong>.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            34. General Provisions
-                        </h3>
-                        <p>
-                            If a provision is held unenforceable, it shall be modified to the minimum extent necessary or severed without affecting the remainder. This Agreement, together with its schedules, constitutes the agreement between the Parties and supersedes prior discussions concerning that subject matter.
-                        </p>
-                    </div>
-
-                    {/* Section 35 */}
-                    <div className="space-y-3 p-4 bg-gray-50 border border-gray-300">
-                        <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
-                            35. Electronic Acceptance Protocol
-                        </h3>
-                        <p className="text-xs text-gray-700 leading-relaxed">
-                            The production acceptance flow should display the agreement version and make the complete Agreement available for viewing/download before acceptance. The acceptance control should not be pre-selected.
-                        </p>
-                        <div className="space-y-1 pt-1">
-                            <h4 className="text-xs font-bold text-gray-900">Recommended acceptance statement:</h4>
-                            <p className="italic text-xs text-gray-700 bg-white p-3 border border-gray-200 rounded">
-                                &ldquo;By selecting &lsquo;I Agree &amp; Continue&rsquo;, I confirm that I am duly authorised to act on behalf of the Property, that I have read and understood the Oreedu Property Listing &amp; Platform Services Agreement and the applicable Commercial Terms, and that the Property agrees to be bound by them. I confirm that the information submitted for the Property is true and accurate to the best of my knowledge.&rdquo;
+                        {/* Title Banner */}
+                        <div className="text-center py-2">
+                            <h2 className="text-base sm:text-xl font-black text-[#0F2942] tracking-wide uppercase">
+                                PROPERTY LISTING &amp; PLATFORM SERVICES AGREEMENT
+                            </h2>
+                            <p className="text-xs text-gray-600 mt-1 font-medium">
+                                Standard Terms and Conditions for Accommodation Listing, Distribution and Platform Services
                             </p>
                         </div>
-                        <div className="space-y-2 pt-2">
-                            <h4 className="text-xs font-bold text-gray-900">Recommended acceptance record fields:</h4>
-                            <div className="border border-gray-400 overflow-hidden">
-                                <table className="w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-[#0F2942] text-white">
-                                            <th className="p-2 font-bold uppercase border-r border-gray-400 w-1/2">Field</th>
-                                            <th className="p-2 font-bold uppercase">Record</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-300">
-                                        <tr>
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Agreement version</td>
-                                            <td className="p-2 text-gray-700 font-mono font-semibold">{version}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Property ID / legal entity</td>
-                                            <td className="p-2 text-gray-700 font-semibold">{data.requestId || auditId} / {data.propertyName || 'Registered Legal Entity'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Authorised user name / user ID</td>
-                                            <td className="p-2 text-gray-700 font-semibold">{fullName} ({data.ownerEmail || data.ownerPhone || 'User ID'})</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Authorised user&apos;s declared designation</td>
-                                            <td className="p-2 text-teal-800 font-semibold">{designation}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Acceptance date/time</td>
-                                            <td className="p-2 text-gray-700 font-mono font-semibold">{effectiveDateStr}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">IP / session / device evidence</td>
-                                            <td className="p-2 text-gray-700 font-mono">[Captured via Web Client Session]</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Agreement document hash or immutable version reference</td>
-                                            <td className="p-2 text-gray-700 font-mono text-xs">SHA-256 (Oreedu-Listing-Agr-{auditId})</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">Acceptance action</td>
-                                            <td className="p-2 text-gray-700 font-semibold">
-                                                {data.agreementAccepted ? (
-                                                    <span className="text-emerald-700 font-bold">✓ &ldquo;I Agree &amp; Continue&rdquo; (Electronically Signed)</span>
-                                                ) : (
-                                                    <span className="text-amber-700 font-semibold">&ldquo;I Agree &amp; Continue&rdquo; (Pending Property Acceptance)</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* ── SCHEDULES A TO F ── */}
-                    <div className="pt-8 space-y-8">
-                        
-                        {/* Schedule A */}
-                        <div className="space-y-3">
-                            <h3 className="text-base font-bold text-[#0F2942] uppercase tracking-wide">
-                                Schedule A - Property Details
-                            </h3>
-                            <div className="border border-gray-400 overflow-hidden">
-                                <table className="w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-[#0F2942] text-white">
-                                            <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Field</th>
-                                            <th className="p-2.5 font-bold uppercase">Property Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-300">
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Legal Entity Name</td>
-                                            <td className="p-2.5 font-bold">{data.propertyName || '[● Legal Entity Name]'}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property / Trade Name</td>
-                                            <td className="p-2.5 font-bold">{data.propertyName || '[● Trade Name]'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property Type</td>
-                                            <td className="p-2.5">{data.propertyType || data.categoryName || 'RESORT'}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property ID</td>
-                                            <td className="p-2.5 font-mono font-bold">{data.requestId || auditId}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Registered / Operating Address</td>
-                                            <td className="p-2.5">{data.address}, {data.city}, {data.state}, {data.country} - {data.pincode}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">GSTIN / Tax ID</td>
-                                            <td className="p-2.5 font-mono font-bold">{data.gstNumber || (data.isGstApplicable ? 'Pending' : 'Unregistered / Not Applicable')}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">PAN / Registration No.</td>
-                                            <td className="p-2.5 font-mono font-bold">{panNumber}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Primary Authorised Representative</td>
-                                            <td className="p-2.5 font-bold">{fullName}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Designation</td>
-                                            <td className="p-2.5 font-semibold text-teal-800">{designation}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Email</td>
-                                            <td className="p-2.5">{data.ownerEmail || data.propertyEmail}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Mobile</td>
-                                            <td className="p-2.5">{data.ownerPhone || data.propertyPhone}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Bank / Payout Account Reference</td>
-                                            <td className="p-2.5 italic text-gray-600">[Stored securely via Oreedu PMS Payout Settings]</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Emergency Contact</td>
-                                            <td className="p-2.5">{data.propertyPhone || data.ownerPhone}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        {/* Document Field Summary Table */}
+                        <div className="border border-gray-400 overflow-hidden">
+                            <table className="w-full border-collapse text-left text-xs">
+                                <thead>
+                                    <tr className="bg-[#0F2942] text-white">
+                                        <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Document Field</th>
+                                        <th className="p-2.5 font-bold uppercase">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-300">
+                                    <tr>
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Agreement Version</td>
+                                        <td className="p-2.5 font-semibold text-teal-800">{contract.agreementVersion}</td>
+                                    </tr>
+                                    <tr className="bg-gray-50/60">
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Effective Date</td>
+                                        <td className="p-2.5">Date of electronic acceptance / <strong>{effectiveDateStr}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Oreedu Legal Entity</td>
+                                        <td className="p-2.5"><strong>{oreeduEntity.legalName}</strong></td>
+                                    </tr>
+                                    <tr className="bg-gray-50/60">
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Registered Office</td>
+                                        <td className="p-2.5">{oreeduEntity.registeredOffice}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property Legal / Trade Name</td>
+                                        <td className="p-2.5 font-bold text-[#0F2942] bg-teal-50/40">
+                                            {propertyDisplayName}
+                                        </td>
+                                    </tr>
+                                    <tr className="bg-gray-50/60">
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property ID</td>
+                                        <td className="p-2.5 font-mono font-semibold">{propDetails.propertyId || auditId}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Commercial Model</td>
+                                        <td className="p-2.5 font-semibold">
+                                            As stated in Schedule B ({commissionPct}% Platform Commission per confirmed booking) / applicable order form
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
 
-                        {/* Schedule B */}
-                        <div className="space-y-3">
-                            <h3 className="text-base font-bold text-[#0F2942] uppercase tracking-wide">
-                                Schedule B - Commercial Terms
-                            </h3>
-                            <div className="border border-gray-400 overflow-hidden">
-                                <table className="w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-[#0F2942] text-white">
-                                            <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Commercial Item</th>
-                                            <th className="p-2.5 font-bold uppercase">Agreed Term</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-300">
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Commission model / percentage</td>
-                                            <td className="p-2.5 font-bold text-[#0F2942] bg-teal-50/40">{data.platformCommission}% per confirmed Booking</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">PMS subscription / technology fee</td>
-                                            <td className="p-2.5">Included in platform commercial model</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Payment model</td>
-                                            <td className="p-2.5">Prepaid / Pay at Property / Hybrid</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Settlement cycle</td>
-                                            <td className="p-2.5">Weekly Settlement / Standard Platform Cycle</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Payment gateway / transaction charges</td>
-                                            <td className="p-2.5">As applicable per payment provider integration</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Applicable taxes on Oreedu fees</td>
-                                            <td className="p-2.5">As per law (18% Indian GST)</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Promotion / co-funding rules</td>
-                                            <td className="p-2.5">Standard Platform Promotions / Separate Campaign Acceptance</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Reconciliation dispute window</td>
-                                            <td className="p-2.5 font-bold">30 days</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Credit / security deposit, if any</td>
-                                            <td className="p-2.5">Nil</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Special commercial conditions</td>
-                                            <td className="p-2.5">Standard platform terms</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div className="border-t border-gray-200 my-6"></div>
+
+                        {/* ── Dynamic Legal Sections From Backend ── */}
+                        <div className="space-y-6">
+                            {contract.sections?.map((section) => (
+                                <div key={section.id} className="space-y-2.5">
+                                    <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wide">
+                                        {section.title}
+                                    </h3>
+                                    {section.paragraphs?.map((p, idx) => (
+                                        <p key={idx} className="text-justify leading-relaxed">
+                                            {p}
+                                        </p>
+                                    ))}
+                                    {section.bulletPoints && section.bulletPoints.length > 0 && (
+                                        <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                                            {section.bulletPoints.map((bp, bidx) => (
+                                                <li key={bidx} className="text-justify leading-relaxed">
+                                                    {bp}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            ))}
                         </div>
 
-                        {/* Schedule C */}
-                        <div className="space-y-3">
-                            <h3 className="text-base font-bold text-[#0F2942] uppercase tracking-wide">
-                                Schedule C - Booking, Cancellation &amp; Refund Configuration
-                            </h3>
-                            <div className="border border-gray-400 overflow-hidden">
-                                <table className="w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-[#0F2942] text-white">
-                                            <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Policy Item</th>
-                                            <th className="p-2.5 font-bold uppercase">Configured Rule</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-300">
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Standard cancellation policy</td>
-                                            <td className="p-2.5">As configured in Property Listing / PMS Cancellation Policy</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">No-show policy</td>
-                                            <td className="p-2.5">Full booking amount / standard cancellation fee</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Early departure policy</td>
-                                            <td className="p-2.5">Subject to property policy / non-refundable remaining nights</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Refund processing responsibility</td>
-                                            <td className="p-2.5">Processed via Oreedu Platform Gateway according to policy</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Check-in time</td>
-                                            <td className="p-2.5 font-bold">{data.defaultCheckInTime || '14:00 (2:00 PM)'}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Check-out time</td>
-                                            <td className="p-2.5 font-bold">{data.defaultCheckOutTime || '11:00 (11:00 AM)'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Child / extra-person policy</td>
-                                            <td className="p-2.5">Standard property extra occupancy charges apply</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Pet policy</td>
-                                            <td className="p-2.5">As configured in property house rules</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Other mandatory conditions</td>
-                                            <td className="p-2.5">Valid Government Issued Photo ID required for all guests at check-in</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        {/* ── Dynamic Schedules From Backend ── */}
+                        {contract.schedules && (
+                            <div className="space-y-8 pt-6 border-t-2 border-gray-300">
+                                <div className="text-center pb-2">
+                                    <h2 className="text-sm sm:text-base font-black text-[#0F2942] tracking-wide uppercase">
+                                        SCHEDULES FORMING PART OF THIS AGREEMENT
+                                    </h2>
+                                </div>
 
-                        {/* Schedule D */}
-                        <div className="space-y-3">
-                            <h3 className="text-base font-bold text-[#0F2942] uppercase tracking-wide">
-                                Schedule D - Property Standards &amp; Onboarding Declaration
-                            </h3>
-                            <div className="p-4 bg-gray-50 border border-gray-300 space-y-2 text-xs">
-                                <ul className="list-disc pl-5 space-y-1.5 text-gray-800">
-                                    <li>Property information, map location, contacts and room/unit details have been verified.</li>
-                                    <li>Rates, taxes, fees, occupancy rules and policies are accurately configured.</li>
-                                    <li>The Property has authority to use all photographs, trademarks and listing content supplied to Oreedu.</li>
-                                    <li>Required operating licences/registrations are valid and will be maintained.</li>
-                                    <li>Authorised users have been identified and instructed on account security.</li>
-                                    <li>Payout/tax information has been submitted through the approved verification process.</li>
-                                    <li>The Property understands its obligations concerning confirmed Bookings, Guest service, privacy and complaint handling.</li>
-                                </ul>
-                            </div>
-                        </div>
+                                {/* Schedule A */}
+                                {contract.schedules.scheduleA && contract.schedules.scheduleA.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h3 className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
+                                            SCHEDULE A: Property Details &amp; Commercial Profile
+                                        </h3>
+                                        <div className="border border-gray-400 overflow-hidden">
+                                            <table className="w-full border-collapse border border-gray-400 text-xs">
+                                                <tbody className="divide-y divide-gray-300">
+                                                    {contract.schedules.scheduleA.map((row, idx) => (
+                                                        <tr key={idx} className={idx % 2 === 1 ? 'bg-gray-50/60' : ''}>
+                                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300 w-2/5">{row.field}</td>
+                                                            <td className="p-2.5">{row.value}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
 
-                        {/* Schedule E - Electronic Acceptance Record */}
-                        <div className="space-y-3">
-                            <h3 className="text-base font-bold text-[#0F2942] uppercase tracking-wide">
-                                Schedule E - Electronic Acceptance Record (Verified Audit Certificate)
-                            </h3>
-                            <div className="border border-gray-400 overflow-hidden">
-                                <table className="w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-[#0F2942] text-white">
-                                            <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Acceptance Record</th>
-                                            <th className="p-2.5 font-bold uppercase">Value</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-300">
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Agreement Version</td>
-                                            <td className="p-2.5 font-mono font-bold">{version}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property ID</td>
-                                            <td className="p-2.5 font-mono font-bold">{data.requestId || auditId}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Property Legal Name</td>
-                                            <td className="p-2.5 font-bold">{data.propertyName || 'Property Operating Entity'}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Accepted By</td>
-                                            <td className="p-2.5 font-bold">{fullName}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Designation / Authority</td>
-                                            <td className="p-2.5 font-semibold text-teal-800">{designation}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">User Account ID</td>
-                                            <td className="p-2.5 font-mono">{data.ownerEmail || data.ownerPhone || 'User ID'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Date &amp; Time</td>
-                                            <td className="p-2.5 font-semibold">{effectiveDateStr}</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">IP / Session Reference</td>
-                                            <td className="p-2.5 font-mono text-gray-600">[Captured via Web Client Session]</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Document Version / Hash</td>
-                                            <td className="p-2.5 font-mono text-gray-600">SHA-256 (Oreedu-Listing-Agr-{auditId})</td>
-                                        </tr>
-                                        <tr className="bg-gray-50/60">
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Acceptance Status</td>
-                                            <td className="p-2.5 font-bold">
-                                                {data.agreementAccepted ? (
-                                                    <span className="text-emerald-700">✓ Accepted &amp; Electronically Signed</span>
-                                                ) : (
-                                                    <span className="text-amber-700">⚠️ Pending Property Acceptance</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">Audit Record ID</td>
-                                            <td className="p-2.5 font-mono font-bold text-teal-800">{auditId}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                                {/* Schedule B */}
+                                {contract.schedules.scheduleB && contract.schedules.scheduleB.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h3 className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
+                                            SCHEDULE B: Commercial Terms &amp; Commission Structure
+                                        </h3>
+                                        <div className="border border-gray-400 overflow-hidden">
+                                            <table className="w-full border-collapse border border-gray-400 text-xs">
+                                                <thead>
+                                                    <tr className="bg-[#0F2942] text-white">
+                                                        <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-2/5">Commercial Item</th>
+                                                        <th className="p-2.5 font-bold uppercase">Agreed Parameter / Rule</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-300">
+                                                    {contract.schedules.scheduleB.map((row, idx) => (
+                                                        <tr key={idx} className={idx % 2 === 1 ? 'bg-gray-50/60' : ''}>
+                                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">{row.item}</td>
+                                                            <td className="p-2.5">{row.term}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
 
-                        {/* Schedule F */}
-                        <div className="space-y-3">
-                            <h3 className="text-base font-bold text-[#0F2942] uppercase tracking-wide">
-                                Schedule F - Optional Property-Specific Addendum
-                            </h3>
-                            <p className="text-xs text-gray-600 italic">
-                                Use this schedule for negotiated property-specific terms that have been approved by Oreedu&apos;s authorised commercial/legal approver. Any handwritten or informal alteration outside the approved process is invalid.
-                            </p>
-                            <div className="border border-gray-400 overflow-hidden">
-                                <table className="w-full border-collapse text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-[#0F2942] text-white">
-                                            <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/3">Clause / Subject</th>
-                                            <th className="p-2.5 font-bold uppercase border-r border-gray-400">Property-Specific Term</th>
-                                            <th className="p-2.5 font-bold uppercase">Approved By / Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-300">
-                                        <tr>
-                                            <td className="p-2.5 font-semibold text-gray-800 border-r border-gray-300">Standard Terms</td>
-                                            <td className="p-2.5 border-r border-gray-300">Standard platform terms apply without custom addendum</td>
-                                            <td className="p-2.5">Oreedu Operations / {effectiveDateStr}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                                {/* Schedule C */}
+                                {contract.schedules.scheduleC && contract.schedules.scheduleC.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h3 className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
+                                            SCHEDULE C: Operating Rules, Check-in &amp; Cancellation Policies
+                                        </h3>
+                                        <div className="border border-gray-400 overflow-hidden">
+                                            <table className="w-full border-collapse border border-gray-400 text-xs">
+                                                <thead>
+                                                    <tr className="bg-[#0F2942] text-white">
+                                                        <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-2/5">Policy / Operating Parameter</th>
+                                                        <th className="p-2.5 font-bold uppercase">Agreed Requirement</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-300">
+                                                    {contract.schedules.scheduleC.map((row, idx) => (
+                                                        <tr key={idx} className={idx % 2 === 1 ? 'bg-gray-50/60' : ''}>
+                                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">{row.policyItem}</td>
+                                                            <td className="p-2.5">{row.configuredRule}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Schedule E */}
+                                {contract.schedules.scheduleE && contract.schedules.scheduleE.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h3 className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
+                                            SCHEDULE E: Electronic Acceptance &amp; Audit Trail Record
+                                        </h3>
+                                        <div className="border border-gray-400 overflow-hidden">
+                                            <table className="w-full border-collapse border border-gray-400 text-xs font-mono">
+                                                <thead>
+                                                    <tr className="bg-[#0F2942] text-white">
+                                                        <th className="p-2 font-bold uppercase border-r border-gray-400 w-2/5">Electronic Audit Field</th>
+                                                        <th className="p-2 font-bold uppercase">Logged System Evidence</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-300">
+                                                    {contract.schedules.scheduleE.map((row, idx) => (
+                                                        <tr key={idx} className={idx % 2 === 1 ? 'bg-gray-50/60' : ''}>
+                                                            <td className="p-2 font-bold text-gray-800 border-r border-gray-300">{row.field}</td>
+                                                            <td className="p-2">{row.record}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Schedule F */}
+                                {contract.schedules.scheduleF && contract.schedules.scheduleF.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h3 className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
+                                            SCHEDULE F: Special Conditions &amp; Custom Addenda
+                                        </h3>
+                                        <div className="border border-gray-400 overflow-hidden">
+                                            <table className="w-full border-collapse border border-gray-400 text-xs">
+                                                <thead>
+                                                    <tr className="bg-[#0F2942] text-white">
+                                                        <th className="p-2.5 font-bold uppercase border-r border-gray-400 w-1/4">Subject Matter</th>
+                                                        <th className="p-2.5 font-bold uppercase border-r border-gray-400">Agreed Special Condition</th>
+                                                        <th className="p-2.5 font-bold uppercase w-1/4">Approved By</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-300">
+                                                    {contract.schedules.scheduleF.map((row, idx) => (
+                                                        <tr key={idx} className={idx % 2 === 1 ? 'bg-gray-50/60' : ''}>
+                                                            <td className="p-2.5 font-bold text-gray-800 border-r border-gray-300">{row.subject}</td>
+                                                            <td className="p-2.5 border-r border-gray-300">{row.customTerm}</td>
+                                                            <td className="p-2.5 font-semibold text-teal-800">{row.approvedBy}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
+                        )}
 
                         {/* ── EXECUTION & AUTHORISED SIGNATURES ── */}
                         <div className="space-y-4 pt-6 border-t-2 border-gray-300">
@@ -1050,112 +650,107 @@ export default function AdminAgreementViewerModal({
                                             For and on behalf of:
                                         </p>
                                         <p className="text-sm font-black text-gray-900">
-                                            {OREEDU_LEGAL_ENTITY}
+                                            {oreeduEntity.legalName}
                                         </p>
                                     </div>
 
                                     {/* Seal Stamp & Signature Display */}
-                                    <div className="flex items-center justify-between py-1 min-h-[90px] relative">
+                                    <div className="flex items-center justify-between py-1 min-h-[110px] relative">
                                         <div className="space-y-1 z-10">
                                             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Authorised Signature</p>
-                                            <img 
-                                                src={oreeduSignature} 
-                                                alt="Oreedu Authorised Signature" 
-                                                className="h-16 w-auto object-contain max-w-[140px] mix-blend-multiply"
-                                                style={{ mixBlendMode: 'multiply' }}
-                                            />
+                                            {oreeduEntity.signatureUrl ? (
+                                                <img 
+                                                    src={resolveAssetUrl(oreeduEntity.signatureUrl)} 
+                                                    alt="Oreedu Authorised Signature" 
+                                                    className="h-20 sm:h-24 w-auto object-contain max-w-[170px] mix-blend-multiply"
+                                                    style={{ mixBlendMode: 'multiply' }}
+                                                    onError={(e) => {
+                                                        const fallbackPath = oreeduEntity.signatureUrl;
+                                                        if (fallbackPath && e.currentTarget.src !== fallbackPath && !e.currentTarget.src.endsWith(fallbackPath)) {
+                                                            e.currentTarget.src = fallbackPath;
+                                                        }
+                                                    }}
+                                                />
+                                            ) : null}
                                         </div>
-                                        <div className="text-right relative">
-                                            <img 
-                                                src={oreeduStamp} 
-                                                alt="Oreedu Private Limited Official Stamp" 
-                                                className="h-28 w-28 sm:h-32 sm:w-32 object-contain inline-block transform rotate-[10deg] mix-blend-multiply"
-                                                style={{ transform: 'rotate(10deg)', marginTop: '-36px', marginBottom: '-12px', mixBlendMode: 'multiply' }}
-                                            />
+                                        <div className="z-10">
+                                            {oreeduEntity.stampUrl ? (
+                                                <img 
+                                                    src={resolveAssetUrl(oreeduEntity.stampUrl)} 
+                                                    alt="Oreedu Official Corporate Seal" 
+                                                    className="h-24 w-24 sm:h-28 sm:w-28 object-contain opacity-90 mix-blend-multiply rotate-[10deg]"
+                                                    style={{ mixBlendMode: 'multiply', transform: 'rotate(10deg)' }}
+                                                    onError={(e) => {
+                                                        const fallbackPath = oreeduEntity.stampUrl;
+                                                        if (fallbackPath && e.currentTarget.src !== fallbackPath && !e.currentTarget.src.endsWith(fallbackPath)) {
+                                                            e.currentTarget.src = fallbackPath;
+                                                        }
+                                                    }}
+                                                />
+                                            ) : null}
                                         </div>
                                     </div>
 
-                                    <div className="border-t border-gray-200 pt-2 text-xs space-y-0.5 text-gray-700">
-                                        <p><strong>Signatory Name:</strong> Shahoor PK</p>
-                                        <p><strong>Designation:</strong> CEO</p>
-                                        <p><strong>Entity:</strong> Oreedu Private Limited, Calicut, India</p>
+                                    <div className="border-t border-gray-200 pt-2 text-[11px] space-y-0.5 text-gray-700">
+                                        <p><strong>Name:</strong> {oreeduEntity.signatoryName || 'Shahoor PK'}</p>
+                                        <p><strong>Designation:</strong> {oreeduEntity.signatoryDesignation || 'CEO'}</p>
+                                        <p><strong>Date:</strong> {effectiveDateStr}</p>
                                     </div>
                                 </div>
 
-                                {/* Right Column: Property Entity */}
-                                <div className="p-4 bg-gray-50 border border-gray-300 rounded space-y-3 relative">
-                                    <div className="border-b border-gray-300 pb-2">
-                                        <p className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
-                                            For and on behalf of:
-                                        </p>
-                                        <p className="text-sm font-black text-gray-900">
-                                            {data.propertyName || 'Property Operating Entity'}
-                                        </p>
-                                    </div>
+                                {/* Right Column: The Property */}
+                                <div className="p-4 bg-gray-50 border border-gray-300 rounded space-y-3 flex flex-col justify-between">
+                                    <div>
+                                        <div className="border-b border-gray-300 pb-2">
+                                            <p className="text-xs font-bold text-[#0F2942] uppercase tracking-wide">
+                                                For and on behalf of:
+                                            </p>
+                                            <p className="text-sm font-black text-gray-900">
+                                                {propertyDisplayName}
+                                            </p>
+                                        </div>
 
-                                    {/* Property Digital Signature Display */}
-                                    <div className="flex flex-col justify-center py-1 min-h-[90px] space-y-1">
-                                        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Property Authorised Signature</p>
-                                        <div className="p-2.5 bg-white border border-dashed border-teal-600 rounded text-center">
-                                            <p className="font-serif italic text-lg text-slate-800 font-bold tracking-wide">
-                                                {fullName}
-                                            </p>
-                                            <p className="text-[10px] text-teal-700 font-mono font-bold mt-0.5">
-                                                {data.agreementAccepted ? `[Digitally Signed & Verified - ${auditId}]` : `[Pending Electronic Signing]`}
-                                            </p>
+                                        <div className="py-3 min-h-[110px] flex flex-col justify-center">
+                                            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Electronic Signature &bull; Authorised Signatory</p>
+                                            <div className="border-b border-dashed border-gray-400 py-1 flex items-center justify-between">
+                                                <span className="font-serif italic text-base text-gray-800 font-bold tracking-wider">
+                                                    {fullName}
+                                                </span>
+                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                                                    isAccepted 
+                                                        ? 'text-emerald-800 bg-emerald-50 border-emerald-200 font-bold'
+                                                        : 'text-amber-800 bg-amber-50 border-amber-200 font-bold'
+                                                }`}>
+                                                    {isAccepted ? '✓ VERIFIED SIGNATURE' : 'PENDING ACCEPTANCE'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="border-t border-gray-200 pt-2 text-xs space-y-0.5 text-gray-700">
-                                        <p><strong>Signatory Name:</strong> {fullName}</p>
-                                        <p><strong>Declared Designation:</strong> {designation}</p>
-                                        <p><strong>Timestamp:</strong> {effectiveDateStr}</p>
+                                    <div className="border-t border-gray-200 pt-2 text-[11px] space-y-0.5 text-gray-700">
+                                        <p><strong>Name:</strong> {fullName}</p>
+                                        <p><strong>Designation:</strong> {propDetails.designation || data?.agreementDesignation || 'Owner / Authorized Representative'}</p>
+                                        <p><strong>Date:</strong> {effectiveDateStr}</p>
+                                        <p className="font-mono text-[10px] text-gray-500"><strong>Audit ID:</strong> {auditId}</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Implementation Checklist */}
-                        <div className="space-y-3 border-t border-gray-300 pt-6">
-                            <h3 className="text-sm font-bold text-[#0F2942] uppercase tracking-wide">
-                                Implementation Checklist for Oreedu Product Team
-                            </h3>
-                            <ul className="list-disc pl-5 space-y-1 text-xs text-gray-600">
-                                <li>Require acceptance by an authorised property user before first operational access or before activation.</li>
-                                <li>Display agreement version and links to View Agreement and Download Agreement.</li>
-                                <li>Do not use a pre-ticked acceptance box.</li>
-                                <li>Capture a durable acceptance event and retain the exact agreement version accepted.</li>
-                                <li>Generate an acceptance receipt visible to the Property in Oreedu Connect/PMS.</li>
-                            </ul>
-                        </div>
                     </div>
-
-                    {/* Document Footer */}
-                    <div className="border-t border-gray-200 pt-4 text-center text-[10px] text-gray-500 font-semibold tracking-wider uppercase">
-                        Confidential &bull; Oreedu Property Listing &amp; Platform Services Agreement &bull; Electronic Compliance Record
-                    </div>
-                </div>
+                ) : null}
             </div>
 
-            {/* ── Modal Footer ── */}
-            <div className="px-4 sm:px-6 py-2.5 bg-slate-900 border-t border-slate-800 shrink-0 flex items-center justify-between gap-3 text-white print:hidden">
+            {/* ── Fixed Bottom Footer for Admin ── */}
+            <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800 text-white shrink-0 shadow-2xl w-full flex items-center justify-between">
                 <div className="text-xs text-slate-400">
-                    {data.agreementAccepted ? (
-                        <span className="text-emerald-400 font-semibold flex items-center gap-1.5 text-xs">
-                            <CheckCircle2 className="h-4 w-4" /> Valid electronic agreement verified for this property.
-                        </span>
-                    ) : (
-                        <span className="text-amber-400 font-semibold flex items-center gap-1.5 text-xs">
-                            <ShieldAlert className="h-4 w-4" /> Electronic agreement must be signed before approval can be granted.
-                        </span>
-                    )}
+                    Viewing authoritative server record for <strong>{propertyDisplayName}</strong>
                 </div>
                 <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-1.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all cursor-pointer"
+                    className="px-4 py-1.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all cursor-pointer"
                 >
-                    Close
+                    Close Viewer
                 </button>
             </div>
         </div>,

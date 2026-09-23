@@ -19,12 +19,15 @@ import {
     CheckCircle2,
     ShieldCheck,
     Zap,
-    LayoutDashboard
+    LayoutDashboard,
+    FileText,
+    ShieldAlert
 } from 'lucide-react';
 import clsx from 'clsx';
 import logoLight from '../assets/oreedu-04.svg';
 import logoDark from '../assets/oreedu-05.svg';
 import NotificationBell from '../components/NotificationBell';
+import PropertyAgreementModal, { type AgreementAcceptancePayload } from '../components/PropertyAgreementModal';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 
@@ -34,7 +37,7 @@ import { useNavigation } from '../hooks/useNavigation';
 
 export default function DashboardLayout() {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
-    const { selectedProperty, properties, setSelectedProperty } = useProperty();
+    const { selectedProperty, properties, setSelectedProperty, refreshProperties } = useProperty();
     const { theme, toggleTheme } = useTheme();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
@@ -48,6 +51,79 @@ export default function DashboardLayout() {
     const [propertySearch, setPropertySearch] = useState('');
 
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+    // Agreement required popup modal state
+    const [showAgreementPromptModal, setShowAgreementPromptModal] = useState(false);
+    const [isAgreementModalOpen, setIsAgreementModalOpen] = useState(false);
+    const [isSigningAgreement, setIsSigningAgreement] = useState(false);
+    const [isDismissedTemporarily, setIsDismissedTemporarily] = useState(false);
+
+    useEffect(() => {
+        // Clean up any legacy session-storage locks so PMS login always prompts unaccepted agreements
+        try {
+            Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('pms_agreement_prompt_dismissed_')) {
+                    sessionStorage.removeItem(key);
+                }
+            });
+        } catch {
+            // Ignore storage errors
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!selectedProperty) {
+            setShowAgreementPromptModal(false);
+            return;
+        }
+
+        let docDetails = (selectedProperty as any)?.documentDetails;
+        if (typeof docDetails === 'string') {
+            try { docDetails = JSON.parse(docDetails); } catch { docDetails = {}; }
+        }
+
+        let propDetails = (selectedProperty as any)?.details;
+        if (typeof propDetails === 'string') {
+            try { propDetails = JSON.parse(propDetails); } catch { propDetails = {}; }
+        }
+
+        const isAccepted = Boolean(
+            (selectedProperty as any)?.agreementAccepted === true ||
+            docDetails?.agreementAccepted === true ||
+            propDetails?.agreementAccepted === true ||
+            propDetails?.documentDetails?.agreementAccepted === true
+        );
+
+        if (!isAccepted && !isDismissedTemporarily) {
+            setShowAgreementPromptModal(true);
+        } else {
+            setShowAgreementPromptModal(false);
+        }
+    }, [selectedProperty, isDismissedTemporarily]);
+
+    const handleAcceptAgreement = async (payload: AgreementAcceptancePayload) => {
+        setIsSigningAgreement(true);
+        try {
+            if (selectedProperty?.id) {
+                if (selectedProperty.isRequest) {
+                    await api.post(`/properties/requests/${selectedProperty.id}/accept-agreement`, payload);
+                } else {
+                    await api.post(`/properties/${selectedProperty.id}/accept-agreement`, payload);
+                }
+            }
+            toast.success('Agreement successfully accepted! Thank you.');
+            setIsAgreementModalOpen(false);
+            setShowAgreementPromptModal(false);
+            if (refreshProperties) {
+                await refreshProperties();
+            }
+        } catch (error: any) {
+            console.error('Failed to submit agreement acceptance:', error);
+            toast.error(error?.response?.data?.message || 'Failed to submit agreement acceptance');
+        } finally {
+            setIsSigningAgreement(false);
+        }
+    };
 
     useEffect(() => {
         if (selectedProperty && !selectedProperty.isRequest && selectedProperty.status === 'APPROVED' && !selectedProperty.isPmsActive) {
@@ -700,6 +776,98 @@ export default function DashboardLayout() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Agreement Required Login Pop-up Modal */}
+            {showAgreementPromptModal && selectedProperty && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 transition-all">
+                    <div className="bg-card border border-border max-w-lg w-full rounded-3xl shadow-2xl p-6 sm:p-8 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Amber / Teal Glowing Top Bar */}
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-teal-500 to-emerald-500" />
+                        
+                        <div className="flex flex-col items-center text-center mt-2">
+                            <div className="p-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl mb-4 border border-amber-500/20 shadow-inner">
+                                <ShieldAlert className="h-10 w-10 text-amber-500" />
+                            </div>
+                            
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 mb-2 border border-amber-500/20">
+                                Action Required
+                            </span>
+
+                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                                Listing Agreement Required
+                            </h2>
+                            
+                            <div className="mt-3 p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-left">
+                                <p className="text-xs sm:text-sm font-semibold text-amber-950 dark:text-amber-200 leading-relaxed">
+                                    To continue to use the PMS without interruption, please read and accept the agreement.
+                                </p>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+                                Oreedu requires all property partners to electronically review and accept the official <strong>Property Listing &amp; Platform Services Agreement</strong> for <strong>{selectedProperty?.name}</strong>.
+                            </p>
+                        </div>
+
+                        <div className="mt-6 space-y-2.5">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowAgreementPromptModal(false);
+                                    setIsAgreementModalOpen(true);
+                                }}
+                                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-sm transition-all shadow-lg shadow-teal-900/20 flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <FileText className="h-4 w-4" />
+                                Read &amp; Accept Agreement
+                            </button>
+                            
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsDismissedTemporarily(true);
+                                    setShowAgreementPromptModal(false);
+                                }}
+                                className="w-full py-2.5 px-4 rounded-xl border border-border bg-muted/20 text-muted-foreground font-semibold text-xs hover:bg-muted/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                Remind Me Later
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Agreement Modal in PMS Mode */}
+            {selectedProperty && (
+                <PropertyAgreementModal
+                    isOpen={isAgreementModalOpen}
+                    onClose={() => setIsAgreementModalOpen(false)}
+                    mode="pms"
+                    data={{
+                        propertyName: selectedProperty.name,
+                        propertyType: selectedProperty.type,
+                        categoryName: (selectedProperty as any).category?.name,
+                        address: selectedProperty.address || '',
+                        city: selectedProperty.city || '',
+                        state: selectedProperty.state || '',
+                        country: selectedProperty.country || 'India',
+                        pincode: selectedProperty.pincode || '',
+                        propertyEmail: selectedProperty.email || '',
+                        propertyPhone: selectedProperty.phone || '',
+                        ownerFirstName: (selectedProperty as any).owner?.firstName || selectedProperty.name,
+                        ownerLastName: (selectedProperty as any).owner?.lastName || '',
+                        ownerEmail: (selectedProperty as any).owner?.email || selectedProperty.email || '',
+                        ownerPhone: (selectedProperty as any).owner?.phone || selectedProperty.phone || '',
+                        platformCommission: (selectedProperty as any).platformCommission || 15,
+                        gstNumber: selectedProperty.gstNumber,
+                        isGstApplicable: selectedProperty.isGstApplicable,
+                        ownerAadhaarNumber: (selectedProperty as any).ownerAadhaarNumber,
+                        propertyId: selectedProperty.isRequest ? undefined : selectedProperty.id,
+                        requestId: selectedProperty.isRequest ? selectedProperty.id : undefined,
+                    }}
+                    onAgree={handleAcceptAgreement}
+                    isSubmitting={isSigningAgreement}
+                />
             )}
         </div>
     );

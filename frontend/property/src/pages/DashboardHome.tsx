@@ -351,8 +351,8 @@ export default function DashboardHome() {
                         platformCommission: propDetails.platformCommission || (selectedProperty as any).platformCommission || 10,
                         gstNumber: selectedProperty.gstNumber || propDetails.gstNumber,
                         isGstApplicable: selectedProperty.isGstApplicable || propDetails.isGstApplicable,
-                        ownerAadhaarNumber: (selectedProperty as any).ownerAadhaarNumber || propDetails.ownerAadhaarNumber,
-                        requestId: selectedProperty.id
+                        propertyId: selectedProperty.isRequest ? undefined : selectedProperty.id,
+                        requestId: selectedProperty.isRequest ? selectedProperty.id : undefined
                     }}
                     onAgree={handlePmsAcceptAgreement}
                     isSubmitting={isSigningAgreement}
@@ -935,7 +935,8 @@ export default function DashboardHome() {
                         gstNumber: selectedProperty.gstNumber || details.gstNumber,
                         isGstApplicable: selectedProperty.isGstApplicable || details.isGstApplicable,
                         ownerAadhaarNumber: (selectedProperty as any).ownerAadhaarNumber || details.ownerAadhaarNumber,
-                        requestId: selectedProperty.id
+                        propertyId: selectedProperty.isRequest ? undefined : selectedProperty.id,
+                        requestId: selectedProperty.isRequest ? selectedProperty.id : undefined,
                     }}
                     onAgree={handlePmsAcceptAgreement}
                     isSubmitting={isSigningAgreement}

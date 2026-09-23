@@ -65,10 +65,16 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-    }),
+    ServeStaticModule.forRoot(
+      {
+        rootPath: join(process.cwd(), 'uploads'),
+        serveRoot: '/uploads',
+      },
+      {
+        rootPath: join(process.cwd(), 'public'),
+        serveRoot: '/',
+      },
+    ),
     PrismaModule,
     AuthModule,
     UsersModule,
