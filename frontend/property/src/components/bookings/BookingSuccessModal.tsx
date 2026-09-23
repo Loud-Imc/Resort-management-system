@@ -60,8 +60,30 @@ export const BookingSuccessModal: React.FC<BookingSuccessModalProps> = ({
         }
     };
 
-    const totalAmount = Number(booking.totalAmount || 0);
+    const bookingRooms = booking.bookingRooms || [];
+    const nights = booking.numberOfNights || 1;
+
+    // Extra charges calculation with defensive fallback
+    const rawExtra = Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0);
+    const roomsExtra = bookingRooms.reduce((sum: number, br: any) => {
+        return sum + (Number(br.extraAdultChargePerNight || 0) + Number(br.extraChildChargePerNight || 0)) * nights;
+    }, 0);
+    const effectiveExtraCharges = rawExtra > 0 ? rawExtra : roomsExtra;
+
+    const baseAmount = Number(booking.baseAmount || 0);
+    const taxAmount = Number(booking.taxAmount || 0);
+    const offerDiscount = Number(booking.offerDiscountAmount || 0);
+    const couponDiscount = Number(booking.couponDiscountAmount || 0);
+    const totalDiscount = Number(booking.discountAmount || 0) || (offerDiscount + couponDiscount);
+
+    // If totalAmount was saved with a bug where extra charges were missed, recalculate effective total
+    const computedTotal = baseAmount + effectiveExtraCharges + taxAmount - totalDiscount;
+    const rawTotalAmount = Number(booking.totalAmount || 0);
     const paidAmount = Number(booking.paidAmount || 0);
+    const totalAmount = (rawTotalAmount < paidAmount && Math.abs(computedTotal - paidAmount) < 1)
+        ? paidAmount
+        : (rawTotalAmount > 0 ? rawTotalAmount : computedTotal);
+
     const balanceDue = Math.max(0, totalAmount - paidAmount);
 
     const checkInFormatted = booking.checkInDate 
@@ -144,6 +166,32 @@ export const BookingSuccessModal: React.FC<BookingSuccessModalProps> = ({
 
                     {/* Financial Summary */}
                     <div className="p-4 bg-card rounded-2xl border border-border shadow-xs space-y-2">
+                        {baseAmount > 0 && (effectiveExtraCharges > 0 || taxAmount > 0 || totalDiscount > 0) && (
+                            <div className="space-y-1.5 pb-2 border-b border-border/50 text-xs">
+                                <div className="flex justify-between items-center text-muted-foreground">
+                                    <span>Accommodation ({bookingRooms.length || 1} Rm × {nights} Nt):</span>
+                                    <span className="font-semibold text-foreground">₹{baseAmount.toLocaleString()}</span>
+                                </div>
+                                {effectiveExtraCharges > 0 && (
+                                    <div className="flex justify-between items-center text-muted-foreground">
+                                        <span>Extra Guests Surcharge:</span>
+                                        <span className="font-semibold text-foreground">+₹{effectiveExtraCharges.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {taxAmount > 0 && (
+                                    <div className="flex justify-between items-center text-muted-foreground">
+                                        <span>Taxes & Fees:</span>
+                                        <span className="font-semibold text-foreground">+₹{taxAmount.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {totalDiscount > 0 && (
+                                    <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
+                                        <span>Discounts:</span>
+                                        <span className="font-semibold">-₹{totalDiscount.toLocaleString()}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <div className="flex justify-between items-center text-xs">
                             <span className="text-muted-foreground font-bold">Total Amount:</span>
                             <span className="font-black text-foreground text-sm">₹{totalAmount.toLocaleString()}</span>

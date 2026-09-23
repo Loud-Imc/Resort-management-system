@@ -91,7 +91,25 @@ const BookingDetails = () => {
 
     const property = (booking as any).property || booking.bookingRooms?.[0]?.room?.roomType?.property;
     const isCancelled = booking.status === 'CANCELLED';
-    const balanceDue = isCancelled ? 0 : Math.max(0, Number(booking.totalAmount) - Number(booking.paidAmount));
+    const bookingRooms = booking.bookingRooms || [];
+    const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
+
+    // Extra charges calculation with defensive fallback
+    const rawExtra = Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0);
+    const roomsExtra = bookingRooms.reduce((sum: number, br: any) => {
+        return sum + (Number(br.extraAdultChargePerNight || 0) + Number(br.extraChildChargePerNight || 0)) * displayNights;
+    }, 0);
+    const effectiveExtraCharges = rawExtra > 0 ? rawExtra : roomsExtra;
+
+    const baseAmount = Number(booking.baseAmount || 0);
+    const taxAmount = Number(booking.taxAmount || 0);
+    const offerDiscount = Number(booking.offerDiscountAmount || 0);
+    const couponDiscount = Number(booking.couponDiscountAmount || 0);
+    const totalDiscount = Number(booking.discountAmount || 0) || (offerDiscount + couponDiscount);
+
+    // If totalAmount was saved with a bug where extra charges were missed, recalculate effective total
+    const computedTotal = baseAmount + effectiveExtraCharges + taxAmount - totalDiscount;
+    const rawTotalAmount = Number(booking.totalAmount || 0);
     const paymentsList = Array.isArray(booking.payments) ? booking.payments : [];
     const totalOriginalPaid = paymentsList.length > 0
         ? paymentsList.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
@@ -99,7 +117,12 @@ const BookingDetails = () => {
     const totalRefundedAmount = paymentsList.length > 0
         ? paymentsList.reduce((acc: number, p: any) => acc + Number(p.refundAmount || 0), 0)
         : (isCancelled ? totalOriginalPaid : 0);
-    const displayNights = Math.max(1, differenceInCalendarDays(new Date(booking.checkOutDate), new Date(booking.checkInDate)));
+
+    const displayTotalAmount = (rawTotalAmount < totalOriginalPaid && Math.abs(computedTotal - totalOriginalPaid) < 1)
+        ? totalOriginalPaid
+        : (rawTotalAmount > 0 ? rawTotalAmount : computedTotal);
+
+    const balanceDue = isCancelled ? 0 : Math.max(0, displayTotalAmount - totalOriginalPaid);
     const handleOpenCheckIn = (b: Booking) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -448,8 +471,18 @@ const BookingDetails = () => {
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2 md:justify-end">
-                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.adultsCount} Adults</span>
-                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">{booking.childrenCount} Children</span>
+                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">
+                                            {booking.bookingRooms[0].adultsCount ?? booking.adultsCount} Adults
+                                            {Number(booking.bookingRooms[0].extraAdultsCount || 0) > 0 && (
+                                                <span className="text-amber-600 font-extrabold ml-1">({booking.bookingRooms[0].extraAdultsCount} Extra)</span>
+                                            )}
+                                        </span>
+                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">
+                                            {booking.bookingRooms[0].childrenCount ?? booking.childrenCount} Children
+                                            {Number(booking.bookingRooms[0].extraChildrenCount || 0) > 0 && (
+                                                <span className="text-amber-600 font-extrabold ml-1">({booking.bookingRooms[0].extraChildrenCount} Extra)</span>
+                                            )}
+                                        </span>
                                     </div>
                                 </div>
                             ) : null}
@@ -510,7 +543,7 @@ const BookingDetails = () => {
                                 )}
                                 <div className="flex justify-between text-sm items-center">
                                     <span className="text-muted-foreground font-bold">Extra Charges</span>
-                                    <span className="font-black text-foreground">₹{(Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)).toLocaleString()}</span>
+                                    <span className="font-black text-foreground">₹{effectiveExtraCharges.toLocaleString()}</span>
                                 </div>
                                 {Number(booking.couponDiscountAmount) > 0 && (
                                     <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
@@ -542,7 +575,7 @@ const BookingDetails = () => {
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="text-2xl font-black text-foreground">₹{Number(booking.totalAmount).toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-foreground">₹{displayTotalAmount.toLocaleString()}</span>
                                     </div>
                                 </div>
 

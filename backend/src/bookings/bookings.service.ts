@@ -700,8 +700,8 @@ export class BookingsService {
                         generalCode,
                         overrideTotal,
                         createBookingDto.isOverrideInclusive ?? true,
-                        createBookingDto.extraAdultsCount,
-                        createBookingDto.extraChildrenCount,
+                        createBookingDto.extraAdultsCount ?? alloc.extraAdults,
+                        createBookingDto.extraChildrenCount ?? alloc.extraChildren,
                         alloc.infants || 0,
                         alloc.childAges,
                     );
@@ -1538,8 +1538,12 @@ export class BookingsService {
                     childrenCount,
                     childAges: createBookingDto.childAges || [],
                     infantsCount: createBookingDto.infantsCount || 0,
-                    extraAdultsCount: createBookingDto.extraAdultsCount || 0,
-                    extraChildrenCount: createBookingDto.extraChildrenCount || 0,
+                    extraAdultsCount: (createBookingDto.extraAdultsCount !== undefined && createBookingDto.extraAdultsCount !== null)
+                        ? createBookingDto.extraAdultsCount
+                        : (createBookingDto.roomAllocations?.reduce((sum, a) => sum + (a.extraAdults || 0), 0) ?? (pricing.extraAdultsCount || 0)),
+                    extraChildrenCount: (createBookingDto.extraChildrenCount !== undefined && createBookingDto.extraChildrenCount !== null)
+                        ? createBookingDto.extraChildrenCount
+                        : (createBookingDto.roomAllocations?.reduce((sum, a) => sum + (a.extraChildren || 0), 0) ?? (pricing.extraChildrenCount || 0)),
                     baseAmount: pricing.baseAmount,
                     extraAdultAmount: pricing.extraAdultAmount,
                     extraChildAmount: pricing.extraChildAmount,

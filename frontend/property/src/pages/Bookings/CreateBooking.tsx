@@ -1205,10 +1205,19 @@ export default function CreateBooking() {
                     : (data.paidAmount !== undefined && data.paidAmount !== null ? Number(data.paidAmount) : 0))
                 : undefined);
 
+        const calculatedExtraAdults = (roomAllocationsPayload && roomAllocationsPayload.length > 0)
+            ? roomAllocationsPayload.reduce((sum: number, a: any) => sum + (a.extraAdults || 0), 0)
+            : (Number(data.extraAdultsCount) || 0);
+        const calculatedExtraChildren = (roomAllocationsPayload && roomAllocationsPayload.length > 0)
+            ? roomAllocationsPayload.reduce((sum: number, a: any) => sum + (a.extraChildren || 0), 0)
+            : (Number(data.extraChildrenCount) || 0);
+
         const sanitizedData = {
             ...rest,
             propertyId: selectedProperty?.id || propertyId,
             roomAllocations: roomAllocationsPayload,
+            extraAdultsCount: calculatedExtraAdults,
+            extraChildrenCount: calculatedExtraChildren,
             childAges: (!data.isGroupBooking && childAges.length > 0) ? childAges : undefined,
             infants: (!data.isGroupBooking && infantsCount > 0) ? infantsCount : undefined,
             roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || (allocatedRooms.length) || (data.selectedRoomIds?.length) || 1)),
