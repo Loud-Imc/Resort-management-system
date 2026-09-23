@@ -21,7 +21,8 @@ import {
     Receipt,
     Pencil,
     Briefcase,
-    AlertCircle
+    AlertCircle,
+    Sparkles
 } from 'lucide-react';
 import { format, differenceInCalendarDays } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -531,8 +532,16 @@ const BookingDetails = () => {
 
                             <div className="pt-6 border-t border-border/50 space-y-6">
                                 <div className="bg-muted/30 p-6 rounded-3xl border border-border">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount</span>
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount</span>
+                                            {booking.isPriceOverridden && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mt-1 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 w-fit">
+                                                    <Sparkles className="w-3 h-3 text-amber-500 inline" /> Custom Price Override
+                                                    {booking.overrideReason ? ` • ${booking.overrideReason}` : ''}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-2xl font-black text-foreground">₹{Number(booking.totalAmount).toLocaleString()}</span>
                                     </div>
                                 </div>

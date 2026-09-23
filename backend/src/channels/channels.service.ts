@@ -501,14 +501,119 @@ export class ChannelsService {
         },
       });
 
+      // 4. Fetch manual inventory overrides in date range
+      const manualOverrides = await this.prisma.connectivityAvailabilityOverride.findMany({
+        where: {
+          propertyId,
+          date: { gte: checkInStart, lte: checkOutEnd },
+        },
+      });
+
+      // Fetch remote rate plans if adapter supports it
+      let remoteRatePlans: Array<{ id: string; title: string; room_type_id: string }> = [];
+      if (adapter.getRemoteRatePlans && mapping.apiKey && mapping.externalPropertyId) {
+        remoteRatePlans = await adapter.getRemoteRatePlans(mapping.apiKey, mapping.externalPropertyId);
+      }
+
       for (const roomMapping of currentRoomMappings) {
-        const dailyRates = await this.pricingService.getPublishedDailyRates(
-          roomMapping.roomTypeId,
-          checkInStart,
-          checkOutEnd
-        );
-        this.logger.debug(`[Channex Sync] Fetched ${dailyRates.length} daily rates for RoomType [${roomMapping.roomTypeId}]`);
-        const ratesMap = new Map(dailyRates.map(r => [r.date, r.publishedPrice]));
+        // Fetch all active rate plans for this room type
+        const ratePlans = await this.prisma.ratePlan.findMany({
+          where: { roomTypeId: roomMapping.roomTypeId, isActive: true },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        });
+
+        // Ensure each rate plan has an external rate plan ID on remote channel
+        const planExternalIdMap = new Map<string, string>();
+
+        for (const plan of ratePlans) {
+          let externalPlanId = '';
+          const existingRemotePlan = remoteRatePlans.find(rp => {
+            if (rp.room_type_id !== roomMapping.externalRoomTypeId) return false;
+            if (plan.isPrimary && roomMapping.externalRatePlanId && rp.id === roomMapping.externalRatePlanId) {
+              return true;
+            }
+
+            const remoteTitle = rp.title.toLowerCase();
+            const localName = plan.name.toLowerCase();
+            if (remoteTitle === localName || remoteTitle.includes(localName) || localName.includes(remoteTitle)) {
+              return true;
+            }
+
+            // Match by meal plan code / name keywords
+            if (plan.mealPlan === 'CP' && (remoteTitle.includes(' cp') || remoteTitle.includes('(cp)') || remoteTitle.includes('breakfast'))) {
+              return true;
+            }
+            if (plan.mealPlan === 'MAP' && (remoteTitle.includes(' map') || remoteTitle.includes('(map)') || remoteTitle.includes('half board'))) {
+              return true;
+            }
+            if (plan.mealPlan === 'AP' && (remoteTitle.includes(' ap') || remoteTitle.includes('(ap)') || remoteTitle.includes('full board'))) {
+              return true;
+            }
+            if (plan.isPrimary && (remoteTitle.includes('standard') || remoteTitle.includes('ep') || remoteTitle.includes('room only'))) {
+              return true;
+            }
+
+            return false;
+          });
+
+          if (existingRemotePlan) {
+            externalPlanId = existingRemotePlan.id;
+          } else if (plan.isPrimary && roomMapping.externalRatePlanId) {
+            externalPlanId = roomMapping.externalRatePlanId;
+          } else if (adapter.createRemoteRatePlan && mapping.apiKey) {
+            const created = await adapter.createRemoteRatePlan(
+              mapping.apiKey,
+              mapping.externalPropertyId,
+              roomMapping.externalRoomTypeId,
+              {
+                name: plan.name,
+                mealPlan: plan.mealPlan,
+                currency: 'INR',
+                basePrice: Number(plan.basePrice),
+              }
+            );
+            if (created?.externalRatePlanId) {
+              externalPlanId = created.externalRatePlanId;
+              remoteRatePlans.push({
+                id: externalPlanId,
+                title: plan.name,
+                room_type_id: roomMapping.externalRoomTypeId,
+              });
+            }
+          }
+
+          if (externalPlanId) {
+            planExternalIdMap.set(plan.id, externalPlanId);
+            if (plan.isPrimary && roomMapping.externalRatePlanId !== externalPlanId) {
+              await this.prisma.channelRoomTypeMapping.update({
+                where: { id: roomMapping.id },
+                data: { externalRatePlanId: externalPlanId },
+              });
+            }
+          }
+        }
+
+        // Fetch published daily rates for EACH rate plan
+        const planRatesMap = new Map<string, Map<string, number>>();
+        if (ratePlans.length > 0) {
+          for (const plan of ratePlans) {
+            const planRates = await this.pricingService.getPublishedDailyRates(
+              roomMapping.roomTypeId,
+              checkInStart,
+              checkOutEnd,
+              undefined,
+              plan.id
+            );
+            planRatesMap.set(plan.id, new Map(planRates.map(r => [r.date, r.publishedPrice])));
+          }
+        } else {
+          const defaultRates = await this.pricingService.getPublishedDailyRates(
+            roomMapping.roomTypeId,
+            checkInStart,
+            checkOutEnd
+          );
+          planRatesMap.set('DEFAULT', new Map(defaultRates.map(r => [r.date, r.publishedPrice])));
+        }
 
         const totalRooms = roomsMap.get(roomMapping.roomTypeId) || 0;
 
@@ -520,11 +625,9 @@ export class ChannelsService {
 
           // Check if stop sell is active for this roomType on this day
           const hasStopSell = stopSells.some(ss => {
-            const ssStart = new Date(ss.startDate);
-            ssStart.setHours(0, 0, 0, 0);
-            const ssEnd = new Date(ss.endDate);
-            ssEnd.setHours(23, 59, 59, 999);
-            return (!ss.roomTypeId || ss.roomTypeId === roomMapping.roomTypeId) && checkIn <= ssEnd && checkOut >= ssStart;
+            const sStart = format(new Date(ss.startDate), 'yyyy-MM-dd');
+            const sEnd = format(new Date(ss.endDate), 'yyyy-MM-dd');
+            return (!ss.roomTypeId || ss.roomTypeId === roomMapping.roomTypeId) && dateStr >= sStart && dateStr <= sEnd;
           });
 
           // Count physical occupied rooms for this roomType on this date
@@ -572,25 +675,54 @@ export class ChannelsService {
           }
 
           const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
-          const availableRoomsCount = Math.max(0, totalRooms - bookedCount);
+          const naturalAvailable = Math.max(0, totalRooms - bookedCount);
+
+          // Check manual inventory override
+          const override = manualOverrides.find((mo) => {
+            const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
+            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr;
+          });
+          const finalAvailable = override !== undefined
+            ? Math.min(override.allocatedQuantity, naturalAvailable)
+            : naturalAvailable;
 
           inventoryUpdates.push({
             date: dateStr,
             roomTypeId: roomMapping.roomTypeId,
             externalRoomTypeId: roomMapping.externalRoomTypeId,
-            availableRooms: hasStopSell ? 0 : availableRoomsCount,
+            availableRooms: hasStopSell ? 0 : finalAvailable,
           });
 
-          // Push rate and stopSell restriction
-          const dailyPrice = ratesMap.get(dateStr);
-          rateUpdates.push({
-            date: dateStr,
-            roomTypeId: roomMapping.roomTypeId,
-            externalRoomTypeId: roomMapping.externalRoomTypeId,
-            externalRatePlanId: roomMapping.externalRatePlanId || undefined,
-            price: dailyPrice,
-            stopSell: hasStopSell,
-          });
+          // Push rate and stopSell restriction for each rate plan
+          if (ratePlans.length > 0) {
+            for (const plan of ratePlans) {
+              const ratesMap = planRatesMap.get(plan.id);
+              const dailyPrice = ratesMap?.get(dateStr);
+              const externalRatePlanId = planExternalIdMap.get(plan.id) || (plan.isPrimary ? roomMapping.externalRatePlanId || undefined : undefined);
+
+              if (externalRatePlanId) {
+                rateUpdates.push({
+                  date: dateStr,
+                  roomTypeId: roomMapping.roomTypeId,
+                  externalRoomTypeId: roomMapping.externalRoomTypeId,
+                  externalRatePlanId,
+                  price: dailyPrice,
+                  stopSell: hasStopSell,
+                });
+              }
+            }
+          } else {
+            const ratesMap = planRatesMap.get('DEFAULT');
+            const dailyPrice = ratesMap?.get(dateStr);
+            rateUpdates.push({
+              date: dateStr,
+              roomTypeId: roomMapping.roomTypeId,
+              externalRoomTypeId: roomMapping.externalRoomTypeId,
+              externalRatePlanId: roomMapping.externalRatePlanId || undefined,
+              price: dailyPrice,
+              stopSell: hasStopSell,
+            });
+          }
         }
       }
 
@@ -702,6 +834,13 @@ export class ChannelsService {
       },
     });
 
+    const manualOverrides = await this.prisma.connectivityAvailabilityOverride.findMany({
+      where: {
+        propertyId,
+        date: { gte: checkInStart, lte: checkOutEnd },
+      },
+    });
+
     for (const mapping of mappings) {
       const adapter = this.getAdapter(mapping.channelName);
       const inventoryUpdates: InventoryUpdateDto[] = [];
@@ -716,11 +855,9 @@ export class ChannelsService {
           const checkOut = addDays(checkIn, 1);
 
           const hasStopSell = stopSells.some((ss) => {
-            const ssStart = new Date(ss.startDate);
-            ssStart.setHours(0, 0, 0, 0);
-            const ssEnd = new Date(ss.endDate);
-            ssEnd.setHours(23, 59, 59, 999);
-            return (!ss.roomTypeId || ss.roomTypeId === rtId) && checkIn <= ssEnd && checkOut >= ssStart;
+            const sStart = format(new Date(ss.startDate), 'yyyy-MM-dd');
+            const sEnd = format(new Date(ss.endDate), 'yyyy-MM-dd');
+            return (!ss.roomTypeId || ss.roomTypeId === rtId) && dateStr >= sStart && dateStr <= sEnd;
           });
 
           const occupiedPhysicalRoomIds = new Set<string>();
@@ -767,13 +904,22 @@ export class ChannelsService {
           }
 
           const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
-          const availableRoomsCount = Math.max(0, totalRooms - bookedCount);
+          const naturalAvailable = Math.max(0, totalRooms - bookedCount);
+
+          // Check manual inventory override
+          const override = manualOverrides.find((mo) => {
+            const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
+            return mo.roomTypeId === rtId && moDateStr === dateStr;
+          });
+          const finalAvailable = override !== undefined
+            ? Math.min(override.allocatedQuantity, naturalAvailable)
+            : naturalAvailable;
 
           inventoryUpdates.push({
             date: dateStr,
             roomTypeId: rtId,
             externalRoomTypeId: roomMapping.externalRoomTypeId,
-            availableRooms: hasStopSell ? 0 : availableRoomsCount,
+            availableRooms: hasStopSell ? 0 : finalAvailable,
           });
         }
       }

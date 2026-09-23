@@ -65,9 +65,10 @@ export class DateUtils {
   }
 
   /**
-   * Checks if two stay/offer intervals [startA, endA) and [startB, endB) overlap.
-   * Uses strict '<' inequality for checkout mornings:
-   * Two intervals overlap if and only if: startA < endB AND startB < endA
+   * Checks if a stay interval [startA, endA) overlaps with a rule or offer interval [startB, endB].
+   * Stay nights are { d | startA <= d < endA } (endA is checkout morning).
+   * Rule/offer nights are { d | startB <= d <= endB } (endB is inclusive date).
+   * Two intervals overlap if and only if: startA <= endB AND startB < endA
    */
   static areNightIntervalsOverlapping(
     startA: Date | string,
@@ -82,11 +83,11 @@ export class DateUtils {
 
     if (!sA || !eA || !sB || !eB) return false;
 
-    return sA < eB && sB < eA;
+    return sA <= eB && sB < eA;
   }
 
   /**
-   * Checks if a single stay night (yyyy-MM-dd) falls within an offer or rule's validity range [offerStart, offerEnd).
+   * Checks if a single stay night (yyyy-MM-dd) falls within an offer or rule's validity range [offerStart, offerEnd] (inclusive).
    */
   static isNightInOfferRange(
     nightDateStr: Date | string,
@@ -99,7 +100,7 @@ export class DateUtils {
 
     if (!night || !start || !end) return false;
 
-    return start <= night && night < end;
+    return start <= night && night <= end;
   }
 
   /**

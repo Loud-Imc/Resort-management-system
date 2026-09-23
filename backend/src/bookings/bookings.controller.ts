@@ -440,11 +440,14 @@ export class BookingsController {
             const user = req.user;
             const hasPermission = user.permissions?.includes(PERMISSIONS.BOOKINGS.READ);
             const isAuthorized = user.roles?.some((r: string) =>
-                ['SuperAdmin', 'Admin', 'ChannelPartner', 'PropertyOwner', 'PropertyStaff'].includes(r)
+                ['SuperAdmin', 'Admin', 'ChannelPartner', 'PropertyOwner', 'PropertyStaff', 'staff', 'manager', 'receptionist'].some(role => r.toLowerCase().includes(role.toLowerCase()))
             ) || hasPermission;
             
             if (!isAuthorized) {
-                throw new ForbiddenException('You are not authorized to view partner invoices');
+                const booking = await this.bookingsService.findOne(id, user).catch(() => null);
+                if (!booking) {
+                    throw new ForbiddenException('You are not authorized to view partner invoices');
+                }
             }
         }
 

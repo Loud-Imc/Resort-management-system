@@ -336,8 +336,10 @@ export default function RoomTypesList() {
                 <BulkPricingRuleModal
                     isOpen={!!bulkPricingModalTarget}
                     onClose={() => setBulkPricingModalTarget(null)}
+                    propertyId={propertyId || ''}
                     roomTypeId={bulkPricingModalTarget.id}
                     roomTypeName={bulkPricingModalTarget.name}
+                    roomTypes={roomTypes || []}
                     ratePlans={bulkPricingModalTarget.ratePlans || []}
                     onSuccess={() => queryClient.invalidateQueries({ queryKey: ['roomTypes'] })}
                 />

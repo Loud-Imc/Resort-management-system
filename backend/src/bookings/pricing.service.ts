@@ -386,6 +386,8 @@ export class PricingService {
         if (pricingRule) {
             if (pricingRule.adjustmentType === 'PERCENTAGE') {
                 subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
+            } else if (pricingRule.adjustmentType === 'SET_FIXED_PRICE') {
+                subtotal = Number(pricingRule.adjustmentValue) + extraAdultAmount + extraChildAmount;
             } else {
                 subtotal += Number(pricingRule.adjustmentValue);
             }
@@ -671,14 +673,14 @@ export class PricingService {
                 ...(ratePlanId ? { OR: [{ ratePlanId }, { ratePlanId: null }] } : {}),
             },
             orderBy: [
-                { isFestivalRule: 'desc' }, // Festival rules take highest priority
+                { isFestivalRule: 'desc' }, // Festival rules take high priority
                 { createdAt: 'desc' },
             ],
         });
 
         const dayOfWeek = checkInDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
-        return pricingRules.find(rule => {
+        const matchingRules = pricingRules.filter(rule => {
             const isOverlapping = DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, rule.startDate, rule.endDate);
             if (!isOverlapping) return false;
 
@@ -689,6 +691,32 @@ export class PricingService {
 
             return true;
         });
+
+        if (matchingRules.length === 0) return null;
+
+        // Sort matching rules by specificity:
+        // 1. RatePlan-specific rule over generic roomType rule
+        // 2. Exact single-day rule over range rule
+        // 3. Shorter date span over broad date span
+        // 4. Festival rule
+        // 5. Newest rule
+        matchingRules.sort((a, b) => {
+            if (ratePlanId) {
+                const aPlan = a.ratePlanId === ratePlanId ? 1 : 0;
+                const bPlan = b.ratePlanId === ratePlanId ? 1 : 0;
+                if (aPlan !== bPlan) return bPlan - aPlan;
+            }
+
+            const aDuration = Math.abs(new Date(a.endDate).getTime() - new Date(a.startDate).getTime());
+            const bDuration = Math.abs(new Date(b.endDate).getTime() - new Date(b.startDate).getTime());
+            if (aDuration !== bDuration) return aDuration - bDuration; // shorter duration wins
+
+            if (a.isFestivalRule !== b.isFestivalRule) return a.isFestivalRule ? -1 : 1;
+
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        return matchingRules[0];
     }
 
     /**
@@ -882,6 +910,14 @@ export class PricingService {
             gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
         }
 
+        // If a specific rate plan was requested, load it for its base price
+        let targetRatePlan: any = null;
+        if (ratePlanId) {
+            targetRatePlan = await this.prisma.ratePlan.findUnique({
+                where: { id: ratePlanId },
+            });
+        }
+
         const results: PublishedDailyRateQuote[] = [];
         const current = new Date(checkIn);
 
@@ -894,7 +930,7 @@ export class PricingService {
             const nextDate = new Date(current);
             nextDate.setDate(nextDate.getDate() + 1);
 
-            const originalBasePrice = Number(roomType.basePrice);
+            const originalBasePrice = targetRatePlan?.basePrice ? Number(targetRatePlan.basePrice) : Number(roomType.basePrice);
             let effectiveBasePrice = originalBasePrice;
             const isGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
             const gstMode: 'INCLUSIVE' | 'EXCLUSIVE' = isGstInclusive ? 'INCLUSIVE' : 'EXCLUSIVE';
@@ -905,7 +941,7 @@ export class PricingService {
                 effectiveBasePrice = normalized.baseAmount;
             }
 
-            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate);
+            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate, ratePlanId);
 
             let subtotal = effectiveBasePrice;
             let appliedPricingRule: { id: string; name: string; adjustmentType: string; adjustmentValue: number } | undefined = undefined;
@@ -913,6 +949,8 @@ export class PricingService {
             if (pricingRule) {
                 if (pricingRule.adjustmentType === 'PERCENTAGE') {
                     subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
+                } else if (pricingRule.adjustmentType === 'SET_FIXED_PRICE') {
+                    subtotal = Number(pricingRule.adjustmentValue);
                 } else {
                     subtotal += Number(pricingRule.adjustmentValue);
                 }

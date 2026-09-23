@@ -152,6 +152,18 @@ export interface IChannelAdapter {
     externalChannelId: string,
   ): Promise<boolean>;
 
+  createRemoteRatePlan?(
+    apiKey: string,
+    externalPropertyId: string,
+    externalRoomTypeId: string,
+    ratePlan: { name: string; mealPlan?: string; currency?: string; basePrice?: number }
+  ): Promise<{ externalRatePlanId: string }>;
+
+  getRemoteRatePlans?(
+    apiKey: string,
+    externalPropertyId: string,
+  ): Promise<Array<{ id: string; title: string; room_type_id: string }>>;
+
   getIframeSessionToken?(
     externalPropertyId: string,
   ): Promise<string>;

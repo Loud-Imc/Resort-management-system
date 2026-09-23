@@ -6,15 +6,21 @@ import {
   ChevronDown,
   ChevronRight as ChevronRightIcon,
   RefreshCw,
-  Save,
   Layers,
   Star,
+  Globe,
+  ShieldAlert,
+  Edit2,
+  CheckCircle,
 } from 'lucide-react';
 import {
   ratePlansService,
   type RatePlan,
-  type CalendarEventMarker
+  type CalendarEventMarker,
+  type DailyInventoryData,
+  type DailyRestrictionData,
 } from '../../services/ratePlans';
+import { channelsService } from '../../services/channels';
 import type { RoomType } from '../../types/room';
 import { BulkPricingRuleModal } from '../../components/BulkPricingRuleModal';
 import toast from 'react-hot-toast';
@@ -45,8 +51,11 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   // Current Month/Year Navigation State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);
+  const [inventoryMap, setInventoryMap] = useState<Record<string, Record<string, DailyInventoryData>>>({});
+  const [restrictionsMap, setRestrictionsMap] = useState<Record<string, Record<string, DailyRestrictionData>>>({});
   const [eventMarkers, setEventMarkers] = useState<CalendarEventMarker[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [syncingOtas, setSyncingOtas] = useState<boolean>(false);
   const [expandedRoomTypes, setExpandedRoomTypes] = useState<Record<string, boolean>>({});
 
   // Filter state & 10-Day Date Segment Switcher
@@ -55,7 +64,10 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   const [dateChunk, setDateChunk] = useState<'PART1' | 'PART2' | 'PART3'>(() => getInitialDateChunk(new Date()));
 
   // Modal State
-  const [selectedRoomForBulk, setSelectedRoomForBulk] = useState<RoomType | null>(null);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState<boolean>(false);
+  const [selectedRoomForBulk, setSelectedRoomForBulk] = useState<RoomType | undefined>(undefined);
+
+  // Inline Price Editing
   const [editingCell, setEditingCell] = useState<{
     ratePlanId: string;
     roomTypeId: string;
@@ -64,6 +76,16 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   } | null>(null);
   const [inlinePriceInput, setInlinePriceInput] = useState<string>('');
   const [savingInline, setSavingInline] = useState<boolean>(false);
+
+  // Quick Restriction / Inventory Editing Cell
+  const [quickEditInv, setQuickEditInv] = useState<{
+    roomTypeId: string;
+    dateStr: string;
+    currentAvailable: number;
+    totalRooms: number;
+    isStopSell: boolean;
+  } | null>(null);
+  const [invOverrideInput, setInvOverrideInput] = useState<string>('');
 
   // Today's date string for highlight matching (YYYY-MM-DD)
   const today = new Date();
@@ -114,13 +136,12 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
-      const [plansData, markersData] = await Promise.all([
-        ratePlansService.getRatePlansForProperty(propertyId),
-        ratePlansService.getCalendarEventMarkers(propertyId, startDate, endDate),
-      ]);
+      const matrixData = await ratePlansService.getPropertyRateMatrix(propertyId, startDate, endDate);
 
-      setRatePlans(plansData);
-      setEventMarkers(markersData);
+      setRatePlans(matrixData.ratePlans || []);
+      setInventoryMap(matrixData.inventory || {});
+      setRestrictionsMap(matrixData.restrictions || {});
+      setEventMarkers(matrixData.eventMarkers || []);
 
       // Expand all room types by default
       const expanded: Record<string, boolean> = {};
@@ -130,6 +151,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       setExpandedRoomTypes(expanded);
     } catch (err) {
       console.error('Failed to load rate matrix data:', err);
+      toast.error('Failed to load live rate matrix and inventory');
     } finally {
       setLoading(false);
     }
@@ -169,8 +191,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     const dayOfWeek = dayDate.getDay();
 
     if (plan.pricingRules && plan.pricingRules.length > 0) {
-      // Find matching rule
-      const applicableRule = plan.pricingRules.find((rule: any) => {
+      const matchingRules = plan.pricingRules.filter((rule: any) => {
         const s = rule.startDate.split('T')[0];
         const e = rule.endDate.split('T')[0];
         if (dateStr < s || dateStr > e) return false;
@@ -181,8 +202,31 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         return true;
       });
 
-      if (applicableRule) {
-        return Number(applicableRule.adjustmentValue);
+      if (matchingRules.length > 0) {
+        // Sort matching rules by specificity:
+        // 1. Single-day rule (startDate === endDate) takes highest priority
+        // 2. Narrower duration takes priority
+        // 3. Festival rule
+        // 4. Newest createdAt
+        matchingRules.sort((a: any, b: any) => {
+          const aS = a.startDate.split('T')[0];
+          const aE = a.endDate.split('T')[0];
+          const bS = b.startDate.split('T')[0];
+          const bE = b.endDate.split('T')[0];
+          const aSingle = aS === aE ? 1 : 0;
+          const bSingle = bS === bE ? 1 : 0;
+          if (aSingle !== bSingle) return bSingle - aSingle;
+
+          const aDur = Math.abs(new Date(aE).getTime() - new Date(aS).getTime());
+          const bDur = Math.abs(new Date(bE).getTime() - new Date(bS).getTime());
+          if (aDur !== bDur) return aDur - bDur;
+
+          if (a.isFestivalRule !== b.isFestivalRule) return a.isFestivalRule ? -1 : 1;
+
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
+
+        return Number(matchingRules[0].adjustmentValue);
       }
     }
 
@@ -194,6 +238,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     setSavingInline(true);
     try {
       await ratePlansService.applyBulkPricingRule({
+        propertyId,
         roomTypeId: editingCell.roomTypeId,
         ratePlanId: editingCell.ratePlanId,
         startDate: editingCell.dateStr,
@@ -208,6 +253,53 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       toast.error('Failed to update price');
     } finally {
       setSavingInline(false);
+    }
+  };
+
+  const handleQuickToggleStopSell = async (roomTypeId: string, dateStr: string, currentStopSell: boolean) => {
+    try {
+      await ratePlansService.applyRestrictions({
+        propertyId,
+        roomTypeId,
+        startDate: dateStr,
+        endDate: dateStr,
+        stopSell: !currentStopSell,
+      });
+
+      toast.success(!currentStopSell ? '🛑 Stop Sell applied' : '✅ Stop Sell removed');
+      fetchMatrixData();
+    } catch (err: any) {
+      toast.error('Failed to update stop sell restriction');
+    }
+  };
+
+  const handleSaveInventoryOverride = async () => {
+    if (!quickEditInv || invOverrideInput === '') return;
+    try {
+      await ratePlansService.setInventoryOverride({
+        propertyId,
+        roomTypeId: quickEditInv.roomTypeId,
+        date: quickEditInv.dateStr,
+        allocatedQuantity: Number(invOverrideInput),
+      });
+
+      toast.success('Room inventory override saved');
+      setQuickEditInv(null);
+      fetchMatrixData();
+    } catch (err: any) {
+      toast.error('Failed to set room inventory');
+    }
+  };
+
+  const handleFullSyncToOtas = async () => {
+    setSyncingOtas(true);
+    try {
+      await channelsService.pushAri(propertyId, 365);
+      toast.success('🚀 Full 365-day ARI synced to Channex and all connected OTAs!');
+    } catch (err: any) {
+      toast.error('Failed to push full sync to OTAs');
+    } finally {
+      setSyncingOtas(false);
     }
   };
 
@@ -316,13 +408,27 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
           {/* Bulk Update All Rooms Button */}
           {roomTypes.length > 0 && (
             <button
-              onClick={() => setSelectedRoomForBulk(roomTypes[0])}
+              onClick={() => {
+                setSelectedRoomForBulk(undefined);
+                setIsBulkModalOpen(true);
+              }}
               className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
             >
               <Sliders className="h-3.5 w-3.5" />
-              ⚡ Bulk Update All Rooms
+              ⚡ Bulk Rates & Rules
             </button>
           )}
+
+          {/* Full Sync to OTAs Button */}
+          <button
+            onClick={handleFullSyncToOtas}
+            disabled={syncingOtas}
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            title="Push 365-day full ARI update to Channex and all connected OTAs"
+          >
+            <Globe className={`h-3.5 w-3.5 ${syncingOtas ? 'animate-spin' : ''}`} />
+            {syncingOtas ? 'Syncing...' : '🔄 Full Sync to OTAs'}
+          </button>
 
           {/* Refresh Button */}
           <button
@@ -339,7 +445,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-16 text-center text-sm font-semibold text-muted-foreground">
-            Loading property rate matrix...
+            Loading property rate matrix, inventory & restrictions...
           </div>
         ) : filteredRoomTypes.length === 0 ? (
           <div className="p-16 text-center text-sm text-muted-foreground">
@@ -352,7 +458,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
               <colgroup>
                 <col className="w-[280px] md:w-[310px] lg:w-[330px]" />
                 {visibleDaysArray.map((d) => (
-                  <col key={d.dateStr} className="w-[calc((100%-330px)/10)] min-w-[70px]" />
+                  <col key={d.dateStr} className="w-[calc((100%-330px)/10)] min-w-[75px]" />
                 ))}
               </colgroup>
 
@@ -406,11 +512,13 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                 </tr>
               </thead>
 
-              {/* Table Body (Room Types & Rate Plans) */}
+              {/* Table Body (Room Types, Inventory, Restrictions & Rate Plans) */}
               <tbody className="divide-y divide-border text-xs">
                 {filteredRoomTypes.map((rt) => {
                   const plans = filteredRatePlans.filter((p) => p.roomTypeId === rt.id);
                   const isExpanded = expandedRoomTypes[rt.id] !== false;
+                  const roomInv = inventoryMap[rt.id] || {};
+                  const roomRestr = restrictionsMap[rt.id] || {};
 
                   return (
                     <React.Fragment key={rt.id}>
@@ -457,6 +565,118 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                           );
                         })}
                       </tr>
+
+                      {/* Expandable Rows: Inventory & Availability Row */}
+                      {isExpanded && (
+                        <tr className="bg-emerald-50/40 dark:bg-emerald-950/20 border-b border-border/40 text-[11px]">
+                          <td className="p-2 pl-6 sticky left-0 z-10 bg-emerald-50/90 dark:bg-slate-900/90 backdrop-blur-md border-r border-border">
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                              <span className="font-black text-emerald-800 dark:text-emerald-300">
+                                Free Inventory / Rooms Left
+                              </span>
+                            </div>
+                          </td>
+
+                          {visibleDaysArray.map((d) => {
+                            const invData = roomInv[d.dateStr];
+                            const available = invData ? invData.availableCount : 0;
+                            const total = invData ? invData.totalRooms : 0;
+                            const isStop = invData ? invData.isStopSell : false;
+                            const isToday = d.dateStr === todayStr;
+
+                            return (
+                              <td
+                                key={d.dateStr}
+                                onClick={() => {
+                                  setQuickEditInv({
+                                    roomTypeId: rt.id,
+                                    dateStr: d.dateStr,
+                                    currentAvailable: available,
+                                    totalRooms: total,
+                                    isStopSell: isStop,
+                                  });
+                                  setInvOverrideInput(String(available));
+                                }}
+                                className={`p-1.5 text-center border-r border-border/40 cursor-pointer hover:bg-emerald-100/50 dark:hover:bg-emerald-900/40 transition-colors ${
+                                  isToday ? 'bg-primary/[0.08]' : ''
+                                }`}
+                                title="Click to override room allotment or stop sell"
+                              >
+                                {isStop ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                    🛑 Closed
+                                  </span>
+                                ) : total === 0 ? (
+                                  <span
+                                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/25"
+                                    title="No physical rooms configured under Room Setup"
+                                  >
+                                    0 Unassigned
+                                  </span>
+                                ) : available === 0 ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                    0 Sold Out
+                                  </span>
+                                ) : available <= 1 ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                                    {available} left
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                                    {available} left
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )}
+
+                      {/* Expandable Rows: Restrictions Sub-Row */}
+                      {isExpanded && (
+                        <tr className="bg-amber-50/30 dark:bg-amber-950/10 border-b border-border/40 text-[10px]">
+                          <td className="p-2 pl-6 sticky left-0 z-10 bg-amber-50/90 dark:bg-slate-900/90 backdrop-blur-md border-r border-border">
+                            <div className="flex items-center gap-1.5">
+                              <ShieldAlert className="h-3 w-3 text-amber-600" />
+                              <span className="font-extrabold text-amber-800 dark:text-amber-300">
+                                Restrictions (Min Stay / CTA / CTD)
+                              </span>
+                            </div>
+                          </td>
+
+                          {visibleDaysArray.map((d) => {
+                            const rData = roomRestr[d.dateStr];
+                            const minStay = rData?.minStayArrival;
+                            const isStop = rData?.stopSell;
+                            const isToday = d.dateStr === todayStr;
+
+                            return (
+                              <td
+                                key={d.dateStr}
+                                onClick={() => handleQuickToggleStopSell(rt.id, d.dateStr, Boolean(isStop))}
+                                className={`p-1.5 text-center border-r border-border/40 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/40 transition-colors ${
+                                  isToday ? 'bg-primary/[0.08]' : ''
+                                }`}
+                                title="Click to toggle Stop Sell or edit restriction"
+                              >
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {minStay && minStay > 1 ? (
+                                    <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border border-indigo-300">
+                                      {minStay}N Min
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] text-muted-foreground font-mono">1N</span>
+                                  )}
+                                  {rData?.closedToArrival && (
+                                    <span className="text-[8px] font-bold text-amber-600">CTA</span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )}
 
                       {/* Rate Plan Sub-Rows */}
                       {isExpanded &&
@@ -552,15 +772,15 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                             if (e.key === 'Enter') handleSaveInlineCell();
                                             if (e.key === 'Escape') setEditingCell(null);
                                           }}
-                                          className="w-20 px-1.5 py-1 rounded border-2 border-primary text-center font-black text-sm bg-background shadow-md"
+                                          className="w-16 px-1.5 py-1 text-xs font-bold text-center rounded border border-primary bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-xs"
                                         />
                                         <button
                                           onClick={handleSaveInlineCell}
                                           disabled={savingInline}
-                                          className="p-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 cursor-pointer shadow-sm"
-                                          title="Save (Enter)"
+                                          className="p-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors cursor-pointer"
+                                          title="Save Rate"
                                         >
-                                          <Save className="h-3.5 w-3.5" />
+                                          <CheckCircle className="h-3 w-3" />
                                         </button>
                                       </div>
                                     ) : (
@@ -568,22 +788,19 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                         onClick={() => {
                                           setEditingCell({
                                             ratePlanId: plan.id,
-                                            roomTypeId: plan.roomTypeId,
+                                            roomTypeId: rt.id,
                                             dateStr: d.dateStr,
                                             currentPrice: calculatedPrice,
                                           });
                                           setInlinePriceInput(String(calculatedPrice));
                                         }}
-                                        className={`py-2 px-2.5 rounded-lg hover:bg-primary/20 cursor-pointer font-black text-[15px] font-mono transition-all ${
-                                          isToday
-                                            ? 'text-primary font-black'
-                                            : isPrimaryPlan
-                                            ? 'text-foreground font-black'
-                                            : 'text-foreground/95'
-                                        }`}
-                                        title="Click to edit rate for this date"
+                                        className="cursor-pointer py-1 px-1 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
+                                        title="Click to edit rate"
                                       >
-                                        ₹{calculatedPrice.toLocaleString()}
+                                        <span className="font-extrabold text-xs sm:text-sm text-foreground font-mono">
+                                          ₹{calculatedPrice.toLocaleString()}
+                                        </span>
+                                        <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
                                       </div>
                                     )}
                                   </td>
@@ -601,20 +818,60 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         )}
       </div>
 
-      {/* Bulk Pricing Modal */}
-      {selectedRoomForBulk && (
-        <BulkPricingRuleModal
-          isOpen={!!selectedRoomForBulk}
-          onClose={() => setSelectedRoomForBulk(null)}
-          roomTypeId={selectedRoomForBulk.id}
-          roomTypeName={selectedRoomForBulk.name}
-          ratePlans={ratePlans.filter((p) => p.roomTypeId === selectedRoomForBulk.id)}
-          onSuccess={() => {
-            fetchMatrixData();
-            if (onRefresh) onRefresh();
-          }}
-        />
+      {/* Quick Inventory Override Modal */}
+      {quickEditInv && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
+            <h4 className="font-bold text-sm text-foreground">
+              Adjust Room Inventory ({quickEditInv.dateStr})
+            </h4>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                Sellable Rooms Limit (Max: {quickEditInv.totalRooms})
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={quickEditInv.totalRooms}
+                value={invOverrideInput}
+                onChange={(e) => setInvOverrideInput(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm font-bold focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setQuickEditInv(null)}
+                className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveInventoryOverride}
+                className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90"
+              >
+                Save Allotment
+              </button>
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* Bulk Pricing & Restrictions Modal */}
+      <BulkPricingRuleModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        propertyId={propertyId}
+        roomTypeId={selectedRoomForBulk?.id}
+        roomTypeName={selectedRoomForBulk?.name || 'All Rooms'}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
+        onSuccess={() => {
+          fetchMatrixData();
+          if (onRefresh) onRefresh();
+        }}
+      />
     </div>
   );
 };

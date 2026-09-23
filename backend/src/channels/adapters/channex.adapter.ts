@@ -481,6 +481,7 @@ export class ChannexAdapter implements IChannelAdapter {
           date_to: u.dateTo || u.date,
         };
         if (u.externalRatePlanId) item.rate_plan_id = u.externalRatePlanId;
+        if ((u as any).channelId && (u as any).channelId !== 'ALL') item.channel_id = (u as any).channelId;
         if (u.price !== undefined && u.price !== null) item.rate = Math.round(Number(u.price) * 100);
         if (u.minStayArrival !== undefined && u.minStayArrival !== null) item.min_stay_arrival = Number(u.minStayArrival);
         if (u.minStayThrough !== undefined && u.minStayThrough !== null) item.min_stay_through = Number(u.minStayThrough);
@@ -517,6 +518,91 @@ export class ChannexAdapter implements IChannelAdapter {
     } catch (error: any) {
       this.logger.error(`[Channex] Network error pushing restrictions: ${error.message}`);
       return false;
+    }
+  }
+
+  async createRemoteRatePlan(
+    apiKey: string,
+    externalPropertyId: string,
+    externalRoomTypeId: string,
+    ratePlan: { name: string; mealPlan?: string; currency?: string; basePrice?: number }
+  ): Promise<{ externalRatePlanId: string }> {
+    const payload = {
+      rate_plan: {
+        title: ratePlan.name,
+        property_id: externalPropertyId,
+        room_type_id: externalRoomTypeId,
+        currency: ratePlan.currency || 'INR',
+        sell_mode: 'per_room',
+        rate_mode: 'manual',
+        options: [
+          { occupancy: 2, is_primary: true }
+        ],
+      },
+    };
+
+    try {
+      this.logger.log(`[Channex] Creating Rate Plan '${ratePlan.name}' under room ${externalRoomTypeId}...`);
+      const response = await this.fetchWithRetry(`${this.baseUrl}/rate_plans`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-api-key': apiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        this.logger.warn(`[Channex] Failed to create rate plan on Channex: ${response.status} ${err}`);
+        return { externalRatePlanId: '' };
+      }
+
+      const resJson: any = await response.json();
+      const channexRatePlanId = resJson.data?.id || '';
+      this.logger.log(`[Channex] Created Rate Plan '${ratePlan.name}' successfully. ID: ${channexRatePlanId}`);
+      return { externalRatePlanId: channexRatePlanId };
+    } catch (err: any) {
+      this.logger.error(`[Channex] Error creating rate plan: ${err.message}`);
+      return { externalRatePlanId: '' };
+    }
+  }
+
+  async getRemoteRatePlans(
+    apiKey: string,
+    externalPropertyId: string,
+  ): Promise<Array<{ id: string; title: string; room_type_id: string }>> {
+    try {
+      this.logger.log(`[Channex] Fetching remote rate plans for property ${externalPropertyId}...`);
+      const response = await this.fetchWithRetry(
+        `${this.baseUrl}/rate_plans?filter[property_id]=${externalPropertyId}`,
+        {
+          headers: {
+            'user-api-key': apiKey,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        this.logger.warn(`[Channex] Failed to fetch rate plans: ${response.status}`);
+        return [];
+      }
+
+      const resJson: any = await response.json();
+      const plans = (resJson.data || []).map((item: any) => ({
+        id: item.id,
+        title: item.attributes?.title || item.title || '',
+        room_type_id:
+          item.relationships?.room_type?.data?.id ||
+          item.attributes?.room_type_id ||
+          item.room_type_id ||
+          '',
+      }));
+      this.logger.log(`[Channex] Found ${plans.length} remote rate plans on property ${externalPropertyId}`);
+      return plans;
+    } catch (err: any) {
+      this.logger.error(`[Channex] Error fetching rate plans: ${err.message}`);
+      return [];
     }
   }
 

@@ -58,6 +58,9 @@ export interface Booking {
     status: BookingStatus;
     specialRequests?: string;
     whatsappNumber?: string;
+    isPriceOverridden?: boolean;
+    overrideReason?: string;
+    originalRackTotal?: number;
     channelName?: string;
     isManualBooking: boolean;
     roomId: string;
@@ -143,8 +146,8 @@ export interface Booking {
     paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
     createdBy?: string;
     createdAt: string;
-    isPriceOverridden?: boolean;
-    overrideReason?: string;
+    // isPriceOverridden?: boolean;
+    // overrideReason?: string;
     isHistoricalEntry?: boolean;
 }
 
