@@ -58,6 +58,9 @@ export interface Booking {
     status: BookingStatus;
     specialRequests?: string;
     whatsappNumber?: string;
+    isPriceOverridden?: boolean;
+    overrideReason?: string;
+    originalRackTotal?: number;
     channelName?: string;
     isManualBooking: boolean;
     roomId: string;
@@ -122,6 +125,17 @@ export interface Booking {
         id: string;
         roomId: string;
         bookingId: string;
+        adultsCount?: number;
+        childrenCount?: number;
+        infantsCount?: number;
+        extraAdultsCount?: number;
+        extraChildrenCount?: number;
+        freeChildrenCount?: number;
+        paidChildrenCount?: number;
+        basePricePerNight?: number;
+        extraAdultChargePerNight?: number;
+        extraChildChargePerNight?: number;
+        totalPricePerNight?: number;
         room: {
             id: string;
             roomNumber: string;
@@ -143,8 +157,8 @@ export interface Booking {
     paymentOption?: 'FULL' | 'PARTIAL' | 'PAY_AT_PROPERTY';
     createdBy?: string;
     createdAt: string;
-    isPriceOverridden?: boolean;
-    overrideReason?: string;
+    // isPriceOverridden?: boolean;
+    // overrideReason?: string;
     isHistoricalEntry?: boolean;
 }
 

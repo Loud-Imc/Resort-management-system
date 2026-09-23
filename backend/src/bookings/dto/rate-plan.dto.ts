@@ -122,11 +122,19 @@ export class UpdateRatePlanDto {
 export class BulkPricingRuleDto {
   @IsOptional()
   @IsString()
+  propertyId?: string;
+
+  @IsOptional()
+  @IsString()
   roomTypeId?: string;
 
   @IsOptional()
   @IsString()
   ratePlanId?: string;
+
+  @IsOptional()
+  @IsString()
+  channelId?: string; // e.g. "ALL", or specific OTA ID/name
 
   @IsString()
   @IsNotEmpty()
@@ -139,8 +147,9 @@ export class BulkPricingRuleDto {
   @IsOptional()
   daysOfWeek?: number[]; // [1,2,3,4] or [5,6,0]
 
+  @IsOptional()
   @IsNumber()
-  price: number;
+  price?: number;
 
   @IsOptional()
   @IsBoolean()
@@ -149,6 +158,93 @@ export class BulkPricingRuleDto {
   @IsOptional()
   @IsString()
   festivalName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  minStayArrival?: number;
+
+  @IsOptional()
+  @IsNumber()
+  minStayThrough?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxStay?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  stopSell?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  closedToArrival?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  closedToDeparture?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  allottedQuantity?: number;
+}
+
+export class ApplyRestrictionsDto {
+  @IsString()
+  @IsNotEmpty()
+  propertyId: string;
+
+  @IsOptional()
+  @IsString()
+  roomTypeId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  startDate: string;
+
+  @IsString()
+  @IsNotEmpty()
+  endDate: string;
+
+  @IsOptional()
+  @IsNumber()
+  minStayArrival?: number;
+
+  @IsOptional()
+  @IsNumber()
+  minStayThrough?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxStay?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  stopSell?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  closedToArrival?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  closedToDeparture?: boolean;
+}
+
+export class SetInventoryOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  propertyId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  roomTypeId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  date: string;
+
+  @IsNumber()
+  allocatedQuantity: number;
 }
 
 export class CreateCalendarEventMarkerDto {

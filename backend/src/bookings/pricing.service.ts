@@ -14,8 +14,10 @@ export interface PricingBreakdown {
     grossBaseAmount: number;
     extraAdultAmount: number;
     grossExtraAdultAmount: number;
+    extraAdultsCount?: number;
     extraChildAmount: number;
     grossExtraChildAmount: number;
+    extraChildrenCount?: number;
     taxAmount: number;
     offerDiscountAmount: number;
     grossOfferDiscountAmount: number;
@@ -162,11 +164,11 @@ export class PricingService {
             throw new BadRequestException('Property information missing for this room type');
         }
 
-        // Property.occupancyVersion is the authoritative RUNTIME ACTIVATION switch.
+        // Property.occupancyVersion or RoomType.occupancyVersion is the authoritative RUNTIME ACTIVATION switch.
         // RoomType.occupancyVersion represents configuration/readiness state.
-        const isV2 = (roomType.property as any)?.occupancyVersion === 'V2';
+        const isV2 = (roomType.property as any)?.occupancyVersion === 'V2' || (roomType as any)?.occupancyVersion === 'V2';
 
-        if (isV2) {
+        if (isV2 && (roomType.property as any)?.occupancyVersion === 'V2') {
             // Under a V2 Property, all RoomTypes must be V2-ready with non-null canonical fields
             if (
                 roomType.occupancyVersion !== 'V2' ||
@@ -363,13 +365,13 @@ export class PricingService {
                 extraChildAmount = extraChildren * effectiveExtraChildPrice * Math.max(1, numberOfNights);
             } else {
                 // V1 Legacy Pricing Path (Unchanged)
-                const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.maxAdults ?? 2) * rooms;
+                const effectiveBaseAdults = Number(roomType.baseAdults ?? roomType.totalBaseOccupancy ?? roomType.maxAdults ?? 2) * rooms;
                 extraAdults = extraAdultsCount !== undefined && extraAdultsCount !== null
                     ? Math.max(0, Number(extraAdultsCount))
                     : Math.max(0, adultsCount - effectiveBaseAdults);
                 extraAdultAmount = extraAdults * effectiveExtraAdultPrice * Math.max(1, numberOfNights);
 
-                const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.maxChildren ?? 1) * rooms;
+                const effectiveBaseChildren = Number(roomType.baseChildren ?? roomType.baseMaxChildren ?? roomType.maxChildren ?? 1) * rooms;
                 extraChildren = extraChildrenCount !== undefined && extraChildrenCount !== null
                     ? Math.max(0, Number(extraChildrenCount))
                     : Math.max(0, childrenCount - effectiveBaseChildren);
@@ -386,6 +388,8 @@ export class PricingService {
         if (pricingRule) {
             if (pricingRule.adjustmentType === 'PERCENTAGE') {
                 subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
+            } else if (pricingRule.adjustmentType === 'SET_FIXED_PRICE') {
+                subtotal = Number(pricingRule.adjustmentValue) + extraAdultAmount + extraChildAmount;
             } else {
                 subtotal += Number(pricingRule.adjustmentValue);
             }
@@ -545,8 +549,10 @@ export class PricingService {
                 : cleanFloat(baseAmount),
             extraAdultAmount: cleanFloat(extraAdultAmount),
             grossExtraAdultAmount: isGstInc && taxRate > 0 ? cleanFloat(extraAdultAmount * (1 + (taxRate / 100))) : cleanFloat(extraAdultAmount),
+            extraAdultsCount: extraAdults,
             extraChildAmount: cleanFloat(extraChildAmount),
             grossExtraChildAmount: isGstInc && taxRate > 0 ? cleanFloat(extraChildAmount * (1 + (taxRate / 100))) : cleanFloat(extraChildAmount),
+            extraChildrenCount: extraChildren,
             taxAmount: finalTaxAmount,
             taxRate,
             offerDiscountAmount: cleanFloat(offerDiscountAmount),
@@ -671,14 +677,14 @@ export class PricingService {
                 ...(ratePlanId ? { OR: [{ ratePlanId }, { ratePlanId: null }] } : {}),
             },
             orderBy: [
-                { isFestivalRule: 'desc' }, // Festival rules take highest priority
+                { isFestivalRule: 'desc' }, // Festival rules take high priority
                 { createdAt: 'desc' },
             ],
         });
 
         const dayOfWeek = checkInDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
-        return pricingRules.find(rule => {
+        const matchingRules = pricingRules.filter(rule => {
             const isOverlapping = DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, rule.startDate, rule.endDate);
             if (!isOverlapping) return false;
 
@@ -689,6 +695,32 @@ export class PricingService {
 
             return true;
         });
+
+        if (matchingRules.length === 0) return null;
+
+        // Sort matching rules by specificity:
+        // 1. RatePlan-specific rule over generic roomType rule
+        // 2. Exact single-day rule over range rule
+        // 3. Shorter date span over broad date span
+        // 4. Festival rule
+        // 5. Newest rule
+        matchingRules.sort((a, b) => {
+            if (ratePlanId) {
+                const aPlan = a.ratePlanId === ratePlanId ? 1 : 0;
+                const bPlan = b.ratePlanId === ratePlanId ? 1 : 0;
+                if (aPlan !== bPlan) return bPlan - aPlan;
+            }
+
+            const aDuration = Math.abs(new Date(a.endDate).getTime() - new Date(a.startDate).getTime());
+            const bDuration = Math.abs(new Date(b.endDate).getTime() - new Date(b.startDate).getTime());
+            if (aDuration !== bDuration) return aDuration - bDuration; // shorter duration wins
+
+            if (a.isFestivalRule !== b.isFestivalRule) return a.isFestivalRule ? -1 : 1;
+
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        return matchingRules[0];
     }
 
     /**
@@ -882,6 +914,14 @@ export class PricingService {
             gstTiers = await this.systemSettingsService.getSetting('GST_TIERS') as any[];
         }
 
+        // If a specific rate plan was requested, load it for its base price
+        let targetRatePlan: any = null;
+        if (ratePlanId) {
+            targetRatePlan = await this.prisma.ratePlan.findUnique({
+                where: { id: ratePlanId },
+            });
+        }
+
         const results: PublishedDailyRateQuote[] = [];
         const current = new Date(checkIn);
 
@@ -894,7 +934,7 @@ export class PricingService {
             const nextDate = new Date(current);
             nextDate.setDate(nextDate.getDate() + 1);
 
-            const originalBasePrice = Number(roomType.basePrice);
+            const originalBasePrice = targetRatePlan?.basePrice ? Number(targetRatePlan.basePrice) : Number(roomType.basePrice);
             let effectiveBasePrice = originalBasePrice;
             const isGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
             const gstMode: 'INCLUSIVE' | 'EXCLUSIVE' = isGstInclusive ? 'INCLUSIVE' : 'EXCLUSIVE';
@@ -905,7 +945,7 @@ export class PricingService {
                 effectiveBasePrice = normalized.baseAmount;
             }
 
-            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate);
+            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate, ratePlanId);
 
             let subtotal = effectiveBasePrice;
             let appliedPricingRule: { id: string; name: string; adjustmentType: string; adjustmentValue: number } | undefined = undefined;
@@ -913,6 +953,8 @@ export class PricingService {
             if (pricingRule) {
                 if (pricingRule.adjustmentType === 'PERCENTAGE') {
                     subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
+                } else if (pricingRule.adjustmentType === 'SET_FIXED_PRICE') {
+                    subtotal = Number(pricingRule.adjustmentValue);
                 } else {
                     subtotal += Number(pricingRule.adjustmentValue);
                 }

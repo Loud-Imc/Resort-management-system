@@ -1478,7 +1478,7 @@ export class AvailabilityService {
         });
 
         const allSuitableTypeIds = suitableTypes.map(rt => rt.id);
-        const { availableCountMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate, undefined, roomIds);
+        const { availableCountMap, availableRoomsMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate, undefined, roomIds);
 
         // Preload global GST tiers, offers, and pricing rules once in parallel
         const [globalGstTiers, allOffers, allPricingRules] = await Promise.all([
@@ -1541,6 +1541,13 @@ export class AvailabilityService {
                 const propertySolutions = solutions.map((sol, idx) => {
                     const enrichedRooms = sol.rooms.map(r => {
                         const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
+                        const freeRooms = (availableRoomsMap.get(r.roomTypeId) || []).map((fr: any) => ({
+                            id: fr.id,
+                            roomNumber: fr.roomNumber,
+                            name: fr.name || (rt as any)?.name || 'Standard',
+                            status: fr.status,
+                            isEnabled: fr.isEnabled,
+                        }));
                         return {
                             roomTypeId: r.roomTypeId,
                             roomTypeName: r.roomTypeName,
@@ -1558,6 +1565,7 @@ export class AvailabilityService {
                             extraChildChargePerNight: r.extraChildChargePerNight,
                             totalPricePerNight: r.totalPricePerNight,
                             availableQuantity: availableCountMap.get(r.roomTypeId) || 0,
+                            availableRooms: freeRooms,
                             maxPhysicalAdults: r.maxPhysicalAdults,
                             maxPhysicalChildren: r.maxPhysicalChildren,
                             maxPhysicalInfants: r.maxPhysicalInfants,
@@ -1587,6 +1595,18 @@ export class AvailabilityService {
                     const effectiveTaxRate = (isPropertyGstApplicable && totalAmountBeforeTax > 0)
                         ? Math.round((taxAmount / totalAmountBeforeTax) * 100)
                         : 0;
+
+                    const solutionAvailableRoomsByRoomType: Record<string, any[]> = {};
+                    for (const r of sol.rooms) {
+                        if (!solutionAvailableRoomsByRoomType[r.roomTypeId]) {
+                            solutionAvailableRoomsByRoomType[r.roomTypeId] = (availableRoomsMap.get(r.roomTypeId) || []).map((fr: any) => ({
+                                id: fr.id,
+                                roomNumber: fr.roomNumber,
+                                name: fr.name || 'Standard',
+                                status: fr.status,
+                            }));
+                        }
+                    }
 
                     return {
                         id: `${property.id}_sol_${idx}`,
@@ -1620,6 +1640,7 @@ export class AvailabilityService {
                             currency: currency || 'INR',
                         },
                         rooms: enrichedRooms,
+                        availableRoomsByRoomType: solutionAvailableRoomsByRoomType,
                     };
                 });
                 propSolutions.push(...propertySolutions);

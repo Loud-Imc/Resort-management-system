@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger, forwardRef, Inject, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger, forwardRef, Inject, Optional, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from './availability.service';
 import { PricingService } from './pricing.service';
@@ -457,32 +457,37 @@ export class BookingsService {
 
         if (user && user.id) {
             const roles = user.roles || [];
-            if (roles.includes('SuperAdmin') || roles.includes('Admin')) {
+            const staffRoleList = ['SuperAdmin', 'Admin', 'PropertyOwner', 'PropertyStaff', 'staff', 'manager', 'receptionist', 'marketing'];
+            const hasStaffRole = roles.some((r: string) =>
+                staffRoleList.some(role => r.toLowerCase().includes(role.toLowerCase()))
+            ) || ['SuperAdmin', 'Admin', 'PropertyOwner', 'PropertyStaff'].includes(user.role);
+
+            if (hasStaffRole) {
                 isAuthorizedStaff = true;
             } else {
                 // Resolve the property to check if the user is owner or staff
-                let propertyForAuth: { ownerId: string; staff: { userId: string }[] } | null = null;
+                const targetPropId = (createBookingDto as any).propertyId || (roomTypeId ? (await this.prisma.roomType.findUnique({
+                    where: { id: roomTypeId },
+                    select: { propertyId: true }
+                }))?.propertyId : undefined);
 
-                if (isGroupBooking && (createBookingDto as any).propertyId) {
-                    // Group booking — look up property directly
-                    propertyForAuth = await this.prisma.property.findUnique({
-                        where: { id: (createBookingDto as any).propertyId },
-                        select: { ownerId: true, staff: { select: { userId: true } } }
-                    });
-                } else if (roomTypeId) {
-                    // Standard booking — look up property via room type
-                    const roomType = await this.prisma.roomType.findUnique({
-                        where: { id: roomTypeId },
-                        select: { property: { select: { ownerId: true, staff: { select: { userId: true } } } } }
-                    });
-                    propertyForAuth = roomType?.property ?? null;
-                }
-
-                if (propertyForAuth) {
-                    const isOwner = propertyForAuth.ownerId === user.id;
-                    const isStaff = propertyForAuth.staff.some(s => s.userId === user.id);
-                    if (isOwner || isStaff) {
+                if (targetPropId) {
+                    const hasOwned = (user as any).ownedProperties?.some((p: any) => p.id === targetPropId);
+                    const hasStaff = (user as any).propertyStaff?.some((ps: any) => ps.propertyId === targetPropId);
+                    if (hasOwned || hasStaff) {
                         isAuthorizedStaff = true;
+                    } else {
+                        const propertyForAuth = await this.prisma.property.findUnique({
+                            where: { id: targetPropId },
+                            select: { ownerId: true, staff: { select: { userId: true } } }
+                        });
+                        if (propertyForAuth) {
+                            const isOwner = propertyForAuth.ownerId === user.id;
+                            const isStaff = propertyForAuth.staff.some(s => s.userId === user.id);
+                            if (isOwner || isStaff) {
+                                isAuthorizedStaff = true;
+                            }
+                        }
                     }
                 }
             }
@@ -695,8 +700,8 @@ export class BookingsService {
                         generalCode,
                         overrideTotal,
                         createBookingDto.isOverrideInclusive ?? true,
-                        createBookingDto.extraAdultsCount,
-                        createBookingDto.extraChildrenCount,
+                        createBookingDto.extraAdultsCount ?? alloc.extraAdults,
+                        createBookingDto.extraChildrenCount ?? alloc.extraChildren,
                         alloc.infants || 0,
                         alloc.childAges,
                     );
@@ -864,6 +869,55 @@ export class BookingsService {
                         appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
                         referralPartnerId: effectiveReferralPartnerId,
                     };
+
+                    if (overrideTotal !== undefined && overrideTotal !== null) {
+                        const totalRooms = createBookingDto.roomAllocations.length;
+                        const numberOfNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                        const isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
+                        let overrideBreakdown: any;
+                        if (createBookingDto.isOverrideInclusive ?? true) {
+                            overrideBreakdown = await this.pricingService.calculateReverseGST(
+                                overrideTotal,
+                                numberOfNights,
+                                totalRooms,
+                                undefined,
+                                isPropertyGstApplicable
+                            );
+                        } else {
+                            overrideBreakdown = await this.pricingService.calculateExclusiveGST(
+                                overrideTotal,
+                                numberOfNights,
+                                totalRooms,
+                                undefined,
+                                isPropertyGstApplicable
+                            );
+                        }
+                        pricing.baseAmount = overrideBreakdown.baseAmount;
+                        pricing.grossBaseAmount = (createBookingDto.isOverrideInclusive ?? true) ? overrideTotal : overrideBreakdown.baseAmount;
+                        pricing.taxAmount = overrideBreakdown.taxAmount;
+                        pricing.taxRate = overrideBreakdown.taxRate;
+                        pricing.totalAmount = pricing.baseAmount + pricing.taxAmount;
+                        pricing.convertedTotal = pricing.totalAmount;
+                        pricing.extraAdultAmount = 0;
+                        pricing.extraChildAmount = 0;
+                        pricing.offerDiscountAmount = 0;
+                        pricing.couponDiscountAmount = 0;
+                        pricing.referralDiscountAmount = 0;
+                        pricing.discountAmount = 0;
+
+                        const perRoomBase = Number((pricing.baseAmount / totalRooms).toFixed(2));
+                        const perRoomTax = Number((pricing.taxAmount / totalRooms).toFixed(2));
+                        const perRoomTotal = Number((pricing.totalAmount / totalRooms).toFixed(2));
+                        allocationPricingList = allocationPricingList.map((ap: any) => ({
+                            ...ap,
+                            baseAmount: perRoomBase,
+                            taxAmount: perRoomTax,
+                            taxRate: overrideBreakdown.taxRate,
+                            discountAmount: 0,
+                            totalAmount: perRoomTotal,
+                            pricePerNight: Number((perRoomTotal / numberOfNights).toFixed(2)),
+                        }));
+                    }
                 }
             } else {
                 pricing = await this.pricingService.calculatePrice(
@@ -1484,8 +1538,12 @@ export class BookingsService {
                     childrenCount,
                     childAges: createBookingDto.childAges || [],
                     infantsCount: createBookingDto.infantsCount || 0,
-                    extraAdultsCount: createBookingDto.extraAdultsCount || 0,
-                    extraChildrenCount: createBookingDto.extraChildrenCount || 0,
+                    extraAdultsCount: (createBookingDto.extraAdultsCount !== undefined && createBookingDto.extraAdultsCount !== null)
+                        ? createBookingDto.extraAdultsCount
+                        : (createBookingDto.roomAllocations?.reduce((sum, a) => sum + (a.extraAdults || 0), 0) ?? (pricing.extraAdultsCount || 0)),
+                    extraChildrenCount: (createBookingDto.extraChildrenCount !== undefined && createBookingDto.extraChildrenCount !== null)
+                        ? createBookingDto.extraChildrenCount
+                        : (createBookingDto.roomAllocations?.reduce((sum, a) => sum + (a.extraChildren || 0), 0) ?? (pricing.extraChildrenCount || 0)),
                     baseAmount: pricing.baseAmount,
                     extraAdultAmount: pricing.extraAdultAmount,
                     extraChildAmount: pricing.extraChildAmount,
@@ -1668,9 +1726,7 @@ export class BookingsService {
 
             // 7.6 Finalize details (Income, Payments, CP Rewards)
             if (isManualBooking || createBookingDto.paymentMethod === 'WALLET') {
-                const finalPaidAmount = (isManualBooking || createBookingDto.paymentMethod === 'WALLET')
-                    ? (paidAmountInput !== undefined ? Number(paidAmountInput) : (createBookingDto.paymentOption === 'PARTIAL' ? 0 : finalTotal))
-                    : 0;
+                const finalPaidAmount = calculatedPaidAmount;
 
                 // CP Rewards processing (MOVED TO CHECK-IN STAGE)
                 if (channelPartnerId) {
@@ -1796,11 +1852,20 @@ export class BookingsService {
             }
 
             return newBooking;
+        }, {
+            maxWait: 10000,
+            timeout: 30000,
         });
 
-        // 8. Broadcast notifications (Outside transaction)
+        if (!booking || !booking.id) {
+            throw new InternalServerErrorException('Booking transaction failed: record was not created in the database.');
+        }
+
+        // 8. Broadcast notifications asynchronously in the background so response returns instantly
         if (['CONFIRMED', 'RESERVED'].includes(booking.status)) {
-            await this.notificationsService.broadcastNewBooking(booking);
+            this.notificationsService.broadcastNewBooking(booking).catch(err => {
+                console.error(`[BookingsService] Background broadcastNewBooking failed for ${booking.bookingNumber}:`, err);
+            });
         }
 
         // Always trigger Channex ARI push whenever any booking is created across any channel (OTA, PMS, CP)
@@ -1861,7 +1926,7 @@ export class BookingsService {
         // Apply visibility restrictions
         if (!isGlobalAdmin) {
             const visibilityOR: any[] = [
-                { userId: user.id } // Always see personal bookings
+                { userId: user.id }, // Always see personal bookings
             ];
 
             // Add Property Owners/Staff visibility

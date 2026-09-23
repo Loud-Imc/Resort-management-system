@@ -361,7 +361,9 @@ export class PdfService {
                     const totalRoomsCount = booking.roomsCount || booking.bookingRooms?.length || 1;
                     const isMulti = Boolean(booking.isGroupBooking || totalRoomsCount > 1);
 
-                    const isAcType = (rt: any) => {
+                    const isAcType = (rt: any, rp?: any) => {
+                      if (rp?.acType === 'AC') return true;
+                      if (rp?.acType === 'NON_AC') return false;
                       if (!rt) return false;
                       const amenities = Array.isArray(rt.amenities) ? rt.amenities : [];
                       return /a\/c|\bac\b|air\s*conditioning/i.test(rt.name || '') || amenities.some((a: string) =>
@@ -369,12 +371,21 @@ export class PdfService {
                       );
                     };
 
+                    const bookingMealPlan = (booking as any).ratePlan?.mealPlan || (booking as any).mealPlan || 'EP';
+                    const mealPlanDesc = bookingMealPlan === 'CP'
+                      ? 'CP (With Breakfast)'
+                      : bookingMealPlan === 'MAP'
+                      ? 'MAP (Half Board)'
+                      : bookingMealPlan === 'AP'
+                      ? 'AP (Full Board)'
+                      : 'EP (Room Only)';
+
                     let assignedRoomsText = '';
                     if (booking.bookingRooms && booking.bookingRooms.length > 0) {
                       const formattedRooms = booking.bookingRooms.map((br: any) => {
                         const roomNum = br.room?.roomNumber || br.room?.roomType?.name || 'Room';
                         const rt = br.room?.roomType || br.roomType || roomType;
-                        const acTag = isAcType(rt) ? 'A/C' : 'Non-A/C';
+                        const acTag = isAcType(rt, (booking as any).ratePlan) ? 'A/C' : 'Non-A/C';
                         return `${roomNum} (${acTag})`;
                       }).filter(Boolean);
                       assignedRoomsText = formattedRooms.join(', ');
@@ -387,6 +398,7 @@ export class PdfService {
 
                       return [
                         { text: titleText, style: 'roomName' },
+                        { text: `Meal Plan: ${mealPlanDesc}`, style: 'guestCount', margin: [0, 1, 0, 2] },
                         { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount', margin: [0, 2, 0, 2] },
                         { text: `${totalRoomsCount} ${totalRoomsCount === 1 ? 'Room' : 'Rooms'}`, style: 'guestCount' },
                         ...(assignedRoomsText ? [
@@ -397,6 +409,7 @@ export class PdfService {
                     } else {
                       return [
                         { text: roomType?.name ? `${roomType.name} (${acLabel})` : `Room (${acLabel})`, style: 'roomName' },
+                        { text: `Meal Plan: ${mealPlanDesc}`, style: 'guestCount', margin: [0, 1, 0, 2] },
                         { text: `Category: ${hasAc ? 'A/C Accommodation' : 'Non-A/C Accommodation'}`, style: 'guestCount', margin: [0, 1, 0, 2] },
                         { text: `${totalRoomsCount} Room`, style: 'guestCount' },
                         { text: `${booking.adultsCount || 0} Adults, ${booking.childrenCount || 0} Children`, style: 'guestCount' },

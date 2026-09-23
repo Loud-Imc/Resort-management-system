@@ -32,12 +32,15 @@ export function useNavigation() {
         refetchInterval: 60000,
     });
 
+    const isOwnerOrAdmin = user?.roles?.some(r => ['SuperAdmin', 'PropertyOwner', 'Admin'].includes(r)) ||
+                           ['SuperAdmin', 'PropertyOwner', 'Admin'].includes(user?.role as string);
+
     const hasPermission = (permission: string) => {
-        return user?.permissions?.includes(permission) || user?.roles?.includes('SuperAdmin');
+        return isOwnerOrAdmin || user?.permissions?.includes(permission);
     };
 
     const navItems = [
-        ...(hasPermission('reports.viewDashboard') ? [
+        ...(hasPermission('reports.viewDashboard') || isOwnerOrAdmin ? [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/' }
         ] : []),
 
@@ -110,7 +113,8 @@ export function useNavigation() {
             ] : []),
         ] : []),
 
-        ...(hasPermission('properties.read') ? [
+        // Always show My Property even if agreement or registration is pending approval
+        ...(hasPermission('properties.read') || isOwnerOrAdmin || !!selectedProperty ? [
             { icon: Building2, label: 'My Property', path: '/my-property' },
         ] : []),
     ];

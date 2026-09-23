@@ -48,14 +48,68 @@ export interface CreateRatePlanDto {
 }
 
 export interface BulkPricingRuleDto {
-  roomTypeId: string;
+  propertyId?: string;
+  roomTypeId?: string;
   ratePlanId?: string;
+  channelId?: string;
   startDate: string;
   endDate: string;
   daysOfWeek?: number[]; // [1,2,3,4] for Mon-Thu, [5,6,0] for Fri-Sun
-  price: number;
+  price?: number;
   isFestivalRule?: boolean;
   festivalName?: string;
+  minStayArrival?: number;
+  minStayThrough?: number;
+  maxStay?: number;
+  stopSell?: boolean;
+  closedToArrival?: boolean;
+  closedToDeparture?: boolean;
+  allottedQuantity?: number;
+}
+
+export interface ApplyRestrictionsDto {
+  propertyId: string;
+  roomTypeId?: string;
+  startDate: string;
+  endDate: string;
+  minStayArrival?: number;
+  minStayThrough?: number;
+  maxStay?: number;
+  stopSell?: boolean;
+  closedToArrival?: boolean;
+  closedToDeparture?: boolean;
+}
+
+export interface SetInventoryOverrideDto {
+  propertyId: string;
+  roomTypeId: string;
+  date: string;
+  allocatedQuantity: number;
+}
+
+export interface DailyInventoryData {
+  totalRooms: number;
+  bookedCount: number;
+  availableCount: number;
+  manualOverride?: number;
+  isStopSell: boolean;
+}
+
+export interface DailyRestrictionData {
+  minStayArrival?: number | null;
+  minStayThrough?: number | null;
+  maxStay?: number | null;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  stopSell: boolean;
+}
+
+export interface PropertyMatrixData {
+  roomTypes: any[];
+  ratePlans: RatePlan[];
+  inventory: Record<string, Record<string, DailyInventoryData>>;
+  restrictions: Record<string, Record<string, DailyRestrictionData>>;
+  eventMarkers: CalendarEventMarker[];
 }
 
 export interface CalendarEventMarker {
@@ -68,6 +122,17 @@ export interface CalendarEventMarker {
 }
 
 export const ratePlansService = {
+  getPropertyRateMatrix: async (
+    propertyId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<PropertyMatrixData> => {
+    const res = await api.get(`/rate-plans/matrix/${propertyId}`, {
+      params: { startDate, endDate },
+    });
+    return res.data;
+  },
+
   getRatePlansForRoomType: async (roomTypeId: string): Promise<RatePlan[]> => {
     const res = await api.get(`/rate-plans/room-type/${roomTypeId}`);
     return res.data;
@@ -95,6 +160,16 @@ export const ratePlansService = {
 
   applyBulkPricingRule: async (dto: BulkPricingRuleDto) => {
     const res = await api.post('/rate-plans/bulk-rule', dto);
+    return res.data;
+  },
+
+  applyRestrictions: async (dto: ApplyRestrictionsDto) => {
+    const res = await api.post('/rate-plans/restrictions', dto);
+    return res.data;
+  },
+
+  setInventoryOverride: async (dto: SetInventoryOverrideDto) => {
+    const res = await api.post('/rate-plans/inventory-override', dto);
     return res.data;
   },
 

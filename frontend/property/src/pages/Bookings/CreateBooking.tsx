@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
@@ -25,6 +25,7 @@ import RoomAssignmentSection from '../../components/bookings/RoomAssignmentSecti
 import BookingSummarySidebar from '../../components/bookings/BookingSummarySidebar';
 import CustomAccommodationModal from '../../components/bookings/CustomAccommodationModal';
 import CreateBookingCalendarModal from '../../components/bookings/CreateBookingCalendarModal';
+import BookingSuccessModal from '../../components/bookings/BookingSuccessModal';
 import type { PriceCalculationResult, CreateBookingDto } from '../../types/booking';
 import type { RoomType } from '../../types/room';
 import { useProperty } from '../../context/PropertyContext';
@@ -121,6 +122,7 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 
 export default function CreateBooking() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
     const location = useLocation();
     const state = location.state as { 
@@ -149,6 +151,8 @@ export default function CreateBooking() {
     const [showCalendarModal, setShowCalendarModal] = useState(false);
     const [showInsufficientModal, setShowInsufficientModal] = useState(false);
     const [showMobileSummarySheet, setShowMobileSummarySheet] = useState(false);
+    const [createdBookingData, setCreatedBookingData] = useState<any | null>(null);
+    const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
     const [childAges, setChildAges] = useState<number[]>([]);
     const [infantsCount, setInfantsCount] = useState<number>(0);
 
@@ -1111,9 +1115,21 @@ export default function CreateBooking() {
 
     const createBookingMutation = useMutation({
         mutationFn: bookingsService.create,
-        onSuccess: () => {
+        onSuccess: (data: any) => {
+            // Guard: Never display success modal if booking was not confirmed in the database
+            if (!data || !data.id || !data.bookingNumber) {
+                console.error('[CreateBooking] Server returned unconfirmed or empty booking record:', data);
+                setErrorModal({
+                    isOpen: true,
+                    title: 'Booking Creation Unconfirmed',
+                    errors: ['The server did not return a confirmed booking record. The booking might not have been created in the database. Please check your bookings list.']
+                });
+                return;
+            }
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
             toast.success('Booking created successfully');
-            navigate('/bookings');
+            setCreatedBookingData(data);
+            setShowSuccessModal(true);
         },
         onError: (error: any) => {
             setErrorModal({
@@ -1173,10 +1189,35 @@ export default function CreateBooking() {
 
         const totalGroupSize = data.isGroupBooking ? (Number(data.adultsCount) + Number(data.childrenCount || 0)) : undefined;
 
+        // Ensure price override is respected even if user typed amount without clicking "Apply Override"
+        const effectiveOverride = data.overrideTotal !== undefined && data.overrideTotal !== null && Number(data.overrideTotal) > 0
+            ? Number(data.overrideTotal)
+            : (overrideInputAmount && Number(overrideInputAmount) > 0 ? Number(overrideInputAmount) : undefined);
+        const effectiveOverrideReason = data.overrideReason || (effectiveOverride ? overrideInputReason : undefined);
+
+        const effectiveTotal = effectiveOverride !== undefined ? effectiveOverride : priceDetails?.totalAmount;
+
+        const effectivePaidAmount = data.isHistoricalEntry
+            ? effectiveTotal
+            : (data.isManualBooking
+                ? (paymentOption === 'FULL'
+                    ? effectiveTotal
+                    : (data.paidAmount !== undefined && data.paidAmount !== null ? Number(data.paidAmount) : 0))
+                : undefined);
+
+        const calculatedExtraAdults = (roomAllocationsPayload && roomAllocationsPayload.length > 0)
+            ? roomAllocationsPayload.reduce((sum: number, a: any) => sum + (a.extraAdults || 0), 0)
+            : (Number(data.extraAdultsCount) || 0);
+        const calculatedExtraChildren = (roomAllocationsPayload && roomAllocationsPayload.length > 0)
+            ? roomAllocationsPayload.reduce((sum: number, a: any) => sum + (a.extraChildren || 0), 0)
+            : (Number(data.extraChildrenCount) || 0);
+
         const sanitizedData = {
             ...rest,
             propertyId: selectedProperty?.id || propertyId,
             roomAllocations: roomAllocationsPayload,
+            extraAdultsCount: calculatedExtraAdults,
+            extraChildrenCount: calculatedExtraChildren,
             childAges: (!data.isGroupBooking && childAges.length > 0) ? childAges : undefined,
             infants: (!data.isGroupBooking && infantsCount > 0) ? infantsCount : undefined,
             roomsCount: data.isGroupBooking ? undefined : (Math.max(1, Number(data.roomsCount) || (allocatedRooms.length) || (data.selectedRoomIds?.length) || 1)),
@@ -1191,16 +1232,12 @@ export default function CreateBooking() {
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
             selectedRoomIds: data.selectedRoomIds || undefined,
-            overrideTotal: data.overrideTotal ? Number(data.overrideTotal) : undefined,
+            isManualBooking: true,
+            overrideTotal: effectiveOverride,
+            overrideReason: effectiveOverrideReason,
             isOverrideInclusive: data.isOverrideInclusive,
             paymentMethod: data.isManualBooking ? data.paymentMethod : 'ONLINE',
-            paidAmount: data.isHistoricalEntry
-                ? (data.overrideTotal || priceDetails?.totalAmount)
-                : (data.isManualBooking
-                    ? (paymentOption === 'FULL'
-                        ? (data.overrideTotal || priceDetails?.totalAmount)
-                        : (data.paidAmount || 0))
-                    : undefined),
+            paidAmount: effectivePaidAmount,
             paymentOption: data.isHistoricalEntry ? 'FULL' : paymentOption,
             offlineCpId: isOfflineCpBooking && selectedOfflineCpId !== 'NEW' ? selectedOfflineCpId : undefined,
             offlineCpCommission: isOfflineCpBooking ? offlineCpCommission : undefined,
@@ -2078,115 +2115,10 @@ export default function CreateBooking() {
                                 )}
 
 
-                                {/* ── SECTION 4: OFFLINE CHANNEL PARTNER / AGENT REFERRAL ── */}
-                                <div className="bg-card p-5 sm:p-7 rounded-2xl shadow-sm border border-border space-y-4">
-                                    <div className="flex items-center justify-between pb-3 border-b border-border">
-                                        <div className="flex items-center gap-2">
-                                            <Briefcase className="h-5 w-5 text-primary" />
-                                            <div>
-                                                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">
-                                                    4. Offline Channel Partner / Agent Referral (Optional)
-                                                </h3>
-                                                <p className="text-xs text-muted-foreground">Attach an offline travel agent or partner referral to this reservation.</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                id="enable-offline-cp"
-                                                checked={isOfflineCpBooking}
-                                                onChange={(e) => {
-                                                    const checked = e.target.checked;
-                                                    setIsOfflineCpBooking(checked);
-                                                    if (!checked) {
-                                                        setSelectedOfflineCpId('NEW');
-                                                        setNewOfflineCpName('');
-                                                        setNewOfflineCpPhone('');
-                                                        setOfflineCpCommission(0);
-                                                    }
-                                                }}
-                                                className="h-4 w-4 rounded border-input text-primary cursor-pointer"
-                                            />
-                                            <label htmlFor="enable-offline-cp" className="text-xs font-bold text-foreground cursor-pointer select-none">
-                                                Enable Referral
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {isOfflineCpBooking && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1 animate-in fade-in duration-200">
-                                            <div>
-                                                <label className="block text-xs font-bold text-muted-foreground mb-1">Select Channel Partner</label>
-                                                <select
-                                                    value={selectedOfflineCpId}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setSelectedOfflineCpId(val);
-                                                        if (val !== 'NEW') {
-                                                            const cp = offlineCps?.find(c => c.id === val);
-                                                            if (cp) setOfflineCpCommission(Number(cp.defaultCommission) || 0);
-                                                        } else {
-                                                            setNewOfflineCpName('');
-                                                            setNewOfflineCpPhone('');
-                                                            setOfflineCpCommission(0);
-                                                        }
-                                                    }}
-                                                    className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
-                                                >
-                                                    <option value="NEW">+ Add New Offline Partner</option>
-                                                    {offlineCps?.map((cp) => (
-                                                        <option key={cp.id} value={cp.id}>
-                                                            {cp.name} ({cp.phone || 'No phone'})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-
-                                            {selectedOfflineCpId === 'NEW' && (
-                                                <>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-muted-foreground mb-1">Agent / Partner Name *</label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="e.g. Sunrise Holidays"
-                                                            value={newOfflineCpName}
-                                                            onChange={(e) => setNewOfflineCpName(e.target.value)}
-                                                            className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-muted-foreground mb-1">Agent Phone</label>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="+91..."
-                                                            value={newOfflineCpPhone}
-                                                            onChange={(e) => setNewOfflineCpPhone(e.target.value)}
-                                                            className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
-                                                        />
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-muted-foreground mb-1">Commission (₹)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={offlineCpCommission || ''}
-                                                    onChange={(e) => setOfflineCpCommission(Math.max(0, parseFloat(e.target.value) || 0))}
-                                                    className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-
-                                {/* ── SECTION 5: GUEST INFORMATION ── */}
+                                {/* ── SECTION 4: GUEST & BOOKER INFORMATION ── */}
                                 <div className="bg-card p-5 sm:p-7 rounded-2xl shadow-sm border border-border space-y-5">
                                     <h2 className="text-base font-black flex items-center gap-2 text-foreground pb-3 border-b border-border uppercase tracking-wider">
-                                        <Users className="h-5 w-5 text-primary" /> 5. Guest & Booker Information
+                                        <Users className="h-5 w-5 text-primary" /> 4. Guest & Booker Information
                                     </h2>
 
                                     {/* Primary Contact Details */}
@@ -2423,59 +2355,14 @@ export default function CreateBooking() {
                                 </div>
 
 
-                                {/* ── SECTION 6: PAYMENT & ADDITIONAL DETAILS ── */}
+                                {/* ── SECTION 5: PAYMENT & ADDITIONAL DETAILS ── */}
                                 <div className="bg-card p-5 sm:p-7 rounded-2xl shadow-sm border border-border space-y-5">
                                     <h2 className="text-base font-black flex items-center gap-2 text-foreground pb-3 border-b border-border uppercase tracking-wider">
-                                        <CheckCircle className="h-5 w-5 text-emerald-500" /> 6. Payment & Additional Details
+                                        <CheckCircle className="h-5 w-5 text-emerald-500" /> 5. Payment & Additional Details
                                     </h2>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-                                                Payment Option / Status
-                                            </label>
-                                            <select 
-                                                {...register('paymentOption')} 
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-4 text-xs font-bold cursor-pointer"
-                                            >
-                                                <option value="FULL">Collect Full Payment</option>
-                                                <option value="PARTIAL">Collect Partial / Deposit</option>
-                                            </select>
-                                        </div>
-
-                                        {watch('paymentOption') === 'PARTIAL' && (
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-blue-500 mb-1.5">
-                                                    Deposit Amount Paid (₹)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    {...register('paidAmount', { valueAsNumber: true })}
-                                                    className="w-full border border-input bg-background rounded-xl shadow-xs h-11 px-4 font-black text-sm"
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
-                                        )}
-
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-                                                Payment Method
-                                            </label>
-                                            <select 
-                                                {...register('paymentMethod')} 
-                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-4 text-xs font-bold cursor-pointer"
-                                            >
-                                                <option value="CASH">Cash</option>
-                                                <option value="UPI">UPI / QR Code</option>
-                                                <option value="CARD">Debit / Credit Card</option>
-                                                <option value="WALLET">Channel Partner Wallet</option>
-                                                <option value="ONLINE">Online Payment Link</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Progressive Disclosure: Price Override Accordion */}
-                                    <div className="pt-2 border-t border-border">
+                                    {/* Progressive Disclosure: Custom Price Override (Flipped to Top) */}
+                                    <div>
                                         <button
                                             type="button"
                                             onClick={() => setShowPriceOverride(prev => !prev)}
@@ -2489,7 +2376,7 @@ export default function CreateBooking() {
                                         </button>
 
                                         {showPriceOverride && (
-                                            <div className="pt-3 space-y-3 animate-in fade-in duration-200 p-4 bg-muted/30 rounded-xl border border-border">
+                                            <div className="pt-3 space-y-3 animate-in fade-in duration-200 p-4 bg-muted/30 rounded-xl border border-border mt-1">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     <div>
                                                         <label className="block text-xs font-bold text-muted-foreground mb-1">Override Amount (₹)</label>
@@ -2565,6 +2452,52 @@ export default function CreateBooking() {
                                         )}
                                     </div>
 
+                                    {/* Payment Option / Status & Method (Below Custom Price Override) */}
+                                    <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                                                Payment Option / Status
+                                            </label>
+                                            <select 
+                                                {...register('paymentOption')} 
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-4 text-xs font-bold cursor-pointer"
+                                            >
+                                                <option value="FULL">Collect Full Payment</option>
+                                                <option value="PARTIAL">Collect Partial / Deposit</option>
+                                            </select>
+                                        </div>
+
+                                        {watch('paymentOption') === 'PARTIAL' && (
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-blue-500 mb-1.5">
+                                                    Deposit Amount Paid (₹)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    {...register('paidAmount', { valueAsNumber: true })}
+                                                    className="w-full border border-input bg-background rounded-xl shadow-xs h-11 px-4 font-black text-sm"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                                                Payment Method
+                                            </label>
+                                            <select 
+                                                {...register('paymentMethod')} 
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-4 text-xs font-bold cursor-pointer"
+                                            >
+                                                <option value="CASH">Cash</option>
+                                                <option value="UPI">UPI / QR Code</option>
+                                                <option value="CARD">Debit / Credit Card</option>
+                                                <option value="WALLET">Channel Partner Wallet</option>
+                                                <option value="ONLINE">Online Payment Link</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     {/* Progressive Disclosure: Special Requests & Notes Accordion */}
                                     <div className="pt-2 border-t border-border">
                                         <button
@@ -2590,6 +2523,110 @@ export default function CreateBooking() {
                                             </div>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* ── SECTION 6: OFFLINE CHANNEL PARTNER / AGENT REFERRAL (OPTIONAL) ── */}
+                                <div className="bg-card p-5 sm:p-7 rounded-2xl shadow-sm border border-border space-y-4">
+                                    <div className="flex items-center justify-between pb-3 border-b border-border">
+                                        <div className="flex items-center gap-2">
+                                            <Briefcase className="h-5 w-5 text-primary" />
+                                            <div>
+                                                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">
+                                                    6. Offline Channel Partner / Agent Referral (Optional)
+                                                </h3>
+                                                <p className="text-xs text-muted-foreground">Attach an offline travel agent or partner referral to this reservation.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="enable-offline-cp"
+                                                checked={isOfflineCpBooking}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setIsOfflineCpBooking(checked);
+                                                    if (!checked) {
+                                                        setSelectedOfflineCpId('NEW');
+                                                        setNewOfflineCpName('');
+                                                        setNewOfflineCpPhone('');
+                                                        setOfflineCpCommission(0);
+                                                    }
+                                                }}
+                                                className="h-4 w-4 rounded border-input text-primary cursor-pointer"
+                                            />
+                                            <label htmlFor="enable-offline-cp" className="text-xs font-bold text-foreground cursor-pointer select-none">
+                                                Enable Referral
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {isOfflineCpBooking && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1 animate-in fade-in duration-200">
+                                            <div>
+                                                <label className="block text-xs font-bold text-muted-foreground mb-1">Select Channel Partner</label>
+                                                <select
+                                                    value={selectedOfflineCpId}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setSelectedOfflineCpId(val);
+                                                        if (val !== 'NEW') {
+                                                            const cp = offlineCps?.find(c => c.id === val);
+                                                            if (cp) setOfflineCpCommission(Number(cp.defaultCommission) || 0);
+                                                        } else {
+                                                            setNewOfflineCpName('');
+                                                            setNewOfflineCpPhone('');
+                                                            setOfflineCpCommission(0);
+                                                        }
+                                                    }}
+                                                    className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
+                                                >
+                                                    <option value="NEW">+ Add New Offline Partner</option>
+                                                    {offlineCps?.map((cp) => (
+                                                        <option key={cp.id} value={cp.id}>
+                                                            {cp.name} ({cp.phone || 'No phone'})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {selectedOfflineCpId === 'NEW' && (
+                                                <>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-muted-foreground mb-1">Agent / Partner Name *</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="e.g. Sunrise Holidays"
+                                                            value={newOfflineCpName}
+                                                            onChange={(e) => setNewOfflineCpName(e.target.value)}
+                                                            className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-muted-foreground mb-1">Agent Phone</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="+91..."
+                                                            value={newOfflineCpPhone}
+                                                            onChange={(e) => setNewOfflineCpPhone(e.target.value)}
+                                                            className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-muted-foreground mb-1">Commission (₹)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={offlineCpCommission || ''}
+                                                    onChange={(e) => setOfflineCpCommission(Math.max(0, parseFloat(e.target.value) || 0))}
+                                                    className="w-full border border-input bg-background rounded-xl h-11 px-3 text-xs font-bold"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -2842,6 +2879,20 @@ export default function CreateBooking() {
                 onApplyDates={(checkIn, checkOut) => {
                     setValue('checkInDate', checkIn, { shouldValidate: true });
                     setValue('checkOutDate', checkOut, { shouldValidate: true });
+                }}
+            />
+
+            {/* Booking Success Modal */}
+            <BookingSuccessModal
+                isOpen={showSuccessModal}
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    navigate('/bookings');
+                }}
+                booking={createdBookingData}
+                onCreateAnother={() => {
+                    setShowSuccessModal(false);
+                    window.location.reload();
                 }}
             />
         </div>

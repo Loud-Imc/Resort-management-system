@@ -2,12 +2,29 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } fro
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RatePlansService } from './services/rate-plans.service';
-import { CreateRatePlanDto, UpdateRatePlanDto, BulkPricingRuleDto, CreateCalendarEventMarkerDto } from './dto/rate-plan.dto';
+import {
+  CreateRatePlanDto,
+  UpdateRatePlanDto,
+  BulkPricingRuleDto,
+  CreateCalendarEventMarkerDto,
+  ApplyRestrictionsDto,
+  SetInventoryOverrideDto,
+} from './dto/rate-plan.dto';
 
 @ApiTags('Rate Plans & Calendar Rules')
 @Controller('rate-plans')
 export class RatePlansController {
   constructor(private readonly ratePlansService: RatePlansService) {}
+
+  @Get('matrix/:propertyId')
+  @ApiOperation({ summary: 'Get unified property rate matrix, physical room inventory & restrictions' })
+  async getPropertyRateMatrix(
+    @Param('propertyId') propertyId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.ratePlansService.getPropertyRateMatrixData(propertyId, startDate, endDate);
+  }
 
   @Get('room-type/:roomTypeId')
   @ApiOperation({ summary: 'Get all Rate Plans for a specific Room Type' })
@@ -47,6 +64,20 @@ export class RatePlansController {
   @ApiOperation({ summary: 'Apply bulk pricing rule (Weekdays vs Weekends or Festival Overrides)' })
   async applyBulkPricingRule(@Body() dto: BulkPricingRuleDto) {
     return this.ratePlansService.applyBulkPricingRule(dto);
+  }
+
+  @Post('restrictions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Apply restrictions (Min Stay, Max Stay, CTA, CTD, Stop Sell)' })
+  async applyRestrictions(@Body() dto: ApplyRestrictionsDto) {
+    return this.ratePlansService.applyRestrictions(dto);
+  }
+
+  @Post('inventory-override')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Set manual physical room inventory quantity override' })
+  async setInventoryOverride(@Body() dto: SetInventoryOverrideDto) {
+    return this.ratePlansService.setInventoryOverride(dto);
   }
 
   @Get('events/:propertyId')
