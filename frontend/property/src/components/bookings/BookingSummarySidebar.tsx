@@ -221,8 +221,9 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                     ?? ar?.pricing?.taxRate 
                                     ?? (isGstApplicable ? (roomBasePerNight > 7500 ? 18 : 5) : 0);
 
+                                const isRoomInc = ar?.isGstInclusive || (details?.isGstInclusive && allocatedRooms.length === 1);
                                 const roomPrice = rb?.totalAmount 
-                                    ?? (ar?.totalPrice ? Number(ar.totalPrice) : (roomBasePerNight > 0 ? (roomBasePerNight * nights * (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0))) : 0));
+                                    ?? (ar?.totalPrice ? Number(ar.totalPrice) : (roomBasePerNight > 0 ? (roomBasePerNight * nights * (isRoomInc ? 1 : (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)))) : 0));
 
                                 return (
                                     <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border/40 last:border-0">
