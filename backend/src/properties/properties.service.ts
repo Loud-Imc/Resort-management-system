@@ -2006,7 +2006,21 @@ export class PropertiesService {
             where: { id: requestId },
             include: { requestedBy: true }
         });
-        if (!request) throw new NotFoundException('Property request not found');
+        if (!request) {
+            // Fallback: check if the id belongs to an approved Property
+            const property = await this.prisma.property.findFirst({
+                where: {
+                    OR: [
+                        { id: requestId },
+                        { slug: requestId }
+                    ]
+                }
+            });
+            if (property) {
+                return this.getAgreementForProperty(user, requestId);
+            }
+            throw new NotFoundException('Property request not found');
+        }
 
         const userRoles = (user?.roles || []).map((r: any) => typeof r === 'string' ? r : r?.name || r?.role?.name);
         const isAdmin = userRoles.includes('SuperAdmin') || userRoles.includes('Admin');
@@ -2096,7 +2110,21 @@ export class PropertiesService {
         const request = await this.prisma.propertyRequest.findUnique({
             where: { id: requestId }
         });
-        if (!request) throw new NotFoundException('Property request not found');
+        if (!request) {
+            // Fallback: check if the id belongs to an approved Property
+            const property = await this.prisma.property.findFirst({
+                where: {
+                    OR: [
+                        { id: requestId },
+                        { slug: requestId }
+                    ]
+                }
+            });
+            if (property) {
+                return this.acceptPropertyAgreement(user, property.id, payload, reqMeta);
+            }
+            throw new NotFoundException('Property request not found');
+        }
 
         const details = (request.details as any) || {};
         const auditId = payload.agreementAuditId || `ORD-AGR-${Math.random().toString(36).substring(2, 9).toUpperCase()}-${Date.now().toString().slice(-6)}`;

@@ -1526,6 +1526,7 @@ export class AvailabilityService {
                         basePrice: Number(rt.basePrice),
                         extraAdultPrice: Number(rt.extraAdultPrice),
                         extraChildPrice: Number(rt.extraChildPrice),
+                        isGstInclusive: Boolean(rt.isGstInclusive),
                         availableQuantity: availableCountMap.get(rt.id) || 0,
                     }));
 
@@ -1539,6 +1540,10 @@ export class AvailabilityService {
 
                 const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
                 const propertySolutions = solutions.map((sol, idx) => {
+                    let solTotalBaseAmount = 0;
+                    let solTotalTaxAmount = 0;
+                    let solGrandTotal = 0;
+
                     const enrichedRooms = sol.rooms.map(r => {
                         const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
                         const freeRooms = (availableRoomsMap.get(r.roomTypeId) || []).map((fr: any) => ({
@@ -1548,6 +1553,56 @@ export class AvailabilityService {
                             status: fr.status,
                             isEnabled: fr.isEnabled,
                         }));
+
+                        const isRoomInclusive = isPropertyGstApplicable && Boolean((rt as any)?.isGstInclusive);
+                        const roomPerNightGrossOrNet = r.totalPricePerNight;
+
+                        let roomTaxThisNight = 0;
+                        let roomBaseThisNight = 0;
+                        let roomTotalThisNight = 0;
+                        let roomTaxRate = 0;
+
+                        if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
+                            if (isRoomInclusive) {
+                                const sortedTiers = [...gstTiers].sort((a, b) => b.rate - a.rate);
+                                let targetRate = 0;
+                                for (const tier of sortedTiers) {
+                                    const tierRate = tier.rate / 100;
+                                    const testTariff = roomPerNightGrossOrNet / (1 + tierRate);
+                                    if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
+                                        targetRate = tierRate;
+                                        break;
+                                    }
+                                }
+                                if (targetRate === 0) {
+                                    const appTier = this.pricingService.getApplicableTier(roomPerNightGrossOrNet, gstTiers);
+                                    targetRate = appTier.rate / 100;
+                                }
+                                roomTaxRate = Math.round(targetRate * 100);
+                                roomTaxThisNight = roomPerNightGrossOrNet - (roomPerNightGrossOrNet / (1 + targetRate));
+                                roomBaseThisNight = roomPerNightGrossOrNet - roomTaxThisNight;
+                                roomTotalThisNight = roomPerNightGrossOrNet;
+                            } else {
+                                roomTaxThisNight = this.pricingService.calculateTaxForTariff(roomPerNightGrossOrNet, gstTiers);
+                                roomBaseThisNight = roomPerNightGrossOrNet;
+                                roomTotalThisNight = roomBaseThisNight + roomTaxThisNight;
+                                roomTaxRate = roomBaseThisNight > 0 ? Math.round((roomTaxThisNight / roomBaseThisNight) * 100) : 0;
+                            }
+                        } else {
+                            roomBaseThisNight = roomPerNightGrossOrNet;
+                            roomTotalThisNight = roomPerNightGrossOrNet;
+                            roomTaxThisNight = 0;
+                            roomTaxRate = 0;
+                        }
+
+                        const roomBaseTotal = Number((roomBaseThisNight * nights).toFixed(2));
+                        const roomTaxTotal = Number((roomTaxThisNight * nights).toFixed(2));
+                        const roomGrandTotal = Number((roomTotalThisNight * nights).toFixed(2));
+
+                        solTotalBaseAmount += roomBaseTotal;
+                        solTotalTaxAmount += roomTaxTotal;
+                        solGrandTotal += roomGrandTotal;
+
                         return {
                             roomTypeId: r.roomTypeId,
                             roomTypeName: r.roomTypeName,
@@ -1564,6 +1619,11 @@ export class AvailabilityService {
                             extraAdultChargePerNight: r.extraAdultChargePerNight,
                             extraChildChargePerNight: r.extraChildChargePerNight,
                             totalPricePerNight: r.totalPricePerNight,
+                            isGstInclusive: isRoomInclusive,
+                            taxRate: roomTaxRate,
+                            taxAmount: roomTaxTotal,
+                            baseAmount: roomBaseTotal,
+                            totalPrice: roomGrandTotal,
                             availableQuantity: availableCountMap.get(r.roomTypeId) || 0,
                             availableRooms: freeRooms,
                             maxPhysicalAdults: r.maxPhysicalAdults,
@@ -1574,26 +1634,15 @@ export class AvailabilityService {
                         };
                     });
 
-                    const totalBasePerNight = sol.rooms.reduce((s, r) => s + r.basePricePerNight, 0);
                     const totalExtraPerNight = sol.rooms.reduce((s, r) => s + r.extraAdultChargePerNight + r.extraChildChargePerNight, 0);
-                    const totalPricePerNight = sol.pricingSummary?.totalPerNight ?? (totalBasePerNight + totalExtraPerNight);
-                    const baseAmount = totalBasePerNight * nights;
                     const extraAmount = totalExtraPerNight * nights;
-                    const totalAmountBeforeTax = totalPricePerNight * nights;
-
-                    let taxAmount = 0;
-                    if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
-                        for (const r of sol.rooms) {
-                            const roomTariffThisNight = r.totalPricePerNight;
-                            const roomTaxThisNight = this.pricingService.calculateTaxForTariff(roomTariffThisNight, gstTiers);
-                            taxAmount += roomTaxThisNight * nights;
-                        }
-                    }
-                    taxAmount = Number(taxAmount.toFixed(2));
-                    const totalPrice = Number((totalAmountBeforeTax + taxAmount).toFixed(2));
+                    const baseAmount = Number(solTotalBaseAmount.toFixed(2));
+                    const taxAmount = Number(solTotalTaxAmount.toFixed(2));
+                    const totalPrice = Number(solGrandTotal.toFixed(2));
                     const effectivePricePerNight = Number((totalPrice / nights).toFixed(2));
-                    const effectiveTaxRate = (isPropertyGstApplicable && totalAmountBeforeTax > 0)
-                        ? Math.round((taxAmount / totalAmountBeforeTax) * 100)
+                    const allRoomsInclusive = enrichedRooms.every(er => er.isGstInclusive);
+                    const effectiveTaxRate = (isPropertyGstApplicable && baseAmount > 0)
+                        ? Math.round((taxAmount / baseAmount) * 100)
                         : 0;
 
                     const solutionAvailableRoomsByRoomType: Record<string, any[]> = {};
@@ -1633,7 +1682,7 @@ export class AvailabilityService {
                             extraAmount,
                             taxAmount,
                             taxRate: effectiveTaxRate,
-                            isGstInclusive: false,
+                            isGstInclusive: allRoomsInclusive,
                             totalPrice,
                             pricePerNight: effectivePricePerNight,
                             numberOfNights: nights,
@@ -2140,6 +2189,7 @@ export class AvailabilityService {
                             basePrice: Number(rt.basePrice),
                             extraAdultPrice: Number(rt.extraAdultPrice),
                             extraChildPrice: Number(rt.extraChildPrice),
+                            isGstInclusive: Boolean(rt.isGstInclusive),
                             availableQuantity: availableCountMap.get(rt.id) || 0,
                         }));
 
@@ -2150,19 +2200,19 @@ export class AvailabilityService {
 
                     if (solutions && solutions.length > 0) {
                         const solutionPrices = solutions.map(sol => {
-                            const totalBasePerNight = sol.rooms.reduce((s, r) => s + r.basePricePerNight, 0);
-                            const totalExtraPerNight = sol.rooms.reduce((s, r) => s + r.extraAdultChargePerNight + r.extraChildChargePerNight, 0);
-                            const totalPricePerNight = sol.pricingSummary?.totalPerNight ?? (totalBasePerNight + totalExtraPerNight);
-                            const totalAmountBeforeTax = totalPricePerNight * stayLength;
-
-                            let taxAmount = 0;
-                            if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
-                                for (const r of sol.rooms) {
-                                    const roomTaxThisNight = this.pricingService.calculateTaxForTariff(r.totalPricePerNight, gstTiers);
-                                    taxAmount += roomTaxThisNight * stayLength;
+                            let solTotal = 0;
+                            for (const r of sol.rooms) {
+                                const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
+                                const isRoomInclusive = isPropertyGstApplicable && Boolean((rt as any)?.isGstInclusive);
+                                const roomPerNight = r.totalPricePerNight;
+                                if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0 && !isRoomInclusive) {
+                                    const roomTaxThisNight = this.pricingService.calculateTaxForTariff(roomPerNight, gstTiers);
+                                    solTotal += (roomPerNight + roomTaxThisNight) * stayLength;
+                                } else {
+                                    solTotal += roomPerNight * stayLength;
                                 }
                             }
-                            return Number((totalAmountBeforeTax + taxAmount).toFixed(2));
+                            return Number(solTotal.toFixed(2));
                         });
 
                         const minPrice = Math.min(...solutionPrices);

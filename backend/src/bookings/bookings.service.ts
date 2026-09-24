@@ -868,6 +868,7 @@ export class BookingsService {
                         originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
                         appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
                         referralPartnerId: effectiveReferralPartnerId,
+                        isGstInclusive: rawAllocPrices.length > 0 && rawAllocPrices.every(p => Boolean(p.isGstInclusive)),
                     };
 
                     if (overrideTotal !== undefined && overrideTotal !== null) {

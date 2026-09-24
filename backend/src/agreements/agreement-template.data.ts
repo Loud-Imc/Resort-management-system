@@ -2,7 +2,7 @@ export const AGREEMENT_VERSION = 'v1.0 (India Operations)';
 
 export const OREEDU_CORPORATE_INFO = {
     legalName: 'Oreedu Private Limited',
-    registeredOffice: 'Oreedu Tech Hub, Beach Road, Calicut, Kerala, India - 673001',
+    registeredOffice: '2nd Floor, Azure, PHED Road, Sarovaram Bio park, Kozhikode 673020',
     signatoryName: 'Shahoor PK',
     signatoryDesignation: 'CEO',
     stampUrl: '/assets/oreedu-stamp.jpg',
@@ -336,8 +336,8 @@ export function buildAgreementContractPayload(options: BuildAgreementOptions) {
         sections: AGREEMENT_SECTIONS,
         schedules: {
             scheduleA: [
-                { field: 'Legal Entity Name', value: options.propertyName || '[● Legal Entity Name]' },
-                { field: 'Property / Trade Name', value: options.propertyName || '[● Trade Name]' },
+                { field: 'Legal Entity Name', value: options.propertyName || 'Property Operating Entity' },
+                { field: 'Property / Trade Name', value: options.propertyName || 'Property Trade Name' },
                 { field: 'Property Type', value: options.propertyType || options.categoryName || 'RESORT' },
                 { field: 'Property ID', value: options.requestId || options.propertyId || auditId },
                 { field: 'Registered / Operating Address', value: fullAddress },

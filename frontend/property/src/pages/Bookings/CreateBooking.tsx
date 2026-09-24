@@ -522,8 +522,19 @@ export default function CreateBooking() {
         const chosenRoomIds: string[] = [];
         allocatedRooms.forEach((ar: any, idx: number) => {
             const rt = roomTypes?.find(r => r.id === ar.roomTypeId);
-            const availableRoom = rt?.rooms?.find((r: any) => r.isEnabled && !chosenRoomIds.includes(r.id) && (filterRoomIds.length === 0 || filterRoomIds.includes(r.id)))
-                || rt?.rooms?.find((r: any) => r.isEnabled && !chosenRoomIds.includes(r.id));
+            // Date-filtered free rooms from backend availability solver
+            const dateFilteredRooms: any[] = (ar.availableRooms && ar.availableRooms.length > 0)
+                ? ar.availableRooms
+                : (solution.availableRoomsByRoomType?.[ar.roomTypeId] && solution.availableRoomsByRoomType[ar.roomTypeId].length > 0)
+                    ? solution.availableRoomsByRoomType[ar.roomTypeId]
+                    : [];
+
+            const candidateRooms = dateFilteredRooms.length > 0
+                ? dateFilteredRooms
+                : (rt?.rooms?.filter((r: any) => r.isEnabled) || []);
+
+            const availableRoom = candidateRooms.find((r: any) => (r.isEnabled !== false) && !chosenRoomIds.includes(r.id) && (filterRoomIds.length === 0 || filterRoomIds.includes(r.id)))
+                || candidateRooms.find((r: any) => (r.isEnabled !== false) && !chosenRoomIds.includes(r.id));
             if (availableRoom) {
                 initialAssignments[idx] = availableRoom.id;
                 chosenRoomIds.push(availableRoom.id);
@@ -555,7 +566,7 @@ export default function CreateBooking() {
                 numberOfNights,
                 pricePerNight: pricing.pricePerNight || (totalAmount / numberOfNights),
                 taxRate,
-                isGstInclusive: false,
+                isGstInclusive: Boolean(pricing.isGstInclusive),
             };
             setPriceDetails(solPrice);
             setOriginalPriceDetails(solPrice);
@@ -1162,16 +1173,24 @@ export default function CreateBooking() {
         const allocatedRooms = selectedSolution?.rooms || selectedSolution?.allocatedRooms || [];
         let roomAllocationsPayload = undefined;
         if (!data.isGroupBooking && selectedSolution && allocatedRooms.length > 0) {
-            roomAllocationsPayload = allocatedRooms.map((ar: any, idx: number) => ({
-                roomTypeId: ar.roomTypeId,
-                roomId: solutionRoomAssignments[idx] || ar.roomId || undefined,
-                adults: ar.adults,
-                children: ar.children,
-                childAges: ar.childAges || (ar.children > 0 ? childAges.slice(0, ar.children) : []),
-                infants: ar.infants || 0,
-                extraAdults: ar.extraAdults || 0,
-                extraChildren: ar.extraChildren || 0,
-            }));
+            roomAllocationsPayload = allocatedRooms.map((ar: any, idx: number) => {
+                const assignedRoomId = solutionRoomAssignments[idx];
+                const backendAvailableRooms = ar.availableRooms || selectedSolution.availableRoomsByRoomType?.[ar.roomTypeId] || [];
+                const isValidRoom = assignedRoomId && backendAvailableRooms.length > 0
+                    ? backendAvailableRooms.some((r: any) => r.id === assignedRoomId)
+                    : Boolean(assignedRoomId);
+
+                return {
+                    roomTypeId: ar.roomTypeId,
+                    roomId: isValidRoom ? assignedRoomId : (ar.roomId || undefined),
+                    adults: ar.adults,
+                    children: ar.children,
+                    childAges: ar.childAges || (ar.children > 0 ? childAges.slice(0, ar.children) : []),
+                    infants: ar.infants || 0,
+                    extraAdults: ar.extraAdults || 0,
+                    extraChildren: ar.extraChildren || 0,
+                };
+            });
         } else if (!data.isGroupBooking && data.roomTypeId) {
             roomAllocationsPayload = [{
                 roomTypeId: data.roomTypeId,

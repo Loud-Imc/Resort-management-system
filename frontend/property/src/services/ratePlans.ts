@@ -85,6 +85,7 @@ export interface SetInventoryOverrideDto {
   roomTypeId: string;
   date: string;
   allocatedQuantity: number;
+  channelId?: string;
 }
 
 export interface DailyInventoryData {

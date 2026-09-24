@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsBoolean, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsNumber, IsNotEmpty, Min } from 'class-validator';
 import { MealPlan, RatePlanPricingType } from '@prisma/client';
 
 export enum AcType {
@@ -244,7 +244,12 @@ export class SetInventoryOverrideDto {
   date: string;
 
   @IsNumber()
+  @Min(0)
   allocatedQuantity: number;
+
+  @IsOptional()
+  @IsString()
+  channelId?: string; // 'ALL', specific channel ID, or 'PMS_ONLY'
 }
 
 export class CreateCalendarEventMarkerDto {

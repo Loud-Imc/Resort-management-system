@@ -116,6 +116,7 @@ export interface RoomTypeInventoryCandidate extends CanonicalRoomPricingConfig {
     id: string;
     name: string;
     availableQuantity: number;
+    isGstInclusive?: boolean;
 
     // Optional legacy fields for backward compatibility
     baseAdults?: number;
@@ -157,6 +158,7 @@ export interface AllocatedRoom {
     extraAdultChargePerNight: number;
     extraChildChargePerNight: number;
     totalPricePerNight: number;
+    isGstInclusive?: boolean;
 
     // Legacy fields for backward compatibility
     baseAdults?: number;
@@ -853,6 +855,7 @@ export function solveAccommodationOptions(
                         extraAdultChargePerNight: surchargeResult.extraAdultAmount,
                         extraChildChargePerNight: surchargeResult.extraChildAmount,
                         totalPricePerNight: (surchargeResult.totalPrice ?? (basePrice + surchargeResult.totalExtraAmount)),
+                        isGstInclusive: r.isGstInclusive,
                         // Legacy compatibility fields
                         baseAdults: r.baseAdults,
                         baseChildren: r.baseChildren,

@@ -562,9 +562,36 @@ export class RatePlansService {
     }
 
     if (propertyId && this.channelsService) {
-      this.channelsService.pushAriForProperty(propertyId, 60).catch((err) => {
-        this.logger.warn(`Failed to auto-sync Channex after bulk pricing update: ${err.message}`);
-      });
+      const channelsService = this.channelsService;
+      if (dto.channelId === 'PMS_ONLY') {
+        this.logger.log(`[Pricing Update] channelId is PMS_ONLY, skipping external OTA sync.`);
+      } else if (dto.channelId && dto.channelId !== 'ALL') {
+        // Specific OTA targeted update
+        this.prisma.channelRoomTypeMapping.findFirst({
+          where: { roomTypeId: targetRoomTypeId },
+        }).then(async (roomMapping) => {
+          if (roomMapping && dto.price !== undefined) {
+            await channelsService.pushDeltaAri(propertyId, [], [{
+              date: dto.startDate,
+              dateTo: dto.endDate,
+              roomTypeId: targetRoomTypeId || '',
+              externalRoomTypeId: roomMapping.externalRoomTypeId,
+              externalRatePlanId: roomMapping.externalRatePlanId || undefined,
+              price: dto.price,
+              channelId: dto.channelId,
+            } as any]);
+          } else {
+            await channelsService.pushAriForProperty(propertyId, 60);
+          }
+        }).catch((err) => {
+          this.logger.warn(`Failed targeted channel rate sync: ${err.message}`);
+        });
+      } else {
+        // Sync to ALL connected OTAs
+        channelsService.pushAriForProperty(propertyId, 60).catch((err) => {
+          this.logger.warn(`Failed to auto-sync Channex after bulk pricing update: ${err.message}`);
+        });
+      }
     }
 
     return {
@@ -578,6 +605,24 @@ export class RatePlansService {
    */
   async setInventoryOverride(dto: SetInventoryOverrideDto) {
     const targetDate = new Date(`${dto.date}T00:00:00.000Z`);
+
+    const physicalRoomsCount = await this.prisma.room.count({
+      where: {
+        roomTypeId: dto.roomTypeId,
+        isEnabled: true,
+        status: { not: 'MAINTENANCE' },
+      },
+    });
+
+    if (dto.allocatedQuantity < 0) {
+      throw new BadRequestException('Allocated quantity cannot be negative.');
+    }
+
+    if (dto.allocatedQuantity > physicalRoomsCount) {
+      throw new BadRequestException(
+        `Cannot set inventory count to ${dto.allocatedQuantity}. Total physical rooms under this room type is ${physicalRoomsCount}.`,
+      );
+    }
 
     const result = await this.prisma.connectivityAvailabilityOverride.upsert({
       where: {
@@ -599,9 +644,13 @@ export class RatePlansService {
     });
 
     if (dto.propertyId && this.channelsService) {
-      this.channelsService.pushAriForProperty(dto.propertyId, 60).catch((err) => {
-        this.logger.warn(`Failed to auto-sync Channex after inventory override: ${err.message}`);
-      });
+      if (dto.channelId === 'PMS_ONLY') {
+        this.logger.log(`[Inventory Override] channelId is PMS_ONLY, skipping external OTA sync.`);
+      } else {
+        this.channelsService.pushAriForProperty(dto.propertyId, 60).catch((err) => {
+          this.logger.warn(`Failed to auto-sync Channex after inventory override: ${err.message}`);
+        });
+      }
     }
 
     return result;

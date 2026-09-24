@@ -12,7 +12,12 @@ import {
   ShieldAlert,
   Edit2,
   CheckCircle,
+  Plus,
+  BedDouble,
+  X,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import AddRoomModal from '../../components/Rooms/AddRoomModal';
 import {
   ratePlansService,
   type RatePlan,
@@ -23,6 +28,10 @@ import {
 import { channelsService } from '../../services/channels';
 import type { RoomType } from '../../types/room';
 import { BulkPricingRuleModal } from '../../components/BulkPricingRuleModal';
+import { 
+  UpdateConfirmationModal, 
+  type UpdateConfirmationDetails 
+} from '../../components/UpdateConfirmationModal';
 import toast from 'react-hot-toast';
 
 interface PropertyRateMatrixProps {
@@ -58,6 +67,17 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   const [syncingOtas, setSyncingOtas] = useState<boolean>(false);
   const [expandedRoomTypes, setExpandedRoomTypes] = useState<Record<string, boolean>>({});
 
+  // Connected OTAs list from Channex
+  const [activeOtas, setActiveOtas] = useState<any[]>([]);
+
+  // Update Confirmation & OTA Target Selection Modal
+  const [confirmModalDetails, setConfirmModalDetails] = useState<UpdateConfirmationDetails | null>(null);
+
+  // Add Physical Room Modal State
+  const queryClient = useQueryClient();
+  const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState<boolean>(false);
+  const [selectedRoomTypeIdForAdd, setSelectedRoomTypeIdForAdd] = useState<string | undefined>(undefined);
+
   // Filter state & 10-Day Date Segment Switcher
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>('ALL');
   const [selectedMealPlan, setSelectedMealPlan] = useState<string>('ALL');
@@ -75,7 +95,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     currentPrice: number;
   } | null>(null);
   const [inlinePriceInput, setInlinePriceInput] = useState<string>('');
-  const [savingInline, setSavingInline] = useState<boolean>(false);
+  // const [savingInline, setSavingInline] = useState<boolean>(false);
 
   // Quick Restriction / Inventory Editing Cell
   const [quickEditInv, setQuickEditInv] = useState<{
@@ -127,6 +147,12 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   useEffect(() => {
     if (propertyId) {
       fetchMatrixData();
+      channelsService
+        .getActiveOtas(propertyId)
+        .then((data) => {
+          if (Array.isArray(data)) setActiveOtas(data);
+        })
+        .catch(() => {});
     }
   }, [propertyId, year, month]);
 
@@ -233,27 +259,27 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     return Number(plan.basePrice);
   };
 
-  const handleSaveInlineCell = async () => {
+  const handleRequestPriceChange = () => {
     if (!editingCell || !inlinePriceInput) return;
-    setSavingInline(true);
-    try {
-      await ratePlansService.applyBulkPricingRule({
-        propertyId,
-        roomTypeId: editingCell.roomTypeId,
-        ratePlanId: editingCell.ratePlanId,
-        startDate: editingCell.dateStr,
-        endDate: editingCell.dateStr,
-        price: Number(inlinePriceInput),
-      });
-
-      toast.success('Price updated & synced');
-      setEditingCell(null);
-      fetchMatrixData();
-    } catch (err: any) {
-      toast.error('Failed to update price');
-    } finally {
-      setSavingInline(false);
+    const newPrice = Number(inlinePriceInput);
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast.error('Please enter a valid price amount');
+      return;
     }
+
+    const targetPlan = ratePlans.find((p) => p.id === editingCell.ratePlanId);
+    const targetRoom = roomTypes.find((r) => r.id === editingCell.roomTypeId);
+
+    setConfirmModalDetails({
+      type: 'PRICE',
+      roomTypeId: editingCell.roomTypeId,
+      roomTypeName: targetRoom?.name || 'Selected Room',
+      ratePlanId: editingCell.ratePlanId,
+      ratePlanName: targetPlan?.name,
+      dateStr: editingCell.dateStr,
+      oldValue: editingCell.currentPrice,
+      newValue: newPrice,
+    });
   };
 
   const handleQuickToggleStopSell = async (roomTypeId: string, dateStr: string, currentStopSell: boolean) => {
@@ -273,21 +299,94 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     }
   };
 
-  const handleSaveInventoryOverride = async () => {
+  const handleRequestInventoryChange = () => {
     if (!quickEditInv || invOverrideInput === '') return;
-    try {
-      await ratePlansService.setInventoryOverride({
-        propertyId,
-        roomTypeId: quickEditInv.roomTypeId,
-        date: quickEditInv.dateStr,
-        allocatedQuantity: Number(invOverrideInput),
-      });
+    const newQty = Number(invOverrideInput);
+    if (isNaN(newQty) || newQty < 0) {
+      toast.error('Please enter a valid room count');
+      return;
+    }
 
-      toast.success('Room inventory override saved');
-      setQuickEditInv(null);
+    if (newQty > quickEditInv.totalRooms) {
+      toast.error(`Cannot allocate more than ${quickEditInv.totalRooms} physical rooms.`);
+      return;
+    }
+
+    const targetRoom = roomTypes.find((r) => r.id === quickEditInv.roomTypeId);
+
+    setConfirmModalDetails({
+      type: 'INVENTORY',
+      roomTypeId: quickEditInv.roomTypeId,
+      roomTypeName: targetRoom?.name || 'Selected Room',
+      dateStr: quickEditInv.dateStr,
+      oldValue: quickEditInv.currentAvailable,
+      newValue: newQty,
+    });
+    setQuickEditInv(null);
+  };
+
+  const handleConfirmUpdate = async (target: {
+    syncMode: 'ALL' | 'SPECIFIC' | 'PMS_ONLY';
+    selectedChannelIds: string[];
+  }) => {
+    if (!confirmModalDetails) return;
+
+    const channelId = target.syncMode === 'PMS_ONLY' 
+      ? 'PMS_ONLY' 
+      : target.syncMode === 'SPECIFIC' && target.selectedChannelIds.length === 1
+      ? target.selectedChannelIds[0]
+      : 'ALL';
+
+    try {
+      if (confirmModalDetails.type === 'PRICE') {
+        if (target.syncMode === 'SPECIFIC' && target.selectedChannelIds.length > 0) {
+          for (const chId of target.selectedChannelIds) {
+            await ratePlansService.applyBulkPricingRule({
+              propertyId,
+              roomTypeId: confirmModalDetails.roomTypeId,
+              ratePlanId: confirmModalDetails.ratePlanId,
+              startDate: confirmModalDetails.dateStr,
+              endDate: confirmModalDetails.dateStr,
+              price: confirmModalDetails.newValue,
+              channelId: chId,
+            });
+          }
+        } else {
+          await ratePlansService.applyBulkPricingRule({
+            propertyId,
+            roomTypeId: confirmModalDetails.roomTypeId,
+            ratePlanId: confirmModalDetails.ratePlanId,
+            startDate: confirmModalDetails.dateStr,
+            endDate: confirmModalDetails.dateStr,
+            price: confirmModalDetails.newValue,
+            channelId,
+          });
+        }
+        toast.success(
+          target.syncMode === 'PMS_ONLY'
+            ? 'Price updated in PMS (Direct only)'
+            : 'Price updated & synced to OTAs!'
+        );
+      } else {
+        await ratePlansService.setInventoryOverride({
+          propertyId,
+          roomTypeId: confirmModalDetails.roomTypeId,
+          date: confirmModalDetails.dateStr,
+          allocatedQuantity: confirmModalDetails.newValue,
+          channelId,
+        });
+        toast.success(
+          target.syncMode === 'PMS_ONLY'
+            ? 'Room inventory updated in PMS (Direct only)'
+            : 'Room inventory override saved & synced to OTAs!'
+        );
+      }
+      setEditingCell(null);
       fetchMatrixData();
+      if (onRefresh) onRefresh();
     } catch (err: any) {
-      toast.error('Failed to set room inventory');
+      console.error('Update error:', err);
+      toast.error(`Failed to apply ${confirmModalDetails.type === 'PRICE' ? 'price' : 'inventory'} update`);
     }
   };
 
@@ -570,11 +669,27 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                       {isExpanded && (
                         <tr className="bg-emerald-50/40 dark:bg-emerald-950/20 border-b border-border/40 text-[11px]">
                           <td className="p-2 pl-6 sticky left-0 z-10 bg-emerald-50/90 dark:bg-slate-900/90 backdrop-blur-md border-r border-border">
-                            <div className="flex items-center gap-1.5">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                              <span className="font-black text-emerald-800 dark:text-emerald-300">
-                                Free Inventory / Rooms Left
-                              </span>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                <span className="font-black text-emerald-800 dark:text-emerald-300">
+                                  Free Inventory / Rooms Left
+                                </span>
+                              </div>
+                              {((rt.rooms?.length ?? 0) === 0 || (Object.values(roomInv)[0]?.totalRooms ?? 0) === 0) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRoomTypeIdForAdd(rt.id);
+                                    setIsAddRoomModalOpen(true);
+                                  }}
+                                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                                  title="No physical rooms configured. Click to add rooms."
+                                >
+                                  <Plus className="h-3 w-3" /> Add Room
+                                </button>
+                              )}
                             </div>
                           </td>
 
@@ -609,10 +724,10 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                   </span>
                                 ) : total === 0 ? (
                                   <span
-                                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/25"
-                                    title="No physical rooms configured under Room Setup"
+                                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors inline-flex items-center gap-0.5"
+                                    title="This room type has 0 physical rooms. Click to create a room."
                                   >
-                                    0 Unassigned
+                                    <Plus className="h-2.5 w-2.5 inline" /> 0 Rooms
                                   </span>
                                 ) : available === 0 ? (
                                   <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
@@ -769,16 +884,15 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                           value={inlinePriceInput}
                                           onChange={(e) => setInlinePriceInput(e.target.value)}
                                           onKeyDown={(e) => {
-                                            if (e.key === 'Enter') handleSaveInlineCell();
+                                            if (e.key === 'Enter') handleRequestPriceChange();
                                             if (e.key === 'Escape') setEditingCell(null);
                                           }}
                                           className="w-16 px-1.5 py-1 text-xs font-bold text-center rounded border border-primary bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-xs"
                                         />
                                         <button
-                                          onClick={handleSaveInlineCell}
-                                          disabled={savingInline}
+                                          onClick={handleRequestPriceChange}
                                           className="p-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors cursor-pointer"
-                                          title="Save Rate"
+                                          title="Apply Rate & Sync"
                                         >
                                           <CheckCircle className="h-3 w-3" />
                                         </button>
@@ -819,44 +933,142 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       </div>
 
       {/* Quick Inventory Override Modal */}
-      {quickEditInv && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
-            <h4 className="font-bold text-sm text-foreground">
-              Adjust Room Inventory ({quickEditInv.dateStr})
-            </h4>
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                Sellable Rooms Limit (Max: {quickEditInv.totalRooms})
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={quickEditInv.totalRooms}
-                value={invOverrideInput}
-                onChange={(e) => setInvOverrideInput(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm font-bold focus:outline-none"
-              />
+      {quickEditInv && (() => {
+        const targetRoom = roomTypes.find((r) => r.id === quickEditInv.roomTypeId);
+
+        // When room type has 0 physical rooms configured:
+        if (quickEditInv.totalRooms === 0) {
+          return (
+            <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-border">
+                  <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                    <BedDouble className="h-4 w-4 text-amber-500" />
+                    Physical Rooms Setup Required
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setQuickEditInv(null)}
+                    className="p-1 rounded-lg text-muted-foreground hover:bg-muted cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 text-center space-y-2.5">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+                    <BedDouble className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-xs text-foreground">
+                      {targetRoom?.name || 'This Room Type'} has 0 Rooms
+                    </h5>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      This room type currently has 0 physical rooms. Please create physical rooms under this room type to edit and manage daily inventory.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setQuickEditInv(null)}
+                    className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:bg-muted cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rtId = quickEditInv.roomTypeId;
+                      setQuickEditInv(null);
+                      setSelectedRoomTypeIdForAdd(rtId);
+                      setIsAddRoomModalOpen(true);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 flex items-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer transition-all"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Physical Room
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setQuickEditInv(null)}
-                className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:bg-muted"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveInventoryOverride}
-                className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90"
-              >
-                Save Allotment
-              </button>
+          );
+        }
+
+        const inputNum = Number(invOverrideInput);
+        const isExceeded = !isNaN(inputNum) && inputNum > quickEditInv.totalRooms;
+        const isNegative = !isNaN(inputNum) && inputNum < 0;
+        const isInvalid = invOverrideInput === '' || isNaN(inputNum) || isExceeded || isNegative;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4">
+              <h4 className="font-bold text-sm text-foreground">
+                Adjust Room Inventory ({quickEditInv.dateStr})
+              </h4>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Sellable Rooms Limit
+                  </label>
+                  <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                    Max Physical: {quickEditInv.totalRooms}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={quickEditInv.totalRooms}
+                  value={invOverrideInput}
+                  onChange={(e) => setInvOverrideInput(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-xl border bg-background text-sm font-bold focus:outline-none transition-colors ${
+                    isExceeded || isNegative
+                      ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/20 text-rose-600 dark:text-rose-400'
+                      : 'border-border focus:border-primary'
+                  }`}
+                />
+                {isExceeded && (
+                  <p className="mt-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <span>⚠️</span> Cannot exceed total physical rooms ({quickEditInv.totalRooms})
+                  </p>
+                )}
+                {isNegative && (
+                  <p className="mt-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <span>⚠️</span> Inventory cannot be negative
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setQuickEditInv(null)}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequestInventoryChange}
+                  disabled={isInvalid}
+                  className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+                >
+                  Next: Confirm & Sync →
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Update Confirmation & OTA Target Selection Modal */}
+      <UpdateConfirmationModal
+        isOpen={Boolean(confirmModalDetails)}
+        onClose={() => setConfirmModalDetails(null)}
+        details={confirmModalDetails}
+        activeOtas={activeOtas}
+        onConfirm={handleConfirmUpdate}
+      />
 
       {/* Bulk Pricing & Restrictions Modal */}
       <BulkPricingRuleModal
@@ -872,6 +1084,23 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
           if (onRefresh) onRefresh();
         }}
       />
+
+      {/* Add Physical Room Modal */}
+      {isAddRoomModalOpen && (
+        <AddRoomModal
+          isOpen={isAddRoomModalOpen}
+          onClose={() => setIsAddRoomModalOpen(false)}
+          propertyId={propertyId}
+          roomTypes={roomTypes}
+          defaultRoomTypeId={selectedRoomTypeIdForAdd}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
+            queryClient.invalidateQueries({ queryKey: ['rooms'] });
+            fetchMatrixData();
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 };

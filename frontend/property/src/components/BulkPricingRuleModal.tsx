@@ -81,6 +81,11 @@ export const BulkPricingRuleModal: React.FC<BulkPricingRuleModalProps> = ({
 
   if (!isOpen) return null;
 
+  const selectedTargetRt = selectedRoomTypeId !== 'ALL' ? roomTypes.find((r) => r.id === selectedRoomTypeId) : null;
+  const maxPhysical = selectedTargetRt?.rooms
+    ? selectedTargetRt.rooms.filter((r) => r.status !== 'MAINTENANCE').length
+    : undefined;
+
   const handleSelectPresetDays = (preset: 'WEEKDAYS' | 'WEEKENDS' | 'ALL') => {
     if (preset === 'WEEKDAYS') {
       setSelectedDays([1, 2, 3, 4]); // Mon, Tue, Wed, Thu
@@ -156,6 +161,16 @@ export const BulkPricingRuleModal: React.FC<BulkPricingRuleModalProps> = ({
       } else if (activeMode === 'ALLOTMENT') {
         if (allottedQuantity === '') {
           toast.error('Please specify a valid allotted room quantity.');
+          setSubmitting(false);
+          return;
+        }
+        if (Number(allottedQuantity) < 0) {
+          toast.error('Allotted rooms cannot be negative.');
+          setSubmitting(false);
+          return;
+        }
+        if (maxPhysical !== undefined && Number(allottedQuantity) > maxPhysical) {
+          toast.error(`Cannot allocate more than ${maxPhysical} physical rooms for ${selectedTargetRt?.name || 'this room'}.`);
           setSubmitting(false);
           return;
         }
@@ -601,19 +616,36 @@ export const BulkPricingRuleModal: React.FC<BulkPricingRuleModalProps> = ({
               </div>
 
               <div className="pt-2 max-w-xs">
-                <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
-                  Max Allotted Rooms (Quantity)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-muted-foreground uppercase">
+                    Max Allotted Rooms (Quantity)
+                  </label>
+                  {maxPhysical !== undefined && (
+                    <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 bg-sky-500/10 px-1.5 py-0.5 rounded">
+                      Max Physical: {maxPhysical}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
                   min={0}
+                  max={maxPhysical}
                   placeholder="e.g. 2"
                   value={allottedQuantity}
                   onChange={(e) =>
                     setAllottedQuantity(e.target.value === '' ? '' : Number(e.target.value))
                   }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold focus:outline-none"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-xs font-bold focus:outline-none transition-colors ${
+                    maxPhysical !== undefined && allottedQuantity !== '' && Number(allottedQuantity) > maxPhysical
+                      ? 'border-rose-500 text-rose-600 focus:ring-2 focus:ring-rose-500/20'
+                      : 'border-border'
+                  }`}
                 />
+                {maxPhysical !== undefined && allottedQuantity !== '' && Number(allottedQuantity) > maxPhysical && (
+                  <p className="mt-1 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                    ⚠️ Cannot exceed physical rooms ({maxPhysical})
+                  </p>
+                )}
               </div>
             </div>
           )}

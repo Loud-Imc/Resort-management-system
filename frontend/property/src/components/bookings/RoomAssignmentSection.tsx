@@ -117,7 +117,7 @@ export const RoomAssignmentSection: React.FC<RoomAssignmentSectionProps> = ({
                                     <div>
                                         <label className="block text-[10.5px] font-black uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center justify-between">
                                             <span>Assign Physical Room:</span>
-                                            {currentAssignedId ? (
+                                            {Boolean(currentAssignedId && selectableRooms.some((er: any) => er.id === currentAssignedId)) ? (
                                                 <span className="text-emerald-600 font-bold flex items-center gap-1">
                                                     <CheckCircle2 className="h-3 w-3" /> Specific Room Assigned
                                                 </span>
@@ -126,7 +126,7 @@ export const RoomAssignmentSection: React.FC<RoomAssignmentSectionProps> = ({
                                             )}
                                         </label>
                                         <select
-                                            value={currentAssignedId}
+                                            value={selectableRooms.some((er: any) => er.id === currentAssignedId) ? currentAssignedId : ''}
                                             onChange={(e) => onAssignRoom(rIdx, e.target.value)}
                                             className="w-full text-xs font-bold border border-input bg-card text-foreground rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer transition-all"
                                         >

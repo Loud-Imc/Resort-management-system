@@ -82,6 +82,15 @@ export default function Login() {
         setErrorField(null);
         try {
             await login({ email, password });
+            try {
+                Object.keys(sessionStorage).forEach(key => {
+                    if (key.startsWith('pms_agreement_prompt_dismissed_')) {
+                        sessionStorage.removeItem(key);
+                    }
+                });
+            } catch {
+                // Ignore storage errors
+            }
             toast.success('Welcome back!');
             navigate('/');
         } catch (error: any) {
