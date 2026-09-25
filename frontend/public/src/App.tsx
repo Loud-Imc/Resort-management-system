@@ -8,6 +8,7 @@ import Checkout from './pages/Checkout';
 import Confirmation from './pages/Confirmation';
 import Contact from './pages/Contact';
 import TrackBooking from './pages/TrackBooking';
+import Offers from './pages/Offers';
 
 import About from './pages/About';
 import Gallery from './pages/Gallery';
@@ -79,6 +80,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/search" element={<SearchResults />} />
+                <Route path="/offers" element={<Offers />} />
                 <Route path="/book" element={<Checkout />} />
                 <Route path="/confirmation" element={<Confirmation />} />
                 <Route path="/track-booking" element={<TrackBooking />} />

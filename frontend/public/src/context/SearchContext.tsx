@@ -32,6 +32,13 @@ interface SearchContextType {
     setLongitude: (v: number | null) => void;
     radius: number | null;
     setRadius: (v: number | null) => void;
+    petFriendly: boolean;
+    setPetFriendly: (v: boolean) => void;
+    priceBucket: string;
+    setPriceBucket: (v: string) => void;
+    rawChildAges: number[];
+    setRawChildrenCount: (count: number) => void;
+    setRawChildAge: (index: number, age: number) => void;
     syncFromUrl: () => void;
     clearSearch: () => void;
 }
@@ -62,6 +69,51 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [latitude, setLatitude] = useState<number | null>(null);
     const [longitude, setLongitude] = useState<number | null>(null);
     const [radius, setRadius] = useState<number | null>(null);
+
+    const [petFriendly, setPetFriendly] = useState(false);
+    const [priceBucket, setPriceBucket] = useState('all');
+    const [rawChildAges, setRawChildAges] = useState<number[]>([]);
+
+    // Function to recompute childrenCount, childAges (3..12), and infantsCount (0..2)
+    const updateDemographics = useCallback((rawAges: number[]) => {
+        setRawChildAges(rawAges);
+        const validChildAges = rawAges.filter(a => a >= 3 && a <= 12);
+        const infantsFromRaw = rawAges.filter(a => a >= 0 && a <= 2).length;
+        setChildAgesState(validChildAges);
+        setChildrenCountState(validChildAges.length);
+        setInfantsCount(infantsFromRaw);
+    }, []);
+
+    const setRawChildrenCount = useCallback((count: number) => {
+        const nextCount = Math.max(0, count);
+        setRawChildAges(prev => {
+            if (nextCount === 0) {
+                updateDemographics([]);
+                return [];
+            }
+            if (nextCount > prev.length) {
+                const added = Array(nextCount - prev.length).fill(5); // Default age: 5
+                const updated = [...prev, ...added];
+                updateDemographics(updated);
+                return updated;
+            }
+            const updated = prev.slice(0, nextCount);
+            updateDemographics(updated);
+            return updated;
+        });
+    }, [updateDemographics]);
+
+    const setRawChildAge = useCallback((index: number, age: number) => {
+        const clampedAge = Math.max(0, Math.min(12, age));
+        setRawChildAges(prev => {
+            const next = [...prev];
+            if (index >= 0 && index < next.length) {
+                next[index] = clampedAge;
+            }
+            updateDemographics(next);
+            return next;
+        });
+    }, [updateDemographics]);
 
     const setChildren = useCallback((action: number | ((prev: number) => number)) => {
         setChildrenCountState(prevCount => {
@@ -152,6 +204,10 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (lat && lat !== 'null') setLatitude(parseFloat(lat));
         if (lng && lng !== 'null') setLongitude(parseFloat(lng));
         if (rad) setRadius(parseInt(rad));
+        const pf = searchParams.get('petFriendly') === 'true';
+        setPetFriendly(pf);
+        const pb = searchParams.get('priceBucket') || searchParams.get('price') || 'all';
+        setPriceBucket(pb);
     }, [searchParams]);
 
     const clearSearch = useCallback(() => {
@@ -169,6 +225,9 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLatitude(null);
         setLongitude(null);
         setRadius(null);
+        setPetFriendly(false);
+        setPriceBucket('all');
+        setRawChildAges([]);
     }, []);
 
     // Initial sync from URL parameters
@@ -196,6 +255,9 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         latitude, setLatitude,
         longitude, setLongitude,
         radius, setRadius,
+        petFriendly, setPetFriendly,
+        priceBucket, setPriceBucket,
+        rawChildAges, setRawChildrenCount, setRawChildAge,
         syncFromUrl,
         clearSearch
     };

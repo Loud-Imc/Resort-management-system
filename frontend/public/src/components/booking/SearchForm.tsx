@@ -31,7 +31,9 @@ export default function SearchForm({
         groupSize, setGroupSize,
         latitude, setLatitude,
         longitude, setLongitude,
-        radius, setRadius
+        radius, setRadius,
+        petFriendly,
+        priceBucket,
     } = useSearch();
 
     const [isExpanded, setIsExpanded] = useState(false);
@@ -98,6 +100,12 @@ export default function SearchForm({
         }
         if (infants > 0) {
             params.set('infants', infants.toString());
+        }
+        if (petFriendly) {
+            params.set('petFriendly', 'true');
+        }
+        if (priceBucket && priceBucket !== 'all') {
+            params.set('priceBucket', priceBucket);
         }
 
         if (latitude && longitude) {

@@ -3,45 +3,44 @@ import { Tag, ShieldCheck, Lock, HeadphonesIcon } from 'lucide-react';
 const BADGES = [
     {
         icon: Tag,
-        title: 'Exclusive Member Deals',
-        subtitle: 'Extra discounts for members',
+        title: 'Exclusive Member Rates',
+        subtitle: 'Special unlocked pricing on luxury stays',
     },
     {
         icon: ShieldCheck,
-        title: 'Free Cancellation',
-        subtitle: 'On most of the stays',
+        title: 'Free Cancellation Options',
+        subtitle: 'Flexible policies on most stays',
     },
     {
         icon: Lock,
-        title: 'Secure Payments',
-        subtitle: '100% safe & secure',
+        title: '100% Secure Payments',
+        subtitle: 'Encrypted UPI, Cards & Net Banking',
     },
     {
         icon: HeadphonesIcon,
-        title: '24/7 Support',
-        subtitle: "We're here to help",
+        title: '24/7 Dedicated Support',
+        subtitle: 'Round-the-clock trip assistance',
     },
 ];
+
 export default function TrustBadges() {
     return (
-        <div className="my-6">
-            <div className="bg-white rounded-lg border border-primary-800 p-4 md:p-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                    {BADGES.map((badge, index) => {
-                        const Icon = badge.icon;
-                        return (
-                            <div key={index} className="flex items-center gap-4">
-                                <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-sm border border-primary-800 text-primary-800">
-                                    <Icon className="w-6 h-6" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-gray-900">{badge.title}</span>
-                                    <span className="text-xs text-gray-600 mt-0.5">{badge.subtitle}</span>
-                                </div>
+        <div className="bg-white rounded-3xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow ring-1 ring-black/[0.04]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {BADGES.map((badge, index) => {
+                    const Icon = badge.icon;
+                    return (
+                        <div key={index} className="flex items-center gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-2xl bg-primary-50 text-primary-700 shadow-2xs">
+                                <Icon className="w-5 h-5" />
                             </div>
-                        );
-                    })}
-                </div>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-bold text-gray-900">{badge.title}</span>
+                                <span className="text-xs text-gray-500 mt-0.5">{badge.subtitle}</span>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

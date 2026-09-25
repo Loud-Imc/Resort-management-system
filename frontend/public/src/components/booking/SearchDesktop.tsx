@@ -1,15 +1,13 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { Users, Search, X, 
-    // Palmtree, Hotel, Home, Coffee, Layout, Tent, Building, Globe, 
-    ChevronRight, MapPin, Calendar, User } from 'lucide-react';
+import { format } from 'date-fns';
+import { ChevronDown, Check, Clock } from 'lucide-react';
 import { PropertyCategory } from '../../types';
 import LocationAutocomplete from './LocationAutocomplete';
-
-// const ICON_MAP: Record<string, any> = {
-//     Palmtree, Hotel, Home, Coffee, Tent, Building, Globe, Layout,
-// };
+import GuestRoomsModal from './GuestRoomsModal';
+import { useSearch } from '../../context/SearchContext';
 
 interface SearchProps {
     location: string;
@@ -45,301 +43,341 @@ interface SearchProps {
     setLongitude?: (v: number | null) => void;
 }
 
+const PRICE_BUCKETS = [
+    { label: '₹0-₹1500, ₹1500-₹2500,...', value: 'all', desc: 'Any budget' },
+    { label: '₹0 - ₹1,500', value: '0-1500', desc: 'Economy stays' },
+    { label: '₹1,500 - ₹3,000', value: '1500-3000', desc: 'Standard & Comfort' },
+    { label: '₹3,000 - ₹6,000', value: '3000-6000', desc: 'Premium resorts' },
+    { label: '₹6,000+', value: '6000+', desc: 'Luxury villas & suites' },
+];
+
 export default function SearchDesktop({
     location, setLocation,
     checkIn, setCheckIn,
     checkOut, setCheckOut,
-    adults, setAdults,
-    children, setChildren,
-    childAges = [], setChildAge,
-    infants = 0, setInfants,
-    rooms, setRooms,
+    adults,
+    rooms,
     handleSearch,
     isGroupBooking,
-    groupSize, setGroupSize,
+    groupSize,
     onUseLocation, isLocating,
     latitude,
     setLatitude,
     setLongitude,
 }: SearchProps) {
-    const [showGuestModal, setShowGuestModal] = React.useState(false);
-    const guestModalRef = React.useRef<HTMLDivElement>(null);
+    const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+    const [isPriceDropdownOpen, setIsPriceDropdownOpen] = useState(false);
+    const priceDropdownRef = useRef<HTMLDivElement>(null);
+
+    const {
+        petFriendly, setPetFriendly,
+        priceBucket, setPriceBucket,
+        rawChildAges
+    } = useSearch();
+
+    const totalChildren = rawChildAges.length;
+    const infantsCount = rawChildAges.filter(a => a >= 0 && a <= 2).length;
+    const paidOrFreeChildren = rawChildAges.filter(a => a >= 3).length;
+
+    const currentPriceObj = PRICE_BUCKETS.find(p => p.value === priceBucket) || PRICE_BUCKETS[0];
+
+    // Format dates matching exact MMT style
+    const checkInDay = checkIn ? format(checkIn, 'dd') : '23';
+    const checkInMonthYear = checkIn ? format(checkIn, "MMM''yy") : "Sep'26";
+    const checkInWeekDay = checkIn ? format(checkIn, 'EEEE') : 'Wednesday';
+
+    const checkOutDay = checkOut ? format(checkOut, 'dd') : '24';
+    const checkOutMonthYear = checkOut ? format(checkOut, "MMM''yy") : "Sep'26";
+    const checkOutWeekDay = checkOut ? format(checkOut, 'EEEE') : 'Thursday';
+
+    const displayCity = location || 'Goa';
+    const displayCountry = 'India';
 
     return (
-        <div className="hidden md:block w-full">
+        <div className="hidden md:block w-full max-w-[1240px] mx-auto">
             <form
                 onSubmit={handleSearch}
-                className="bg-white rounded-lg border border-primary-800 shadow-[0_2px_10px_rgba(15,63,71,0.06)] flex items-center p-2 relative z-50 w-full"
+                className="bg-white rounded-xl shadow-2xl p-6 md:p-8 pt-10 pb-12 relative z-20"
             >
-                <div className="flex divide-x divide-primary-800 items-stretch flex-1 h-14 w-full">
-                    {/* Location Segment */}
-                    <div className="flex-[1.5] px-6 flex items-center gap-3 hover:bg-gray-50 rounded-l-lg transition-all duration-300 cursor-pointer group">
-                        <MapPin className="h-5 w-5 text-primary-800 flex-shrink-0" />
-                        <div className="flex flex-col min-w-0 w-full">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-black leading-none mb-1">Where to?</span>
-                            <LocationAutocomplete
-                                value={location}
-                                onChange={(val) => setLocation(val)}
-                                onSelect={(description, lat, lng) => {
-                                    setLocation(description.split(',')[0]);
-                                    if (lat !== undefined && lng !== undefined) {
-                                        setLatitude?.(lat);
-                                        setLongitude?.(lng);
-                                    } else {
-                                        setLatitude?.(null);
-                                        setLongitude?.(null);
-                                    }
-                                }}
-                                placeholder="Search destinations"
-                                theme="light"
-                                hideIcon={true}
-                                onUseLocation={onUseLocation}
-                                isLocating={isLocating}
-                                latitude={latitude}
-                                inputClassName="w-full bg-transparent text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none border-none p-0 focus:ring-0"
+                {/* ─── TOP BAR (Radio Options & Property Listing Link) ─── */}
+                <div className="flex items-center justify-between pb-3 text-xs">
+                    {/* Left Radio Options */}
+                    <div className="flex items-center gap-5">
+                        <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-900">
+                            <input
+                                type="radio"
+                                name="bookingType"
+                                checked={!isGroupBooking}
+                                onChange={() => {}}
+                                className="h-4 w-4 text-primary-600 focus:ring-primary-500 cursor-pointer"
                             />
-                        </div>
+                            <span>Upto 4 Rooms</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-gray-600 hover:text-gray-900 font-medium">
+                            <input
+                                type="radio"
+                                name="bookingType"
+                                checked={isGroupBooking}
+                                onChange={() => {}}
+                                className="h-4 w-4 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                            />
+                            <span>Group Deals</span>
+                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                                new
+                            </span>
+                        </label>
+
+                        {/* Pet Friendly Toggle Button */}
+                        <button
+                            type="button"
+                            onClick={() => setPetFriendly(!petFriendly)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                                petFriendly
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <span>🐾</span>
+                            <span>{petFriendly ? 'Pet-Friendly Stays' : 'Travelling with Pets?'}</span>
+                            {petFriendly && <Check className="h-3 w-3 text-emerald-700" />}
+                        </button>
                     </div>
 
-                    {/* Dates Segment */}
-                    <div className="flex-[2] px-6 flex items-center gap-3 hover:bg-gray-50 transition-all duration-300 cursor-pointer group relative">
-                        <Calendar className="h-5 w-5 text-primary-800 flex-shrink-0" />
-                        <div className="flex flex-col w-full">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-black leading-none mb-1">Check-in — Check-out</span>
-                            <div className="flex items-center gap-2">
-                                <DatePicker
-                                    selected={checkIn}
-                                    onChange={(date: Date | null) => setCheckIn(date)}
-                                    selectsStart
-                                    startDate={checkIn}
-                                    endDate={checkOut}
-                                    minDate={new Date()}
-                                    dateFormat="dd MMM"
-                                    className="w-full bg-transparent text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none border-none p-0 focus:ring-0 cursor-pointer"
-                                    placeholderText="Add dates"
-                                />
-                                <span className="text-gray-300">-</span>
-                                <DatePicker
-                                    selected={checkOut}
-                                    onChange={(date: Date | null) => setCheckOut(date)}
-                                    selectsEnd
-                                    startDate={checkIn}
-                                    endDate={checkOut}
-                                    minDate={checkIn || new Date()}
-                                    dateFormat="dd MMM"
-                                    className="w-full bg-transparent text-sm font-semibold text-gray-900 placeholder:text-gray-400 outline-none border-none p-0 focus:ring-0 cursor-pointer"
-                                    placeholderText="Add dates"
-                                />
-                            </div>
-                        </div>
+                    {/* Right Property Listing Link */}
+                    <div className="hidden lg:block text-gray-600 text-xs">
+                        <span>Book Domestic and International Property Online. To list your property </span>
+                        <a
+                            href={`${import.meta.env.VITE_PROPERTY_URL || ''}/register`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:underline font-bold"
+                        >
+                            Click Here
+                        </a>
+                    </div>
+                </div>
+
+                {/* ─── 5-COLUMN SEARCH SEGMENT BOX (Exact MMT Layout) ─── */}
+                <div className="mt-2 border border-gray-200 rounded-lg flex divide-x divide-gray-200 overflow-visible bg-white hover:border-gray-300 transition-colors">
+
+                    {/* 1. Location Segment */}
+                    <div className="flex-[1.4] p-3.5 px-4 cursor-pointer hover:bg-sky-50/20 transition-colors relative flex flex-col justify-center min-h-[82px] group">
+                        <label className="text-[11px] font-medium text-gray-500 block leading-tight mb-0.5">
+                            City, Property Name Or Location
+                        </label>
+                        <LocationAutocomplete
+                            value={location}
+                            onChange={(val) => setLocation(val)}
+                            onSelect={(description, lat, lng) => {
+                                setLocation(description.split(',')[0]);
+                                if (lat !== undefined && lng !== undefined) {
+                                    setLatitude?.(lat);
+                                    setLongitude?.(lng);
+                                } else {
+                                    setLatitude?.(null);
+                                    setLongitude?.(null);
+                                }
+                            }}
+                            placeholder="Goa"
+                            theme="light"
+                            hideIcon={true}
+                            onUseLocation={onUseLocation}
+                            isLocating={isLocating}
+                            latitude={latitude}
+                            inputClassName="w-full bg-transparent text-3xl font-black text-gray-900 placeholder:text-gray-900 outline-none border-none p-0 focus:ring-0 leading-tight truncate"
+                        />
+                        <span className="text-xs text-gray-500 block mt-0.5 truncate">
+                            {location ? `${location}, India` : displayCountry}
+                        </span>
                     </div>
 
-                    {/* Guests Segment */}
+                    {/* 2. Check-In Segment */}
+                    <div className="flex-1 p-3.5 px-4 cursor-pointer hover:bg-sky-50/20 transition-colors relative flex flex-col justify-center min-h-[82px] group">
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 mb-0.5">
+                            <span>Check-In</span>
+                            <ChevronDown className="h-3 w-3 text-primary-600" />
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-black text-gray-900 leading-tight">{checkInDay}</span>
+                            <span className="text-sm font-bold text-gray-800">{checkInMonthYear}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 mt-0.5">{checkInWeekDay}</span>
+                        <DatePicker
+                            selected={checkIn}
+                            onChange={(date: Date | null) => setCheckIn(date)}
+                            selectsStart
+                            startDate={checkIn}
+                            endDate={checkOut}
+                            minDate={new Date()}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        />
+                    </div>
+
+                    {/* 3. Check-Out Segment */}
+                    <div className="flex-1 p-3.5 px-4 cursor-pointer hover:bg-sky-50/20 transition-colors relative flex flex-col justify-center min-h-[82px] group">
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 mb-0.5">
+                            <span>Check-Out</span>
+                            <ChevronDown className="h-3 w-3 text-primary-600" />
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-black text-gray-900 leading-tight">{checkOutDay}</span>
+                            <span className="text-sm font-bold text-gray-800">{checkOutMonthYear}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 mt-0.5">{checkOutWeekDay}</span>
+                        <DatePicker
+                            selected={checkOut}
+                            onChange={(date: Date | null) => setCheckOut(date)}
+                            selectsEnd
+                            startDate={checkIn}
+                            endDate={checkOut}
+                            minDate={checkIn || new Date()}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        />
+                    </div>
+
+                    {/* 4. Rooms & Guests Segment */}
                     <div
-                        className="flex-1 px-6 flex items-center gap-3 hover:bg-gray-50 transition-all duration-300 cursor-pointer group relative overflow-visible"
-                        onClick={() => setShowGuestModal(!showGuestModal)}
+                        onClick={() => setIsGuestModalOpen(!isGuestModalOpen)}
+                        className="flex-[1.1] p-3.5 px-4 cursor-pointer hover:bg-sky-50/20 transition-colors relative flex flex-col justify-center min-h-[82px] group"
                     >
-                        <User className="h-5 w-5 text-primary-800 flex-shrink-0" />
-                        <div className="flex flex-col flex-1 min-w-0">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-black leading-none mb-1">Guests</span>
-                            {isGroupBooking ? (
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-sm font-semibold text-gray-900">{groupSize}</span>
-                                    <span className="text-sm text-gray-600">Members</span>
-                                </div>
-                            ) : (
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-sm font-semibold text-gray-900">{adults + children}</span>
-                                    <span className="text-sm text-gray-600 truncate">
-                                        Guests{infants > 0 ? `, ${infants} Inf` : ''}, {rooms} Room{rooms > 1 ? 's' : ''}
-                                    </span>
-                                </div>
-                            )}
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 mb-0.5">
+                            <span>Rooms & Guests</span>
+                            <ChevronDown className="h-3 w-3 text-primary-600" />
                         </div>
-                        <ChevronRight className="h-4 w-4 text-gray-400 rotate-90 shrink-0" />
+                        <div className="flex items-baseline gap-1 leading-tight">
+                            <span className="text-2xl font-black text-gray-900">{rooms}</span>
+                            <span className="text-xs font-semibold text-gray-700 mr-1.5">Rooms</span>
+                            <span className="text-2xl font-black text-gray-900">{adults}</span>
+                            <span className="text-xs font-semibold text-gray-700">Adults</span>
+                        </div>
+                        <span className="text-xs text-gray-500 mt-0.5 truncate">
+                            {totalChildren > 0
+                                ? `${paidOrFreeChildren} Children${infantsCount > 0 ? `, ${infantsCount} Infants` : ''}`
+                                : '0 Children'}
+                        </span>
 
-                        {/* Guest Selection Modal (Dropdown style) */}
-                        {showGuestModal && (
+                        {/* Guest modal popover matching Screenshot 2 */}
+                        <GuestRoomsModal
+                            isOpen={isGuestModalOpen}
+                            onClose={() => setIsGuestModalOpen(false)}
+                        />
+                    </div>
+
+                    {/* 5. Price Per Night Segment */}
+                    <div
+                        ref={priceDropdownRef}
+                        onClick={() => setIsPriceDropdownOpen(!isPriceDropdownOpen)}
+                        className="flex-1 p-3.5 px-4 cursor-pointer hover:bg-sky-50/20 transition-colors relative flex flex-col justify-center min-h-[82px] group"
+                    >
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 mb-0.5">
+                            <span>Price Per Night</span>
+                            <ChevronDown className="h-3 w-3 text-primary-600" />
+                        </div>
+                        <div className="flex items-baseline truncate">
+                            <span className="text-sm font-bold text-gray-900 truncate leading-tight">
+                                {currentPriceObj.label}
+                            </span>
+                        </div>
+                        <span className="text-xs text-gray-400 mt-0.5 truncate">
+                            {currentPriceObj.desc}
+                        </span>
+
+                        {/* Price Dropdown Menu */}
+                        {isPriceDropdownOpen && (
                             <div
-                                ref={guestModalRef}
-                                className="absolute top-full right-0 mt-4 w-88 bg-white border border-gray-100 rounded-2xl shadow-2xl p-6 z-[100] animate-in fade-in slide-in-from-top-2 max-h-[480px] overflow-y-auto"
+                                className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl p-2 z-50 border border-gray-100 animate-in fade-in zoom-in-95 duration-200"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="flex justify-between items-center mb-6">
-                                    <h4 className="text-sm font-bold text-gray-900">Travellers & Rooms</h4>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowGuestModal(false)}
-                                        className="text-gray-400 hover:text-gray-900 transition-colors p-1"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </button>
+                                <div className="p-2 border-b border-gray-100">
+                                    <span className="text-xs font-bold text-gray-900">Select Budget Range</span>
                                 </div>
-
-                                <div className="space-y-5">
-                                    {/* Adults */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-900">
-                                                {isGroupBooking ? 'Group Adults (12+ yrs)' : 'Adults (12+ yrs)'}
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-0.5">Ages 12+</p>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newVal = Math.max(1, adults - 1);
-                                                    setAdults(newVal);
-                                                    if (isGroupBooking) setGroupSize(newVal + children);
-                                                }}
-                                                className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                            >-</button>
-                                            <span className="w-4 text-center font-bold text-gray-900">{adults}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newVal = adults + 1;
-                                                    setAdults(newVal);
-                                                    if (isGroupBooking) setGroupSize(newVal + children);
-                                                }}
-                                                className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                            >+</button>
-                                        </div>
-                                    </div>
-
-                                    {/* Children */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-900">
-                                                {isGroupBooking ? 'Group Children (2–12 yrs)' : 'Children (2–12 yrs)'}
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-0.5">Ages 2–12</p>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newVal = Math.max(0, children - 1);
-                                                    setChildren(newVal);
-                                                    if (isGroupBooking) setGroupSize(adults + newVal);
-                                                }}
-                                                className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                            >-</button>
-                                            <span className="w-4 text-center font-bold text-gray-900">{children}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newVal = children + 1;
-                                                    setChildren(newVal);
-                                                    if (isGroupBooking) setGroupSize(adults + newVal);
-                                                }}
-                                                className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                            >+</button>
-                                        </div>
-                                    </div>
-
-                                    {/* Child Age Selectors */}
-                                    {children > 0 && !isGroupBooking && (
-                                        <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/60 space-y-2.5 animate-in fade-in duration-200">
-                                            <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
-                                                Select Age for Each Child (2–12 yrs)
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {Array.from({ length: children }).map((_, idx) => (
-                                                    <div key={idx} className="flex flex-col gap-1">
-                                                        <label className="text-[10px] font-bold text-gray-600">
-                                                            Child {idx + 1} Age
-                                                        </label>
-                                                        <select
-                                                            value={childAges[idx] ?? 5}
-                                                            onChange={(e) => setChildAge?.(idx, parseInt(e.target.value) || 5)}
-                                                            className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs"
-                                                        >
-                                                            {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
-                                                                <option key={age} value={age}>
-                                                                    {age} years old {age <= 6 ? '(free)' : ''}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Infants */}
-                                    {!isGroupBooking && (
-                                        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                                <div className="py-1 space-y-1">
+                                    {PRICE_BUCKETS.map((bucket) => (
+                                        <button
+                                            key={bucket.value}
+                                            type="button"
+                                            onClick={() => {
+                                                setPriceBucket(bucket.value);
+                                                setIsPriceDropdownOpen(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                                                priceBucket === bucket.value
+                                                    ? 'bg-primary-50 text-primary-800 font-bold'
+                                                    : 'hover:bg-gray-50 text-gray-700'
+                                            }`}
+                                        >
                                             <div>
-                                                <p className="text-sm font-bold text-gray-900">Infants (0–2 yrs)</p>
-                                                <p className="text-xs text-gray-500 mt-0.5">Ages 0–2 (in cot / free)</p>
+                                                <p className="font-bold">{bucket.label}</p>
+                                                <p className="text-[10px] text-gray-400 font-normal">{bucket.desc}</p>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setInfants?.(Math.max(0, infants - 1))}
-                                                    className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                                >-</button>
-                                                <span className="w-4 text-center font-bold text-gray-900">{infants}</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setInfants?.(infants + 1)}
-                                                    className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                                >+</button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Rooms */}
-                                    {!isGroupBooking && (
-                                        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                                            <div>
-                                                <p className="text-sm font-bold text-gray-900">Rooms</p>
-                                                <p className="text-xs text-gray-500 mt-0.5">Total needed</p>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setRooms(Math.max(1, rooms - 1))}
-                                                    className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                                >-</button>
-                                                <span className="w-4 text-center font-bold text-gray-900">{rooms}</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setRooms(rooms + 1)}
-                                                    className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-all font-bold"
-                                                >+</button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {isGroupBooking && (
-                                        <div className="p-3 bg-primary-50 rounded-lg border border-primary-100 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white">
-                                                    <Users className="h-4 w-4" />
-                                                </div>
-                                                <span className="text-xs font-bold text-primary-900">Total Group Size</span>
-                                            </div>
-                                            <span className="text-lg font-bold text-primary-600">{groupSize}</span>
-                                        </div>
-                                    )}
+                                            {priceBucket === bucket.value && (
+                                                <Check className="h-4 w-4 text-primary-600" />
+                                            )}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Submit Action */}
+                {/* ─── LAST SEARCH PILL (Matching MMT screenshot) ─── */}
+                <div className="flex justify-center mt-3">
+                    <div className="inline-flex items-center gap-2 text-[11px] text-gray-500">
+                        <span>Last Search:</span>
+                        <div className="bg-gray-50 border border-gray-200/80 rounded-md px-2.5 py-0.5 text-gray-700 font-medium inline-flex items-center gap-1.5 shadow-2xs">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span>{displayCity}, India</span>
+                            <span className="text-gray-300">|</span>
+                            <span>{checkInDay} {checkInMonthYear.split("'")[0]} - {checkOutDay} {checkOutMonthYear.split("'")[0]}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ─── OVERLAPPING CENTERED SEARCH BUTTON (Matching MMT) ─── */}
                 <button
                     type="submit"
-                    className="ml-2 bg-primary-800 text-white font-medium px-8 h-12 rounded-lg hover:bg-primary-900 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                    className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-16 py-3 rounded-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-extrabold text-xl tracking-wider uppercase shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer z-30"
                 >
-                    <Search className="h-4 w-4" />
-                    Search Stays
+                    SEARCH
                 </button>
             </form>
+
+            {/* ─── QUICK EXPLORE NAVIGATION PILLS (Matching MMT Screenshot 1) ─── */}
+            <div className="flex items-center justify-center gap-3 sm:gap-6 mt-10">
+                <Link 
+                    to="/properties" 
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white shadow-xs border border-gray-100 hover:shadow-md text-xs font-bold text-gray-700 hover:text-primary-700 transition-all hover:scale-105"
+                >
+                    <span>🧭</span>
+                    <span>Where2Go</span>
+                </Link>
+                <Link 
+                    to="/properties?deals=group" 
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white shadow-xs border border-gray-100 hover:shadow-md text-xs font-bold text-gray-700 hover:text-primary-700 transition-all hover:scale-105"
+                >
+                    <span>💳</span>
+                    <span>Group Deals</span>
+                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                        new
+                    </span>
+                </Link>
+                <Link 
+                    to="/properties?theme=beachfront" 
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white shadow-xs border border-gray-100 hover:shadow-md text-xs font-bold text-gray-700 hover:text-primary-700 transition-all hover:scale-105"
+                >
+                    <span>🏖️</span>
+                    <span>Beachfront Escapes</span>
+                </Link>
+                <Link 
+                    to="/properties?theme=weekend" 
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white shadow-xs border border-gray-100 hover:shadow-md text-xs font-bold text-gray-700 hover:text-primary-700 transition-all hover:scale-105"
+                >
+                    <span>🏡</span>
+                    <span>Nearby Getaways</span>
+                </Link>
+            </div>
         </div>
     );
 }

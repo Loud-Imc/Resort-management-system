@@ -167,7 +167,7 @@ export default function SearchMobile({
                 >
                     <ChevronLeft className="h-5 w-5" />
                 </button>
-                <div className={`flex-1 ${isDark ? 'bg-black/30 border-white/20' : 'bg-white border-primary-800'} backdrop-blur-md rounded-lg py-3 px-5 shadow-none border`}>
+                <div className={`flex-1 ${isDark ? 'bg-black/30 border-white/20' : 'bg-white shadow-sm ring-1 ring-black/5'} backdrop-blur-md rounded-2xl py-3 px-5 border-0`}>
                     <div className="flex items-center gap-3">
                         {(() => {
                             if (isGroupBooking) return <Users className={`h-4 w-4 ${isDark ? 'text-primary-400' : 'text-primary-600'}`} />;
@@ -191,9 +191,9 @@ export default function SearchMobile({
 
             <form
                 onSubmit={handleSearch}
-                className={`${isDark ? 'bg-black/10 backdrop-blur-2xl border-white/10 shadow-none' : 'bg-white border-primary-800 shadow-[0_2px_10px_rgba(15,63,71,0.06)]'} rounded-lg overflow-visible border flex flex-col`}
+                className={`${isDark ? 'bg-black/10 backdrop-blur-2xl border-white/10 shadow-none' : 'bg-white shadow-xl ring-1 ring-black/5'} rounded-3xl overflow-visible border-0 flex flex-col`}
             >
-                <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-primary-800'}`}>
+                <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                     {/* Location */}
                     <div className={`p-4 active:${isDark ? 'bg-white/5' : 'bg-gray-50'} transition-colors cursor-pointer group`}>
                         <label className={`block text-[8px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/40' : 'text-primary-500/80'} mb-1.5`}>Where to?</label>
