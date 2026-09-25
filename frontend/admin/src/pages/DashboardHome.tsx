@@ -4,6 +4,7 @@ import { reportsService, DashboardStats } from '../services/reports';
 import { Building2, Shield, Users, IndianRupee, LayoutGrid, Loader2, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import SystemHealthCard from '../components/SystemHealthCard';
 
 export default function DashboardHome() {
     const { selectedProperty } = useProperty();
@@ -69,6 +70,7 @@ export default function DashboardHome() {
             {/* Platform Overview (Main Pillar) */}
             {stats?.superAdmin ? (
                 <div className="space-y-8">
+                    <SystemHealthCard />
                     <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-8 text-white shadow-xl">
                         <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-gray-700 pb-4">
                             <Users className="h-5 w-5 text-primary-400" />

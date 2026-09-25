@@ -19,9 +19,11 @@ import {
     Percent,
     Upload,
     Settings,
-    MapPin
+    MapPin,
+    Server
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SystemHealthCard from '../../components/SystemHealthCard';
 
 interface GstTier {
     min: number;
@@ -29,7 +31,7 @@ interface GstTier {
     rate: number;
 }
 
-type TabType = 'GLOBAL' | 'TIERS' | 'REWARDS';
+type TabType = 'GLOBAL' | 'TIERS' | 'REWARDS' | 'HEALTH';
 
 export default function PlatformSettings() {
     const [activeTab, setActiveTab] = useState<TabType>('GLOBAL');
@@ -367,6 +369,12 @@ export default function PlatformSettings() {
                 >
                     <Gift className="h-4 w-4" /> Rewards Catalog
                 </button>
+                <button
+                    onClick={() => setActiveTab('HEALTH')}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all ${activeTab === 'HEALTH' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                >
+                    <Server className="h-4 w-4" /> System Health
+                </button>
             </div>
 
             {/* TAB CONTENT: GLOBAL SETTINGS */}
@@ -643,6 +651,13 @@ export default function PlatformSettings() {
                             </div>
                         ))}
                     </div>
+                </div>
+            )}
+
+            {/* TAB CONTENT: SYSTEM HEALTH & INFRASTRUCTURE */}
+            {activeTab === 'HEALTH' && (
+                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                    <SystemHealthCard />
                 </div>
             )}
 
