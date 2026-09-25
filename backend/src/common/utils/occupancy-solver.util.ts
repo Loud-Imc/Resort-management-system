@@ -464,8 +464,28 @@ export function findOptimalChildAgeAssignment(
     childAges: number[]
 ): { roomChildAges: number[][]; minExtraCost: number; isFeasible: boolean } {
     const totalRooms = candidateRooms.length;
-    if (childAges.length === 0 || totalRooms === 0) {
-        return { roomChildAges: partition.map(() => []), minExtraCost: 0, isFeasible: true };
+    if (totalRooms === 0) {
+        return { roomChildAges: [], minExtraCost: 0, isFeasible: true };
+    }
+    if (childAges.length === 0) {
+        let totalExtra = 0;
+        let isFeasible = true;
+        for (let i = 0; i < totalRooms; i++) {
+            const surcharges = calculateCanonicalSurcharges(
+                { adults: partition[i].adults, children: 0, childAges: [], infants: 0 },
+                candidateRooms[i]
+            );
+            if (!surcharges.isFeasible) {
+                isFeasible = false;
+                break;
+            }
+            totalExtra += surcharges.totalExtraAmount;
+        }
+        return {
+            roomChildAges: partition.map(() => []),
+            minExtraCost: totalExtra,
+            isFeasible,
+        };
     }
     if (totalRooms === 1) {
         const surcharges = calculateCanonicalSurcharges(

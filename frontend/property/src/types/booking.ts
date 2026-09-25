@@ -55,6 +55,7 @@ export interface Booking {
     paymentMethod?: string;
     extraAdultAmount?: number;
     extraChildAmount?: number;
+    isGstInclusive?: boolean;
     status: BookingStatus;
     specialRequests?: string;
     whatsappNumber?: string;

@@ -107,8 +107,12 @@ const BookingDetails = () => {
     const couponDiscount = Number(booking.couponDiscountAmount || 0);
     const totalDiscount = Number(booking.discountAmount || 0) || (offerDiscount + couponDiscount);
 
+    const isInclusive = Boolean(booking.isGstInclusive ?? property?.isGstInclusive);
+
     // If totalAmount was saved with a bug where extra charges were missed, recalculate effective total
-    const computedTotal = baseAmount + effectiveExtraCharges + taxAmount - totalDiscount;
+    const computedTotal = isInclusive
+        ? (baseAmount + taxAmount - totalDiscount)
+        : (baseAmount + effectiveExtraCharges + taxAmount - totalDiscount);
     const rawTotalAmount = Number(booking.totalAmount || 0);
     const paymentsList = Array.isArray(booking.payments) ? booking.payments : [];
     const totalOriginalPaid = paymentsList.length > 0
@@ -532,7 +536,14 @@ const BookingDetails = () => {
                         <div className="space-y-6">
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm items-center">
-                                    <span className="text-muted-foreground font-bold">Base Rate</span>
+                                    <div className="flex flex-col">
+                                        <span className="text-muted-foreground font-bold">Base Rate</span>
+                                        {isInclusive && effectiveExtraCharges > 0 && (
+                                            <span className="text-[11px] text-muted-foreground/80 font-normal">
+                                                Includes ₹{effectiveExtraCharges.toLocaleString()} for extra guests
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className="font-black text-foreground">₹{Number(booking.baseAmount).toLocaleString()}</span>
                                 </div>
                                 {Number(booking.offerDiscountAmount) > 0 && (
@@ -541,10 +552,12 @@ const BookingDetails = () => {
                                         <span className="font-black">-₹{Number(booking.offerDiscountAmount).toLocaleString()}</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between text-sm items-center">
-                                    <span className="text-muted-foreground font-bold">Extra Charges</span>
-                                    <span className="font-black text-foreground">₹{effectiveExtraCharges.toLocaleString()}</span>
-                                </div>
+                                {!isInclusive && effectiveExtraCharges > 0 && (
+                                    <div className="flex justify-between text-sm items-center">
+                                        <span className="text-muted-foreground font-bold">Extra Charges</span>
+                                        <span className="font-black text-foreground">₹{effectiveExtraCharges.toLocaleString()}</span>
+                                    </div>
+                                )}
                                 {Number(booking.couponDiscountAmount) > 0 && (
                                     <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
                                         <span className="font-bold">Coupon Discount</span>

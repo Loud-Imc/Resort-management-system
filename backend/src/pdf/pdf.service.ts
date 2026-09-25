@@ -441,9 +441,26 @@ export class PdfService {
                 { text: 'Amount', style: 'tableHeader', alignment: 'right' },
               ],
               [
-                { text: isGstProperty ? 'Accommodation Charges (SAC 996311)' : 'Accommodation Charges', style: 'tableCell' },
+                {
+                  text: (() => {
+                    const label = isGstProperty ? 'Accommodation Charges (SAC 996311)' : 'Accommodation Charges';
+                    const isGstInclusive = Boolean(booking.isGstInclusive ?? property?.isGstInclusive);
+                    const totalExtra = Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0);
+                    if (isGstInclusive && totalExtra > 0) {
+                      return `${label}\n(Includes ₹${totalExtra.toLocaleString('en-IN', { minimumFractionDigits: totalExtra % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })} for extra guests)`;
+                    }
+                    return label;
+                  })(),
+                  style: 'tableCell',
+                },
                 { text: `₹${Number(booking.baseAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: Number(booking.baseAmount) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
               ],
+              ...((!(booking.isGstInclusive ?? property?.isGstInclusive) && (Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)) > 0) ? [
+                [
+                  { text: 'Extra Guest Surcharge', style: 'tableCell' },
+                  { text: `₹${(Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: (Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
+                ]
+              ] : []),
               ...(isGstProperty ? [
                 [
                   { text: `GST (${effectiveTaxRate}%)`, style: 'tableCell' },
