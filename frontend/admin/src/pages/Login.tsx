@@ -29,17 +29,17 @@ function parseLoginError(err: any): { message: string; field: ErrorField } {
     if (lower.includes('inactive')) {
         return { message: 'Your account has been deactivated. Please contact support.', field: 'general' };
     }
+    if (lower.includes('administrator') || lower.includes('not registered') || lower.includes('access denied')) {
+        return { message: 'This email or phone number is not registered for administrator access.', field: 'email' };
+    }
     if (lower.includes('not found') || lower.includes('no account')) {
-        return { message: 'No account found with that email or phone number.', field: 'email' };
+        return { message: 'No administrator account found with that email or phone number.', field: 'email' };
     }
     if (lower.includes('invalid credentials') || lower.includes('password')) {
         return { message: 'Incorrect password. Please try again.', field: 'password' };
     }
     if (lower.includes('otp')) {
         return { message: 'This account uses OTP login. Password login is not available.', field: 'general' };
-    }
-    if (lower.includes('not registered') || lower.includes('access denied') || lower.includes('administrator')) {
-        return { message: 'This account does not have administrator access.', field: 'general' };
     }
     return { message: msg, field: 'general' };
 }

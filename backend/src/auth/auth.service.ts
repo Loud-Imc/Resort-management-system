@@ -36,6 +36,69 @@ export class AuthService {
         return result;
     }
 
+    isAdminPortalUser(user: any): boolean {
+        if (!user) return false;
+
+        const EXTERNAL_PORTAL_ROLES = [
+            'Customer',
+            'ChannelPartner',
+            'PropertyOwner',
+            'Manager',
+            'Staff',
+            'Receptionist',
+            'Housekeeping',
+            'Kitchen',
+            'Security',
+            'EventOrganizer',
+            'VerificationStaff'
+        ];
+
+        const globalUserRoles = user.roles || [];
+        const globalRoleNames = globalUserRoles.map((ur: any) => ur.role?.name).filter(Boolean);
+
+        // 1. Unconditionally allowed primary administrative roles
+        if (globalRoleNames.includes('SuperAdmin') || globalRoleNames.includes('Admin')) {
+            return true;
+        }
+
+        // 2. Check for system-level / admin-side roles created in admin portal (propertyId is null and not an external portal role)
+        const hasAdminSideRole = globalUserRoles.some((ur: any) => {
+            const r = ur.role;
+            if (!r) return false;
+            const isNotExternal = !EXTERNAL_PORTAL_ROLES.includes(r.name);
+            const isSystemRole = r.propertyId === null || r.isSystem === true || r.category === 'SYSTEM';
+            return isNotExternal && isSystemRole;
+        });
+
+        if (hasAdminSideRole) {
+            return true;
+        }
+
+        // 3. Check for admin permissions on global roles
+        const userPermissions = globalUserRoles.flatMap((ur: any) =>
+            (ur.role?.permissions || []).map((rp: any) => rp.permission?.name || rp.permission)
+        );
+        const hasAdminPerm = userPermissions.some((perm: string) =>
+            typeof perm === 'string' && (
+                perm.startsWith('admin.') ||
+                perm.startsWith('reports.') ||
+                perm.startsWith('properties.') ||
+                perm.startsWith('finance.') ||
+                perm.startsWith('users.') ||
+                perm.startsWith('roles.')
+            )
+        );
+
+        const onlyExternalRoles = globalRoleNames.length > 0 &&
+            globalRoleNames.every((name: string) => EXTERNAL_PORTAL_ROLES.includes(name));
+
+        if (hasAdminPerm && !onlyExternalRoles) {
+            return true;
+        }
+
+        return false;
+    }
+
     async login(loginDto: LoginDto) {
         const identifier = loginDto.email.trim();
         console.log(`[AuthService] Login attempt for identifier: ${identifier}`);
@@ -53,6 +116,14 @@ export class AuthService {
                 } else {
                     console.log(`[AuthService] User NOT found by phone: ${normalizedPhone}`);
                 }
+            }
+        }
+
+        // If logging into admin portal, restrict strictly to admin portal users BEFORE verifying passwords
+        if (loginDto.portal === 'admin') {
+            if (!user || !this.isAdminPortalUser(user)) {
+                console.warn(`[AuthService] Admin login rejected: User ${identifier} is not an administrator account`);
+                throw new UnauthorizedException('No administrator account found with this email or phone number');
             }
         }
 
@@ -173,6 +244,14 @@ export class AuthService {
             }
         }
 
+        // Restrict strictly for admin portal
+        if (dto.portal === 'admin') {
+            if (!user || !this.isAdminPortalUser(user)) {
+                console.warn(`[AuthService] Admin forgot-password rejected: User ${identifier} is not an administrator account`);
+                throw new NotFoundException('No administrator account found with this email or phone number');
+            }
+        }
+
         if (!user) {
             throw new NotFoundException('No account found with this email or phone number');
         }
@@ -261,6 +340,19 @@ export class AuthService {
             throw new BadRequestException('Invalid or expired verification code');
         }
 
+        if (dto.portal === 'admin') {
+            let user = await this.usersService.findByEmail(otp.email || identifier);
+            if (!user && otp.phone) {
+                user = await this.usersService.findByPhone(otp.phone);
+            }
+            if (!user && normalizedPhone) {
+                user = await this.usersService.findByPhone(normalizedPhone);
+            }
+            if (!user || !this.isAdminPortalUser(user)) {
+                throw new BadRequestException('This account does not have administrator privileges');
+            }
+        }
+
         return { success: true, message: 'OTP verified successfully' };
     }
 
@@ -302,6 +394,12 @@ export class AuthService {
 
         if (!user) {
             throw new NotFoundException('User not found');
+        }
+
+        if (dto.portal === 'admin') {
+            if (!this.isAdminPortalUser(user)) {
+                throw new BadRequestException('This account does not have administrator privileges');
+            }
         }
 
         const hashedPassword = await bcrypt.hash(dto.newPassword, 10);

@@ -61,7 +61,25 @@ export default function DashboardLayout() {
 
     // Portal role guard — belt-and-suspenders check on every render
     const sessionRoles: string[] = user?.roles || (user?.role ? [user.role as string] : []);
-    const hasAdminAccess = sessionRoles.some(r => ['SuperAdmin', 'Admin'].includes(r));
+    const EXTERNAL_ROLES = [
+        'Customer',
+        'ChannelPartner',
+        'PropertyOwner',
+        'Manager',
+        'Staff',
+        'Receptionist',
+        'Housekeeping',
+        'Kitchen',
+        'Security',
+        'EventOrganizer',
+        'VerificationStaff'
+    ];
+    const isCoreAdmin = sessionRoles.some(r => ['SuperAdmin', 'Admin'].includes(r));
+    const hasAdminSideRole = sessionRoles.some(r => !EXTERNAL_ROLES.includes(r));
+    const hasPermissions = Array.isArray(user?.permissions) && user.permissions.length > 0;
+    const onlyExternal = sessionRoles.length > 0 && sessionRoles.every(r => EXTERNAL_ROLES.includes(r));
+
+    const hasAdminAccess = isCoreAdmin || (hasAdminSideRole && !onlyExternal) || (hasPermissions && !onlyExternal);
     if (!hasAdminAccess) {
         logout();
         return <Navigate to="/login" replace />;

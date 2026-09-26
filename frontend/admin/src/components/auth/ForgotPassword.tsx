@@ -25,7 +25,7 @@ export default function ForgotPassword({ onBack }: ForgotPasswordProps) {
         setIsLoading(true);
         setError(null);
         try {
-            await api.post('/auth/forgot-password/request', { identifier });
+            await api.post('/auth/forgot-password/request', { identifier, portal: 'admin' });
             toast.success('Verification code sent to your registered email/phone!');
             setStep('OTP');
         } catch (err: any) {
@@ -42,7 +42,7 @@ export default function ForgotPassword({ onBack }: ForgotPasswordProps) {
         setIsLoading(true);
         setError(null);
         try {
-            await api.post('/auth/forgot-password/verify', { identifier, code: otp });
+            await api.post('/auth/forgot-password/verify', { identifier, code: otp, portal: 'admin' });
             toast.success('Code verified successfully!');
             setStep('RESET');
         } catch (err: any) {
@@ -69,7 +69,7 @@ export default function ForgotPassword({ onBack }: ForgotPasswordProps) {
         }
         setIsLoading(true);
         try {
-            await api.post('/auth/forgot-password/reset', { identifier, code: otp, newPassword });
+            await api.post('/auth/forgot-password/reset', { identifier, code: otp, newPassword, portal: 'admin' });
             toast.success('Password reset successfully! Please sign in with your new password.');
             onBack();
         } catch (err: any) {

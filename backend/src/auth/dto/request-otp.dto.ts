@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RequestOtpDto {
@@ -6,4 +6,9 @@ export class RequestOtpDto {
   @IsNotEmpty()
   @IsString()
   identifier: string;
+
+  @ApiProperty({ example: 'admin', required: false })
+  @IsOptional()
+  @IsString()
+  portal?: string;
 }
