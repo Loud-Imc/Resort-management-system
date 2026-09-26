@@ -121,6 +121,28 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                             <p className="text-xs font-bold text-gray-800 line-clamp-1">
                                 {property.bestSolution.rooms?.map((r: any) => `${r.roomTypeName} (${r.adults}A${r.children > 0 ? `, ${r.children}C` : ''})`).join(' + ')}
                             </p>
+                            {/* AC and Meal Plan Availability Badges */}
+                            <div className="flex flex-wrap items-center gap-1 pt-1">
+                                {property.bestSolution.availableAcOptions?.includes('AC') && property.bestSolution.availableAcOptions?.includes('NON_AC') ? (
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                        ❄️/🍃 AC & Non-AC
+                                    </span>
+                                ) : property.bestSolution.availableAcOptions?.includes('AC') ? (
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                        ❄️ AC Available
+                                    </span>
+                                ) : property.bestSolution.availableAcOptions?.includes('NON_AC') ? (
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        🍃 Non-AC
+                                    </span>
+                                ) : null}
+
+                                {property.bestSolution.ratesByMealPlan && Object.keys(property.bestSolution.ratesByMealPlan).map((mp) => (
+                                    <span key={mp} className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200/70">
+                                        {mp === 'EP' ? '☕ EP' : mp === 'CP' ? '🍳 CP (Breakfast)' : mp === 'MAP' ? '🍽️ MAP' : '👑 AP'}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
                     )}
 

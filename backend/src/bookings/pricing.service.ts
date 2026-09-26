@@ -50,6 +50,10 @@ export interface PricingBreakdown {
     offerEndDate?: string;
     offerDiscountType?: string;
     offerDiscountValue?: number;
+    // Rate Plan & AC
+    ratePlanId?: string;
+    mealPlan?: string;
+    isAcSelected?: boolean;
 }
 
 export interface PublishedRateBreakdown {
@@ -125,6 +129,9 @@ export class PricingService {
         childAges?: number[],
         preloadedRoomType?: any,
         preloadedContext?: { gstTiers?: any[]; offers?: any[]; pricingRules?: any[] },
+        ratePlanId?: string,
+        isAcSelected?: boolean,
+        mealPlan?: any,
     ): Promise<PricingBreakdown> {
         // Resolve generalCode if provided
         if (generalCode && !couponCode && !referralCode) {
@@ -199,13 +206,66 @@ export class PricingService {
             throw new BadRequestException('Check-out date cannot be before check-in date');
         }
 
-        // 3. Normalize prices if room type is GST inclusive (Only if property is GST registered)
+        // 3. Resolve authoritative AC selection and Rate Plan pricing
+        let authoritativeIsAc = true;
+        if (roomType.acOption === 'NON_AC_ONLY') {
+            authoritativeIsAc = false;
+        } else if (roomType.acOption === 'AC_ONLY') {
+            authoritativeIsAc = true;
+        } else if (roomType.acOption === 'BOTH') {
+            authoritativeIsAc = isAcSelected !== undefined ? Boolean(isAcSelected) : true;
+        }
+
+        let targetRatePlan: any = null;
+        let roomTypeRatePrice: any = null;
+
+        if (ratePlanId) {
+            targetRatePlan = await this.prisma.ratePlan.findUnique({
+                where: { id: ratePlanId },
+                include: { roomTypePrices: { where: { roomTypeId } } },
+            });
+            roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
+        } else if (mealPlan) {
+            targetRatePlan = await this.prisma.ratePlan.findFirst({
+                where: { propertyId: roomType.propertyId, mealPlan, isActive: true },
+                include: { roomTypePrices: { where: { roomTypeId } } },
+            });
+            roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
+        }
+
+        let rawBasePrice = Number(roomType.basePrice);
+        let rawExtraAdultPrice = Number(roomType.extraAdultPrice);
+        let rawExtraChildPrice = Number(roomType.extraChildPrice);
+
+        if (roomTypeRatePrice) {
+            if (authoritativeIsAc && roomTypeRatePrice.basePriceAc !== null && roomTypeRatePrice.basePriceAc !== undefined) {
+                rawBasePrice = Number(roomTypeRatePrice.basePriceAc);
+                rawExtraAdultPrice = roomTypeRatePrice.extraAdultPriceAc !== null ? Number(roomTypeRatePrice.extraAdultPriceAc) : Number(roomTypeRatePrice.extraAdultPrice);
+                rawExtraChildPrice = roomTypeRatePrice.extraChildPriceAc !== null ? Number(roomTypeRatePrice.extraChildPriceAc) : Number(roomTypeRatePrice.extraChildPrice);
+            } else {
+                rawBasePrice = Number(roomTypeRatePrice.basePrice);
+                rawExtraAdultPrice = Number(roomTypeRatePrice.extraAdultPrice);
+                rawExtraChildPrice = Number(roomTypeRatePrice.extraChildPrice);
+            }
+        } else {
+            if (authoritativeIsAc && roomType.basePriceAc !== null && roomType.basePriceAc !== undefined) {
+                rawBasePrice = Number(roomType.basePriceAc);
+                rawExtraAdultPrice = roomType.extraAdultPriceAc !== null ? Number(roomType.extraAdultPriceAc) : Number(roomType.extraAdultPrice);
+                rawExtraChildPrice = roomType.extraChildPriceAc !== null ? Number(roomType.extraChildPriceAc) : Number(roomType.extraChildPrice);
+            } else {
+                rawBasePrice = Number(roomType.basePrice);
+                rawExtraAdultPrice = Number(roomType.extraAdultPrice);
+                rawExtraChildPrice = Number(roomType.extraChildPrice);
+            }
+        }
+
+        // 4. Normalize prices if room type is GST inclusive (Only if property is GST registered)
         const isPropertyGstApplicable = Boolean((roomType.property as any)?.isGstApplicable && (roomType.property as any)?.gstNumber);
         const isRoomGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
 
-        let effectiveBasePrice = Number(roomType.basePrice);
-        let effectiveExtraAdultPrice = Number(roomType.extraAdultPrice);
-        let effectiveExtraChildPrice = Number(roomType.extraChildPrice);
+        let effectiveBasePrice = rawBasePrice;
+        let effectiveExtraAdultPrice = rawExtraAdultPrice;
+        let effectiveExtraChildPrice = rawExtraChildPrice;
 
         if (isRoomGstInclusive) {
             // Reverse-calculate components for base amount (per room per night)
@@ -225,7 +285,7 @@ export class PricingService {
             }
         }
 
-        // 4. Calculate base price
+        // 5. Calculate base price
         let baseAmount = 0;
         let extraAdultAmount = 0;
         let extraChildAmount = 0;
@@ -268,6 +328,18 @@ export class PricingService {
                 const childRate = Number(propertyGroupPriceChild || 0);
                 totalInclusivePerNight = (adultRate * adultsCount) + (childRate * childrenCount);
             }
+
+            // Task 2.4: Group Booking Per-Head Meal Plan Supplement
+            const activeMealPlan = targetRatePlan?.mealPlan || mealPlan || 'EP';
+            let groupMealSupplement = 0;
+            if (activeMealPlan === 'CP') {
+                groupMealSupplement = (adultsCount * 250) + (childrenCount * 150);
+            } else if (activeMealPlan === 'MAP') {
+                groupMealSupplement = (adultsCount * 700) + (childrenCount * 400);
+            } else if (activeMealPlan === 'AP') {
+                groupMealSupplement = (adultsCount * 1200) + (childrenCount * 700);
+            }
+            totalInclusivePerNight += groupMealSupplement;
 
             // Convert inclusive total to base total using accurate roomCount-based slab
             if (isGroupInclusive) {
@@ -581,6 +653,9 @@ export class PricingService {
             offerEndDate: activeOffer?.endDate ? format(new Date(activeOffer.endDate), 'yyyy-MM-dd') : undefined,
             offerDiscountType: activeOffer?.discountType || undefined,
             offerDiscountValue: activeOffer?.discountValue ? Number(activeOffer.discountValue) : undefined,
+            ratePlanId: targetRatePlan?.id || ratePlanId,
+            mealPlan: targetRatePlan?.mealPlan || mealPlan || 'EP',
+            isAcSelected: authoritativeIsAc,
         };
 
         // 13. If Price Override was provided by admin/desk

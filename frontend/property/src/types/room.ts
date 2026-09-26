@@ -43,6 +43,10 @@ export interface RoomType {
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    basePriceAc?: number | null;
+    extraAdultPriceAc?: number | null;
+    extraChildPriceAc?: number | null;
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive: boolean;
@@ -59,6 +63,7 @@ export interface RoomType {
     };
     rooms?: Room[];
     ratePlans?: any[];
+    ratePlanPrices?: any[];
     _count?: {
         rooms: number;
     };
@@ -96,6 +101,10 @@ export interface CreateRoomTypeDto {
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    basePriceAc?: number | null;
+    extraAdultPriceAc?: number | null;
+    extraChildPriceAc?: number | null;
     isAvailableForGroupBooking: boolean;
     groupMaxOccupancy?: number;
     isGstInclusive?: boolean;

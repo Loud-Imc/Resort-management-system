@@ -126,4 +126,19 @@ export class CalculatePriceDto {
     @IsBoolean()
     @IsOptional()
     isOverrideInclusive?: boolean;
+
+    @ApiProperty({ example: 'rate-plan-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    ratePlanId?: string;
+
+    @ApiProperty({ example: 'EP', required: false, enum: ['EP', 'CP', 'MAP', 'AP'] })
+    @IsString()
+    @IsOptional()
+    mealPlan?: string;
+
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isAcSelected?: boolean;
 }

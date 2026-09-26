@@ -38,6 +38,13 @@ export class RatePlansController {
     return this.ratePlansService.getRatePlansForProperty(propertyId);
   }
 
+  @Post('reset-defaults/:propertyId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Consolidate and reset property rate plans to standard 4 tiers (EP, CP, MAP, AP)' })
+  async resetPropertyRatePlans(@Param('propertyId') propertyId: string) {
+    return this.ratePlansService.resetPropertyRatePlans(propertyId);
+  }
+
   @Post()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Create a new Rate Plan (EP, CP, MAP, AP)' })
@@ -50,6 +57,16 @@ export class RatePlansController {
   @ApiOperation({ summary: 'Update an existing Rate Plan' })
   async updateRatePlan(@Param('id') id: string, @Body() dto: UpdateRatePlanDto) {
     return this.ratePlansService.updateRatePlan(id, dto);
+  }
+
+  @Put(':id/room-type-prices')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Update Room Type Prices for a Rate Plan' })
+  async updateRoomTypePrices(
+    @Param('id') id: string,
+    @Body() dto: { roomTypePrices: any[] },
+  ) {
+    return this.ratePlansService.updateRoomTypePrices(id, dto.roomTypePrices);
   }
 
   @Delete(':id')

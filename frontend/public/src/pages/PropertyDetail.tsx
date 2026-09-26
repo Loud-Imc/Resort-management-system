@@ -324,7 +324,10 @@ export default function PropertyDetail() {
         sessionStorage.setItem('selectedSolution', JSON.stringify(solution));
         const firstRoomId = solution.rooms[0]?.roomTypeId || '';
         const childAgesParam = children > 0 && childAges && childAges.length > 0 ? `&childAges=${childAges.join(',')}` : '';
-        navigate(`/book?roomId=${firstRoomId}&property=${property?.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${childAgesParam}&infants=${infants || 0}&roomsCount=${solution.totalRooms}&hasSolution=true`);
+        const mealPlanParam = `&mealPlan=${solution.selectedMealPlan || solution.mealPlan || 'EP'}`;
+        const ratePlanParam = solution.ratePlanId ? `&ratePlanId=${solution.ratePlanId}` : '';
+        const acParam = `&isAcSelected=${solution.isAcSelected !== undefined ? solution.isAcSelected : true}`;
+        navigate(`/book?roomId=${firstRoomId}&property=${property?.slug}&checkIn=${checkIn.toISOString()}&checkOut=${checkOut.toISOString()}&adults=${adults}&children=${children}${childAgesParam}&infants=${infants || 0}&roomsCount=${solution.totalRooms}&hasSolution=true${mealPlanParam}${ratePlanParam}${acParam}`);
     };
 
     const handleViewRoomDetails = (allocatedRoom: AllocatedRoomItem) => {

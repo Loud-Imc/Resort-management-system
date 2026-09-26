@@ -32,6 +32,8 @@ interface BookingSummarySidebarProps {
     isPriceLoading?: boolean;
     codeMessage?: string | null;
     isCodeError?: boolean;
+    selectedMealPlan?: string;
+    roomAcSelections?: Record<number, boolean>;
 }
 
 export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
@@ -63,6 +65,8 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     isPriceLoading = false,
     codeMessage,
     isCodeError = false,
+    selectedMealPlan = 'EP',
+    roomAcSelections,
 }) => {
     const [inputCode, setInputCode] = useState('');
 
@@ -136,6 +140,15 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                             <span className="font-medium text-foreground">{childAges.join(', ')} yrs</span>
                         </div>
                     )}
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
+                        <span className="text-muted-foreground font-semibold">Meal Plan:</span>
+                        <span className="font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-md border border-primary/20 flex items-center gap-1 text-[11px]">
+                            {selectedMealPlan === 'CP' ? '🍳 Bed & Breakfast (CP)' :
+                             selectedMealPlan === 'MAP' ? '🍽️ Half Board (MAP)' :
+                             selectedMealPlan === 'AP' ? '👑 Full Board (AP)' :
+                             '☕ Room Only (EP)'}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Selected Accommodation Solution & Physical Rooms Checklist */}
@@ -248,6 +261,18 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                                 <span className="font-bold text-[9.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
                                                     {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
                                                 </span>
+                                                {(() => {
+                                                    const isAc = roomAcSelections?.[idx] !== undefined ? roomAcSelections[idx] : (ar.isAcSelected ?? (ar.acOption !== 'NON_AC_ONLY'));
+                                                    return (
+                                                        <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                                                            isAc
+                                                                ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
+                                                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                        }`}>
+                                                            {isAc ? '❄️ AC' : '🍃 Non-AC'}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                             {extraA > 0 && (
                                                 <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">

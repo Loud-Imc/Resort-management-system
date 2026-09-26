@@ -93,6 +93,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     roomTypeId: string;
     dateStr: string;
     currentPrice: number;
+    isAc?: boolean;
   } | null>(null);
   const [inlinePriceInput, setInlinePriceInput] = useState<string>('');
   // const [savingInline, setSavingInline] = useState<boolean>(false);
@@ -211,13 +212,24 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     });
   };
 
-  // Helper to calculate rate for a plan on a date considering pricing rules
-  const getRateForPlanAndDate = (plan: RatePlan, dateStr: string) => {
+  // Helper to calculate rate for a plan on a date considering pricing rules and AC mode
+  const getRateForPlanAndDate = (plan: RatePlan, dateStr: string, rt?: RoomType, isAc?: boolean) => {
+    let base = Number(plan.basePrice);
+    if (rt) {
+      const rtp = plan.roomTypePrices?.find((p) => p.roomTypeId === rt.id);
+      if (rtp) {
+        base = isAc ? Number(rtp.basePriceAc ?? rtp.basePrice) : Number(rtp.basePrice);
+      } else {
+        base = isAc ? Number(rt.basePriceAc || rt.basePrice) : Number(rt.basePrice);
+      }
+    }
+
     const dayDate = new Date(dateStr);
     const dayOfWeek = dayDate.getDay();
 
     if (plan.pricingRules && plan.pricingRules.length > 0) {
       const matchingRules = plan.pricingRules.filter((rule: any) => {
+        if (rule.roomTypeId && rt && rule.roomTypeId !== rt.id) return false;
         const s = rule.startDate.split('T')[0];
         const e = rule.endDate.split('T')[0];
         if (dateStr < s || dateStr > e) return false;
@@ -256,7 +268,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       }
     }
 
-    return Number(plan.basePrice);
+    return Number(base);
   };
 
   const handleRequestPriceChange = () => {
@@ -269,13 +281,16 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
     const targetPlan = ratePlans.find((p) => p.id === editingCell.ratePlanId);
     const targetRoom = roomTypes.find((r) => r.id === editingCell.roomTypeId);
+    const planNameWithAc = targetPlan
+      ? `${targetPlan.name}${editingCell.isAc ? ' (❄️ AC)' : ' (🍃 Non-AC)'}`
+      : 'Selected Plan';
 
     setConfirmModalDetails({
       type: 'PRICE',
       roomTypeId: editingCell.roomTypeId,
       roomTypeName: targetRoom?.name || 'Selected Room',
       ratePlanId: editingCell.ratePlanId,
-      ratePlanName: targetPlan?.name,
+      ratePlanName: planNameWithAc,
       dateStr: editingCell.dateStr,
       oldValue: editingCell.currentPrice,
       newValue: newPrice,
@@ -614,7 +629,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
               {/* Table Body (Room Types, Inventory, Restrictions & Rate Plans) */}
               <tbody className="divide-y divide-border text-xs">
                 {filteredRoomTypes.map((rt) => {
-                  const plans = filteredRatePlans.filter((p) => p.roomTypeId === rt.id);
+                  const plans = filteredRatePlans;
                   const isExpanded = expandedRoomTypes[rt.id] !== false;
                   const roomInv = inventoryMap[rt.id] || {};
                   const roomRestr = restrictionsMap[rt.id] || {};
@@ -636,9 +651,24 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                               )}
                               <span className="font-extrabold text-xs sm:text-sm text-foreground truncate">{rt.name}</span>
                             </div>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-primary/20 text-primary border border-primary/30 shrink-0">
-                              {plans.length} {plans.length === 1 ? 'plan' : 'plans'}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {rt.acOption === 'BOTH' ? (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                                  ❄️/🍃 Dual
+                                </span>
+                              ) : rt.acOption === 'NON_AC_ONLY' ? (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                  🍃 Non-AC
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                                  ❄️ AC
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-primary/20 text-primary border border-primary/30">
+                                {plans.length} {plans.length === 1 ? 'plan' : 'plans'}
+                              </span>
+                            </div>
                           </div>
                         </td>
 
@@ -657,9 +687,20 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                   : ''
                               }`}
                             >
-                              <span className="text-xs sm:text-sm text-muted-foreground font-black font-mono">
-                                ₹{Number(rt.basePrice).toLocaleString()}
-                              </span>
+                              {rt.acOption === 'BOTH' ? (
+                                <div className="flex flex-col items-center leading-tight">
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold font-mono">
+                                    🍃 ₹{Number(rt.basePrice).toLocaleString()}
+                                  </span>
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold font-mono">
+                                    ❄️ ₹{Number(rt.basePriceAc || rt.basePrice).toLocaleString()}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs sm:text-sm text-muted-foreground font-black font-mono">
+                                  ₹{Number(rt.acOption === 'NON_AC_ONLY' ? rt.basePrice : (rt.basePriceAc || rt.basePrice)).toLocaleString()}
+                                </span>
+                              )}
                             </td>
                           );
                         })}
@@ -795,12 +836,21 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
                       {/* Rate Plan Sub-Rows */}
                       {isExpanded &&
-                        plans.map((plan) => {
+                        plans.flatMap((plan) => {
                           const isPrimaryPlan = Boolean(plan.isPrimary);
+                          const variants: Array<{ isAc: boolean; label: string; key: string }> =
+                            rt.acOption === 'BOTH'
+                              ? [
+                                  { isAc: false, label: '🍃 Non-AC', key: `${plan.id}-nonac` },
+                                  { isAc: true, label: '❄️ AC', key: `${plan.id}-ac` },
+                                ]
+                              : rt.acOption === 'NON_AC_ONLY'
+                              ? [{ isAc: false, label: '🍃 Non-AC', key: `${plan.id}-nonac` }]
+                              : [{ isAc: true, label: '❄️ AC', key: `${plan.id}-ac` }];
 
-                          return (
+                          return variants.map((variant) => (
                             <tr
-                              key={plan.id}
+                              key={`${rt.id}-${variant.key}`}
                               className={`transition-colors border-b border-border/50 ${
                                 isPrimaryPlan
                                   ? 'bg-blue-50/40 dark:bg-blue-950/20 hover:bg-blue-50/70 dark:hover:bg-blue-950/40'
@@ -843,27 +893,28 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                       {plan.mealPlan}
                                     </span>
 
-                                    {plan.acType === 'AC' && (
-                                      <span className="px-1.5 py-0.5 text-[10px] font-extrabold rounded-md border bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/50 dark:text-cyan-200 dark:border-cyan-700 shadow-xs">
-                                        ❄️ AC
-                                      </span>
-                                    )}
-                                    {plan.acType === 'NON_AC' && (
-                                      <span className="px-1.5 py-0.5 text-[10px] font-extrabold rounded-md border bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/50 dark:text-teal-200 dark:border-teal-700 shadow-xs">
-                                        🍃 Non-AC
-                                      </span>
-                                    )}
+                                    <span
+                                      className={`px-1.5 py-0.5 text-[10px] font-extrabold rounded-md border shadow-xs ${
+                                        variant.isAc
+                                          ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/50 dark:text-cyan-200 dark:border-cyan-700'
+                                          : 'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/50 dark:text-teal-200 dark:border-teal-700'
+                                      }`}
+                                    >
+                                      {variant.label}
+                                    </span>
                                   </div>
                                 </div>
                               </td>
 
                               {/* Daily Rate Cells */}
                               {visibleDaysArray.map((d) => {
-                                const calculatedPrice = getRateForPlanAndDate(plan, d.dateStr);
+                                const calculatedPrice = getRateForPlanAndDate(plan, d.dateStr, rt, variant.isAc);
                                 const isToday = d.dateStr === todayStr;
                                 const isEditingThis =
                                   editingCell?.ratePlanId === plan.id &&
-                                  editingCell?.dateStr === d.dateStr;
+                                  editingCell?.roomTypeId === rt.id &&
+                                  editingCell?.dateStr === d.dateStr &&
+                                  Boolean(editingCell?.isAc) === Boolean(variant.isAc);
 
                                 return (
                                   <td
@@ -905,11 +956,12 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                             roomTypeId: rt.id,
                                             dateStr: d.dateStr,
                                             currentPrice: calculatedPrice,
+                                            isAc: variant.isAc,
                                           });
                                           setInlinePriceInput(String(calculatedPrice));
                                         }}
                                         className="cursor-pointer py-1 px-1 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
-                                        title="Click to edit rate"
+                                        title={`Click to edit ${variant.label} rate`}
                                       >
                                         <span className="font-extrabold text-xs sm:text-sm text-foreground font-mono">
                                           ₹{calculatedPrice.toLocaleString()}
@@ -921,7 +973,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                 );
                               })}
                             </tr>
-                          );
+                          ));
                         })}
                     </React.Fragment>
                   );

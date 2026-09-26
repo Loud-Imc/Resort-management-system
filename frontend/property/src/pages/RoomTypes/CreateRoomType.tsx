@@ -51,6 +51,10 @@ const roomTypeSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().min(1, 'Description is required'),
     basePrice: z.preprocess((v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v))) ? 0 : Number(v), z.number().min(1, 'Price must be at least 1')),
+    acOption: z.enum(['AC_ONLY', 'NON_AC_ONLY', 'BOTH']).default('AC_ONLY'),
+    basePriceAc: optionalNumPreprocess(),
+    extraAdultPriceAc: optionalNumPreprocess(),
+    extraChildPriceAc: optionalNumPreprocess(),
     originalPrice: optionalNumPreprocess(),
     maxAdults: optionalNumPreprocess(2),
     maxChildren: optionalNumPreprocess(0),
@@ -85,6 +89,15 @@ const roomTypeSchema = z.object({
         z.number().min(0, 'Room size must be positive').optional()
     ),
 }).superRefine((data, ctx) => {
+    if (data.acOption === 'BOTH') {
+        if (!data.basePriceAc || Number(data.basePriceAc) < 1) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "AC Base Price is required and must be at least ₹1 when offering both AC & Non-AC",
+                path: ["basePriceAc"],
+            });
+        }
+    }
     if (data.originalPrice && data.originalPrice <= data.basePrice) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -280,7 +293,11 @@ export default function CreateRoomType() {
         mode: 'onChange',
         defaultValues: {
             isPubliclyVisible: true,
+            acOption: 'AC_ONLY',
             basePrice: 0,
+            basePriceAc: null,
+            extraAdultPriceAc: null,
+            extraChildPriceAc: null,
             originalPrice: null,
             maxAdults: 2, maxChildren: 0,
             baseAdults: 2, baseChildren: 0,
@@ -317,7 +334,11 @@ export default function CreateRoomType() {
             reset({
                 name: existingRoomType.name,
                 description: existingRoomType.description || '',
+                acOption: existingRoomType.acOption || 'AC_ONLY',
                 basePrice: Number(existingRoomType.basePrice),
+                basePriceAc: existingRoomType.basePriceAc !== null && existingRoomType.basePriceAc !== undefined ? Number(existingRoomType.basePriceAc) : null,
+                extraAdultPriceAc: existingRoomType.extraAdultPriceAc !== null && existingRoomType.extraAdultPriceAc !== undefined ? Number(existingRoomType.extraAdultPriceAc) : null,
+                extraChildPriceAc: existingRoomType.extraChildPriceAc !== null && existingRoomType.extraChildPriceAc !== undefined ? Number(existingRoomType.extraChildPriceAc) : null,
                 originalPrice: existingRoomType.originalPrice ? Number(existingRoomType.originalPrice) : null,
                 maxAdults: existingRoomType.maxAdults,
                 maxChildren: existingRoomType.maxChildren,
@@ -457,8 +478,19 @@ export default function CreateRoomType() {
                 maxPhysicalAdults: resolvedMaxPhysA,
                 maxPhysicalChildren: resolvedMaxPhysC,
                 maxPhysicalInfants: resolvedMaxInfants,
-                extraAdultPrice: data.extraAdultPrice ?? 0,
-                extraChildPrice: data.extraChildPrice ?? 0,
+                acOption: data.acOption || 'AC_ONLY',
+                basePrice: Number(data.basePrice),
+                basePriceAc: data.acOption === 'BOTH'
+                    ? (data.basePriceAc !== null && data.basePriceAc !== undefined ? Number(data.basePriceAc) : null)
+                    : (data.acOption === 'AC_ONLY' ? Number(data.basePrice) : null),
+                extraAdultPrice: Number(data.extraAdultPrice ?? 0),
+                extraAdultPriceAc: data.acOption === 'BOTH'
+                    ? (data.extraAdultPriceAc !== null && data.extraAdultPriceAc !== undefined ? Number(data.extraAdultPriceAc) : null)
+                    : (data.acOption === 'AC_ONLY' ? Number(data.extraAdultPrice ?? 0) : null),
+                extraChildPrice: Number(data.extraChildPrice ?? 0),
+                extraChildPriceAc: data.acOption === 'BOTH'
+                    ? (data.extraChildPriceAc !== null && data.extraChildPriceAc !== undefined ? Number(data.extraChildPriceAc) : null)
+                    : (data.acOption === 'AC_ONLY' ? Number(data.extraChildPrice ?? 0) : null),
                 maxAdults: resolvedMaxPhysA ?? resolvedTotalMax,
                 maxChildren: resolvedMaxPhysC ?? Math.max(0, resolvedTotalMax - 1),
                 freeChildrenCount: data.freeChildrenCount ?? 0,
@@ -554,44 +586,134 @@ export default function CreateRoomType() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                                Base Price / Night (₹) <span className="text-red-500">*</span>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                                Room Size (sq.ft)
+                                <Info className="h-3.5 w-3.5 text-gray-400" />
                             </label>
                             <input
                                 type="number"
-                                {...register('basePrice', { valueAsNumber: true })}
-                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
+                                {...register('size', { valueAsNumber: true })}
+                                placeholder="e.g. 280"
+                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.size ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
                             />
-                            {errors.basePrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePrice.message)}</p>}
-                            <div className="mt-2 pl-1">
-                                {selectedProperty?.isGstApplicable ? (
-                                    <>
-                                        <label className="inline-flex items-center cursor-pointer group">
-                                            <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
-                                            <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${watch('isGstInclusive') ? 'bg-green-600' : 'bg-gray-400 dark:bg-gray-600'}`}></div>
-                                            <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">
-                                                {watch('isGstInclusive') ? 'Price is Inclusive of GST' : 'Price is Exclusive of GST (+ GST)'}
-                                            </span>
-                                        </label>
-                                        <p className="mt-1.5 text-[9px] text-gray-500 dark:text-gray-400 font-medium pl-1 animate-in fade-in flex items-center gap-1">
-                                            <Info className="h-3 w-3 text-teal-600 shrink-0" />
-                                            <span>
-                                                {watch('isGstInclusive')
-                                                    ? 'Base price is the total amount paid by guests; GST is reverse-calculated for invoices and reports.'
-                                                    : 'Dynamic GST tiers will be calculated and added on top of this base price at checkout.'}
-                                            </span>
-                                        </p>
-                                    </>
-                                ) : (
-                                    <div className="inline-flex items-center gap-2 py-1 px-2.5 rounded-lg bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 text-gray-500 dark:text-gray-400 text-[10px] font-semibold">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                                        <span>Non-GST Property: Zero GST applied & Bill of Supply issued</span>
+                            {errors.size?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.size.message)}</p>}
+                        </div>
+
+                        {/* AC Option Selector */}
+                        <div className="md:col-span-2 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                    <span>Air Conditioning (A/C) Configuration</span>
+                                    <span className="text-red-500">*</span>
+                                </label>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    Tariff Mode
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setValue('acOption', 'AC_ONLY', { shouldValidate: true })}
+                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                                        watch('acOption') === 'AC_ONLY'
+                                            ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/50 text-blue-950 dark:text-blue-100 ring-2 ring-blue-500/20 shadow-xs'
+                                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black flex items-center gap-1.5">
+                                            <span>❄️</span> AC Only
+                                        </span>
+                                        {watch('acOption') === 'AC_ONLY' && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
                                     </div>
-                                )}
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">All rooms strictly priced with A/C.</p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setValue('acOption', 'NON_AC_ONLY', { shouldValidate: true })}
+                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                                        watch('acOption') === 'NON_AC_ONLY'
+                                            ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/50 text-emerald-950 dark:text-emerald-100 ring-2 ring-emerald-500/20 shadow-xs'
+                                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black flex items-center gap-1.5">
+                                            <span>🍃</span> Non-AC Only
+                                        </span>
+                                        {watch('acOption') === 'NON_AC_ONLY' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Rooms priced without A/C (budget/cooler zones).</p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setValue('acOption', 'BOTH', { shouldValidate: true })}
+                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                                        watch('acOption') === 'BOTH'
+                                            ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-950 dark:text-indigo-100 ring-2 ring-indigo-500/20 shadow-xs'
+                                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black flex items-center gap-1.5">
+                                            <span>❄️/🍃</span> Dual (Both Options)
+                                        </span>
+                                        {watch('acOption') === 'BOTH' && <Check className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Guests can book either Non-AC or AC with separate prices.</p>
+                                </button>
                             </div>
                         </div>
 
-                        <div>
+                        {/* Base Price Inputs */}
+                        {watch('acOption') === 'BOTH' ? (
+                            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-indigo-50/30 dark:bg-indigo-950/20 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">
+                                            <span>🍃</span> Non-AC Base Price / Night (₹) <span className="text-red-500">*</span>
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        {...register('basePrice', { valueAsNumber: true })}
+                                        className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
+                                    />
+                                    {errors.basePrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePrice.message)}</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">
+                                            <span>❄️</span> AC Base Price / Night (₹) <span className="text-red-500">*</span>
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        {...register('basePriceAc', { valueAsNumber: true })}
+                                        placeholder="e.g. 3500"
+                                        className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePriceAc ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
+                                    />
+                                    {errors.basePriceAc?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePriceAc.message)}</p>}
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                    {watch('acOption') === 'AC_ONLY' ? '❄️ AC Base Price / Night (₹)' : '🍃 Non-AC Base Price / Night (₹)'} <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    {...register('basePrice', { valueAsNumber: true })}
+                                    className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
+                                />
+                                {errors.basePrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.basePrice.message)}</p>}
+                            </div>
+                        )}
+
+                        <div className={watch('acOption') === 'BOTH' ? 'md:col-span-2' : ''}>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
                                 Market Price (Static Strikethrough) (₹)
                                 <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
@@ -605,6 +727,34 @@ export default function CreateRoomType() {
                             {errors.originalPrice?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.originalPrice.message)}</p>}
                         </div>
 
+                        {/* GST Settings Banner */}
+                        <div className="md:col-span-2 pl-1">
+                            {selectedProperty?.isGstApplicable ? (
+                                <>
+                                    <label className="inline-flex items-center cursor-pointer group">
+                                        <input type="checkbox" {...register('isGstInclusive')} className="sr-only peer" />
+                                        <div className={`relative w-9 h-5 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all transition-colors ${watch('isGstInclusive') ? 'bg-green-600' : 'bg-gray-400 dark:bg-gray-600'}`}></div>
+                                        <span className="ml-2 text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors uppercase tracking-wider">
+                                            {watch('isGstInclusive') ? 'Price is Inclusive of GST' : 'Price is Exclusive of GST (+ GST)'}
+                                        </span>
+                                    </label>
+                                    <p className="mt-1.5 text-[9px] text-gray-500 dark:text-gray-400 font-medium pl-1 animate-in fade-in flex items-center gap-1">
+                                        <Info className="h-3 w-3 text-teal-600 shrink-0" />
+                                        <span>
+                                            {watch('isGstInclusive')
+                                                ? 'Base price is the total amount paid by guests; GST is reverse-calculated for invoices and reports.'
+                                                : 'Dynamic GST tiers will be calculated and added on top of this base price at checkout.'}
+                                        </span>
+                                    </p>
+                                </>
+                            ) : (
+                                <div className="inline-flex items-center gap-2 py-1 px-2.5 rounded-lg bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 text-gray-500 dark:text-gray-400 text-[10px] font-semibold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                    <span>Non-GST Property: Zero GST applied & Bill of Supply issued</span>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="md:col-span-2">
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                                 Description <span className="text-red-500">*</span>
@@ -616,20 +766,6 @@ export default function CreateRoomType() {
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.description ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all min-h-[100px]`}
                             />
                             {errors.description?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.description.message)}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-                                Room Size (sq.ft)
-                                <Info className="h-3.5 w-3.5 text-gray-400" />
-                            </label>
-                            <input
-                                type="number"
-                                {...register('size', { valueAsNumber: true })}
-                                placeholder="e.g. 280"
-                                className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.size ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
-                            />
-                            {errors.size?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.size.message)}</p>}
                         </div>
 
                         {/* ========================================================================= */}
@@ -955,35 +1091,105 @@ export default function CreateRoomType() {
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                                        <span>Extra Adult Price (₹)</span>
-                                        <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        {...register('extraAdultPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
-                                    />
-                                    <p className="text-[10px] text-slate-500 mt-1">Charge per adult exceeding base rate capacity.</p>
-                                </div>
+                            {watch('acOption') === 'BOTH' ? (
+                                <div className="space-y-4">
+                                    <div className="p-3 bg-white/70 dark:bg-slate-950/40 rounded-xl border border-amber-200/50 dark:border-amber-900/40 space-y-3">
+                                        <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                                            <span>🍃</span> Non-AC Extra Guest Charges
+                                        </span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                                    <span>Non-AC Extra Adult Price (₹)</span>
+                                                    <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    {...register('extraAdultPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                                    <span>Non-AC Extra Child Price (₹)</span>
+                                                    <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    {...register('extraChildPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                                        <span>Extra Child Price (₹)</span>
-                                        <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        {...register('extraChildPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
-                                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
-                                    />
-                                    <p className="text-[10px] text-slate-500 mt-1">Charge per child exceeding base capacity and free allowance.</p>
+                                    <div className="p-3 bg-white/70 dark:bg-slate-950/40 rounded-xl border border-indigo-200/50 dark:border-indigo-900/40 space-y-3">
+                                        <span className="text-[11px] font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                                            <span>❄️</span> AC Extra Guest Charges
+                                        </span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                                    <span>AC Extra Adult Price (₹)</span>
+                                                    <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="Defaults to Non-AC price if blank"
+                                                    {...register('extraAdultPriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                                    <span>AC Extra Child Price (₹)</span>
+                                                    <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="Defaults to Non-AC price if blank"
+                                                    {...register('extraChildPriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                            <span>Extra Adult Price (₹)</span>
+                                            <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            {...register('extraAdultPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                            className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                        />
+                                        <p className="text-[10px] text-slate-500 mt-1">Charge per adult exceeding base rate capacity.</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                                            <span>Extra Child Price (₹)</span>
+                                            <span className="text-[10px] text-slate-400 font-normal">Per Night</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            {...register('extraChildPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                            className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
+                                        />
+                                        <p className="text-[10px] text-slate-500 mt-1">Charge per child exceeding base capacity and free allowance.</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">

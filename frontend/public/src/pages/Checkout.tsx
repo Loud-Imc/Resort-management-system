@@ -125,6 +125,11 @@ export default function Checkout() {
     const roomsCount = Number(searchParams.get('roomsCount') || searchParams.get('rooms')) || (selectedSolution ? selectedSolution.totalRooms : undefined);
     const isGroupBooking = searchParams.get('isGroupBooking') === 'true';
     const groupSize = Number(searchParams.get('groupSize')) || 10;
+    const selectedMealPlan = searchParams.get('mealPlan') || selectedSolution?.selectedMealPlan || selectedSolution?.mealPlan || 'EP';
+    const activeRatePlanId = searchParams.get('ratePlanId') || selectedSolution?.ratePlanId || undefined;
+    const isAcSelectedVal = searchParams.get('isAcSelected') !== null
+        ? searchParams.get('isAcSelected') === 'true'
+        : (selectedSolution?.isAcSelected !== undefined ? selectedSolution.isAcSelected : true);
 
     const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
         resolver: zodResolver(userSchema),
@@ -177,7 +182,7 @@ export default function Checkout() {
 
     // Fetch COUPON-SPECIFIC pricing (Volatile)
     const { data: couponPricing, isLoading: couponPricingLoading, error: pricingError, isError: isPricingError } = useQuery<any, any>({
-        queryKey: ['booking-price', roomId, selectedSolution?.id, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize],
+        queryKey: ['booking-price', roomId, selectedSolution?.id, checkIn, checkOut, adults, children, (childAges || []).join(','), infants, roomsCount, appliedCode, selectedCurrency, isGroupBooking, groupSize, selectedMealPlan, activeRatePlanId, isAcSelectedVal],
         queryFn: async () => {
             console.log('[Checkout] Fetching pricing with appliedCode:', appliedCode);
             let allocations: any[] | undefined = undefined;
@@ -194,6 +199,9 @@ export default function Checkout() {
                     children: Number(r.children) || 0,
                     infants: Number(r.infants) || 0,
                     childAges: r.childAges,
+                    ratePlanId: r.ratePlanId || activeRatePlanId,
+                    mealPlan: r.mealPlan || selectedMealPlan,
+                    isAcSelected: r.isAcSelected !== undefined ? r.isAcSelected : isAcSelectedVal,
                 }));
                 const missingRt = allocations.find(a => !a.roomTypeId);
                 if (missingRt) {
@@ -218,7 +226,10 @@ export default function Checkout() {
                 generalCode: appliedCode || undefined,
                 currency: selectedCurrency,
                 isGroupBooking,
-                groupSize
+                groupSize,
+                ratePlanId: activeRatePlanId,
+                mealPlan: selectedMealPlan,
+                isAcSelected: isAcSelectedVal,
             });
             console.log('[Checkout] Pricing result:', res);
             return res;
@@ -314,6 +325,9 @@ export default function Checkout() {
                 isGroupBooking,
                 groupSize,
                 roomsCount,
+                mealPlan: selectedMealPlan,
+                ratePlanId: activeRatePlanId,
+                isAcSelected: isAcSelectedVal,
                 roomAllocations: selectedSolution ? selectedSolution.rooms.map((r: any) => ({
                     roomTypeId: r.roomTypeId,
                     adults: r.adults,
@@ -322,6 +336,9 @@ export default function Checkout() {
                     infants: r.infants !== undefined ? r.infants : (infants || 0),
                     extraAdults: r.extraAdults || 0,
                     extraChildren: r.extraChildren || 0,
+                    ratePlanId: r.ratePlanId || activeRatePlanId,
+                    mealPlan: r.mealPlan || selectedMealPlan,
+                    isAcSelected: r.isAcSelected !== undefined ? r.isAcSelected : isAcSelectedVal,
                 })) : (roomId ? [{
                     roomTypeId: roomId,
                     adults: adults,
@@ -330,6 +347,9 @@ export default function Checkout() {
                     infants: infants || 0,
                     extraAdults: 0,
                     extraChildren: 0,
+                    ratePlanId: activeRatePlanId,
+                    mealPlan: selectedMealPlan,
+                    isAcSelected: isAcSelectedVal,
                 }] : undefined),
                 guests: [{
                     firstName: userData.firstName,
@@ -849,6 +869,20 @@ export default function Checkout() {
                                     <p className="text-sm text-gray-500 font-medium mt-1">
                                         {nights} {nights === 1 ? 'Night' : 'Nights'} • {roomsCount || effectivePricing?.roomCount || 1} {(roomsCount || effectivePricing?.roomCount || 1) === 1 ? 'Room' : 'Rooms'} • {adults + children} Guests {children > 0 ? `(${adults} Adults, ${children} Children${infants > 0 ? `, ${infants} Infants` : ''})` : infants > 0 ? `(${adults} Adults, ${infants} Infants)` : `(${adults} Adults)`}
                                     </p>
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                                            {selectedMealPlan === 'EP' ? '☕ EP (Room Only)' : selectedMealPlan === 'CP' ? '🍳 CP (Breakfast Included)' : selectedMealPlan === 'MAP' ? '🍽️ MAP (Half Board)' : '👑 AP (Full Board)'}
+                                        </span>
+                                        {isAcSelectedVal ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                                ❄️ Air Conditioned
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                🍃 Non-AC
+                                            </span>
+                                        )}
+                                    </div>
                                     {selectedSolution && (
                                         <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs space-y-2">
                                             <div className="font-bold text-gray-800 uppercase text-[10px] tracking-wider">
@@ -856,10 +890,20 @@ export default function Checkout() {
                                             </div>
                                             {selectedSolution.rooms.map((r: any, idx: number) => {
                                                 const rChildAges = r.childAges || (r.children > 0 ? childAges : []);
+                                                const isRoomAc = r.isAcSelected !== undefined ? r.isAcSelected : isAcSelectedVal;
                                                 return (
                                                     <div key={idx} className="p-2.5 bg-white rounded-lg border border-gray-100 space-y-1">
                                                         <div className="flex justify-between items-center font-bold text-gray-900">
-                                                            <span>Room {idx + 1}: {r.roomTypeName}</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span>Room {idx + 1}: {r.roomTypeName}</span>
+                                                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                                                    isRoomAc
+                                                                        ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                                                                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                }`}>
+                                                                    {isRoomAc ? '❄️ AC' : '🍃 Non-AC'}
+                                                                </span>
+                                                            </div>
                                                             {r.totalPrice ? (
                                                                 <span className="text-primary-600 font-extrabold">
                                                                     {formatPrice(r.totalPrice, selectedCurrency, rates)}

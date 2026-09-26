@@ -23,9 +23,10 @@ import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import AddRoomModal from '../../components/Rooms/AddRoomModal';
 import OccupancyMigrationModal from '../../components/OccupancyMigrationModal';
-import { RatePlansManagerModal } from '../../components/RatePlansManagerModal';
+import { RoomPlanRatesModal } from '../../components/RoomPlanRatesModal';
 import { BulkPricingRuleModal } from '../../components/BulkPricingRuleModal';
 import { PropertyRateMatrix } from './PropertyRateMatrix';
+import { PropertyRatePlansManager } from './PropertyRatePlansManager';
 
 export default function RoomTypesList() {
     const { selectedProperty } = useProperty();
@@ -36,8 +37,8 @@ export default function RoomTypesList() {
     const [selectedRoomTypeIdForAdd, setSelectedRoomTypeIdForAdd] = useState<string | undefined>(undefined);
     const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
-    // Active View Tab ('list' or 'matrix')
-    const [activeTab, setActiveTab] = useState<'list' | 'matrix'>('list');
+    // Active View Tab ('list', 'matrix', or 'rate-plans')
+    const [activeTab, setActiveTab] = useState<'list' | 'matrix' | 'rate-plans'>('list');
 
     // Rate Plans & Bulk Pricing Modal States
     const [ratePlanModalTarget, setRatePlanModalTarget] = useState<RoomType | null>(null);
@@ -105,6 +106,17 @@ export default function RoomTypesList() {
                         <Calendar className="h-4 w-4" />
                         📅 Monthly Rate Matrix & All Room Prices
                     </button>
+                    <button
+                        onClick={() => setActiveTab('rate-plans')}
+                        className={`px-3.5 py-2 rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                            activeTab === 'rate-plans'
+                                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25 ring-2 ring-primary/30 font-black'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 font-bold'
+                        }`}
+                    >
+                        <Utensils className="h-4 w-4" />
+                        🍽️ Property Rate Plans (Meals)
+                    </button>
                 </div>
 
                 {/* Right Actions */}
@@ -129,7 +141,12 @@ export default function RoomTypesList() {
                 </div>
             </div>
 
-            {activeTab === 'matrix' ? (
+            {activeTab === 'rate-plans' ? (
+                <PropertyRatePlansManager
+                    propertyId={propertyId || ''}
+                    roomTypes={roomTypes || []}
+                />
+            ) : activeTab === 'matrix' ? (
                 <PropertyRateMatrix
                     propertyId={propertyId || ''}
                     roomTypes={roomTypes || []}
@@ -140,10 +157,10 @@ export default function RoomTypesList() {
                 {roomTypes?.map((type) => {
                     const roomCount = type.rooms?.length ?? type._count?.rooms ?? 0;
                     const isV2Ready = type.occupancyVersion === 'V2' || (type.totalBaseOccupancy !== undefined && type.totalMaxOccupancy !== undefined);
-                    const primaryRatePlan = type.ratePlans?.find((p: any) => Boolean(p.isPrimary));
-                    const displayPrice = primaryRatePlan ? Number(primaryRatePlan.basePrice) : Number(type.basePrice);
-                    const mealPlanBadge = primaryRatePlan ? primaryRatePlan.mealPlan : 'EP';
-                    const acBadge = primaryRatePlan?.acType && primaryRatePlan.acType !== 'DEFAULT' ? primaryRatePlan.acType : null;
+                    const isDual = type.acOption === 'BOTH';
+                    const isNonAcOnly = type.acOption === 'NON_AC_ONLY';
+                    const nonAcPrice = Number(type.basePrice);
+                    const acPrice = Number(type.basePriceAc || type.basePrice);
 
                     return (
                         <div key={type.id} className="bg-card rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-full group hover:shadow-md transition-all">
@@ -163,18 +180,38 @@ export default function RoomTypesList() {
                                 <div className="flex justify-between items-start mb-2">
                                     <h3 className="text-lg font-bold text-card-foreground group-hover:text-primary transition-colors">{type.name}</h3>
                                     <div className="flex flex-col items-end gap-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
-                                                ₹{displayPrice}
-                                            </span>
-                                            <span className="bg-primary/10 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-primary/20" title={`Primary Rate Plan (${mealPlanBadge})`}>
-                                                ⭐ {mealPlanBadge}
-                                            </span>
-                                        </div>
-                                        {acBadge && (
-                                            <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/60">
-                                                {acBadge === 'AC' ? '❄️ AC Plan' : '💨 Non-AC Plan'}
-                                            </span>
+                                        {isDual ? (
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                                    <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2 py-0.5 rounded-md shadow-xs" title="Non-AC Base Tariff">
+                                                        🍃 ₹{nonAcPrice.toLocaleString()}
+                                                    </span>
+                                                    <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded-md shadow-xs" title="AC Base Tariff">
+                                                        ❄️ ₹{acPrice.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200/60 shadow-2xs">
+                                                    ❄️/🍃 Dual (AC & Non-AC)
+                                                </span>
+                                            </div>
+                                        ) : isNonAcOnly ? (
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                                                    ₹{nonAcPrice.toLocaleString()}
+                                                </span>
+                                                <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200/60">
+                                                    🍃 Non-AC Only
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                                                    ₹{acPrice.toLocaleString()}
+                                                </span>
+                                                <span className="text-[10px] font-black text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200/60">
+                                                    ❄️ AC Only
+                                                </span>
+                                            </div>
                                         )}
                                         {selectedProperty?.isGstApplicable && type.isGstInclusive && (
                                             <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">GST Inclusive</span>
@@ -254,10 +291,10 @@ export default function RoomTypesList() {
                                              type="button"
                                              onClick={() => setRatePlanModalTarget(type)}
                                              className="px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-600 text-indigo-600 hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                                             title="Manage Rate Plans (AC / Non-AC & EP, CP, MAP, AP Meal Plans)"
+                                             title="View and adjust rates for this room across Property Rate Plans (EP, CP, MAP, AP)"
                                          >
                                              <Utensils className="h-3.5 w-3.5" />
-                                             Rate & Meal Plans
+                                             Plan Rates
                                          </button>
 
                                         <button
@@ -317,17 +354,17 @@ export default function RoomTypesList() {
                 />
             )}
 
-            {/* Rate Plans Manager Modal (EP, CP, MAP, AP) */}
+            {/* Room Plan Rates Modal (EP, CP, MAP, AP) */}
             {ratePlanModalTarget && (
-                <RatePlansManagerModal
+                <RoomPlanRatesModal
                     isOpen={!!ratePlanModalTarget}
                     onClose={() => {
                         setRatePlanModalTarget(null);
                         queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
                     }}
-                    roomTypeId={ratePlanModalTarget.id}
-                    roomTypeName={ratePlanModalTarget.name}
-                    defaultBasePrice={Number(ratePlanModalTarget.basePrice || 1000)}
+                    roomType={ratePlanModalTarget}
+                    propertyId={propertyId || ''}
+                    onNavigateToPropertyPlans={() => setActiveTab('rate-plans')}
                 />
             )}
 

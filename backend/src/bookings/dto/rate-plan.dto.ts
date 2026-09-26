@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsEnum, IsBoolean, IsNumber, IsNotEmpty, Min } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsNumber, IsNotEmpty, Min, ValidateNested, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
 import { MealPlan, RatePlanPricingType } from '@prisma/client';
 
 export enum AcType {
@@ -7,10 +8,43 @@ export enum AcType {
   DEFAULT = 'DEFAULT',
 }
 
-export class CreateRatePlanDto {
+export class RoomTypeRatePlanPriceDto {
   @IsString()
   @IsNotEmpty()
   roomTypeId: string;
+
+  @IsNumber()
+  basePrice: number;
+
+  @IsOptional()
+  @IsNumber()
+  extraAdultPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  extraChildPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  basePriceAc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  extraAdultPriceAc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  extraChildPriceAc?: number;
+}
+
+export class CreateRatePlanDto {
+  @IsOptional()
+  @IsString()
+  propertyId?: string;
+
+  @IsOptional()
+  @IsString()
+  roomTypeId?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -47,14 +81,23 @@ export class CreateRatePlanDto {
   @IsNumber()
   derivedPercentage?: number;
 
+  @IsOptional()
   @IsNumber()
-  basePrice: number;
+  basePrice?: number;
 
+  @IsOptional()
   @IsNumber()
-  extraAdultPrice: number;
+  extraAdultPrice?: number;
 
+  @IsOptional()
   @IsNumber()
-  extraChildPrice: number;
+  extraChildPrice?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RoomTypeRatePlanPriceDto)
+  roomTypePrices?: RoomTypeRatePlanPriceDto[];
 
   @IsOptional()
   @IsString()
@@ -109,6 +152,12 @@ export class UpdateRatePlanDto {
   @IsOptional()
   @IsNumber()
   extraChildPrice?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RoomTypeRatePlanPriceDto)
+  roomTypePrices?: RoomTypeRatePlanPriceDto[];
 
   @IsOptional()
   @IsString()

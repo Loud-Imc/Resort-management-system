@@ -67,6 +67,10 @@ export interface Booking {
     roomId: string;
     roomTypeId: string;
     propertyId?: string;
+    ratePlanId?: string;
+    mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP' | string;
+    isAcSelected?: boolean;
+    ratePlan?: any;
     roomType?: RoomType;
     couponCode?: string;
     channelPartnerId?: string;
@@ -137,6 +141,9 @@ export interface Booking {
         extraAdultChargePerNight?: number;
         extraChildChargePerNight?: number;
         totalPricePerNight?: number;
+        ratePlanId?: string;
+        mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP' | string;
+        isAcSelected?: boolean;
         room: {
             id: string;
             roomNumber: string;
@@ -145,6 +152,7 @@ export interface Booking {
                 name: string;
                 images?: string[];
                 property?: any;
+                acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
             };
         };
     }[];
@@ -195,6 +203,9 @@ export interface CreateBookingDto {
     whatsappNumber?: string;
     gstNumber?: string;
     isHistoricalEntry?: boolean;
+    ratePlanId?: string;
+    mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP' | string;
+    isAcSelected?: boolean;
     transactionDate?: string;
     guestName?: string;
     guestEmail?: string;
@@ -210,6 +221,9 @@ export interface CreateBookingDto {
         infants?: number;
         extraAdults?: number;
         extraChildren?: number;
+        ratePlanId?: string;
+        mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP' | string;
+        isAcSelected?: boolean;
     }[];
 }
 
