@@ -704,4 +704,120 @@ describe('AvailabilityService - Canonical V2 Search & Accommodation Integration'
             expect(results[0].neededRooms).toBe(1);
         });
     });
+
+    // =========================================================================
+    // CASE P: Explicit Selected Rooms Flow (Staff explicit roomIds selection)
+    // =========================================================================
+    describe('Case P — Explicit Selected Rooms Flow', () => {
+        const roomTypeA = {
+            id: 'rt-a',
+            name: 'Deluxe Suite A',
+            propertyId: 'prop-v2',
+            occupancyVersion: 'V2',
+            totalBaseOccupancy: 2,
+            totalMaxOccupancy: 3,
+            maxPhysicalAdults: 2,
+            maxPhysicalChildren: 2,
+            maxPhysicalInfants: 1,
+            basePrice: 3000,
+            extraAdultPrice: 600,
+            extraChildPrice: 300,
+            isPubliclyVisible: true,
+            property: {
+                id: 'prop-v2',
+                name: 'V2 Resort',
+                occupancyVersion: 'V2',
+                isActive: true,
+                status: PropertyStatus.APPROVED,
+                _count: { rooms: 2 },
+            },
+        };
+
+        const physicalRoom1 = {
+            id: 'room-101',
+            roomNumber: '101',
+            roomTypeId: 'rt-a',
+            roomType: roomTypeA,
+            status: 'AVAILABLE',
+            isEnabled: true,
+        };
+
+        it('returns only exact solution with allocated roomId and isSatisfied=true when selected rooms fit the party', async () => {
+            prismaMock.roomType.findMany.mockResolvedValue([roomTypeA]);
+            // Mock room findMany for selected physical rooms
+            prismaMock.room.findMany
+                .mockResolvedValueOnce([physicalRoom1]) // selected physical rooms lookup
+                .mockResolvedValueOnce([physicalRoom1]); // available rooms lookup
+
+            const results: any = await service.searchAvailableRoomTypes(
+                checkIn,
+                checkOut,
+                2, // 2 adults
+                0, // 0 children
+                undefined, // location
+                undefined, // type
+                false, // includeSoldOut
+                1, // rooms
+                undefined, // categoryId
+                undefined, // lat
+                undefined, // lng
+                undefined, // radius
+                'INR', // currency
+                'prop-v2', // propertyId
+                false, // isGroupBooking
+                undefined, // groupSize
+                0, // infants
+                undefined, // childAges
+                false, // includeFlexibleDates
+                undefined, // roomTypeIds
+                ['room-101'] // roomIds (21)
+            );
+
+            expect(results.selectedRoomsEvaluation).toBeDefined();
+            expect(results.selectedRoomsEvaluation.isSatisfied).toBe(true);
+            expect(results.accommodationSolutions.length).toBe(1);
+            expect(results.accommodationSolutions[0].rooms[0].roomId).toBe('room-101');
+            expect(results.accommodationSolutions[0].rooms[0].roomNumber).toBe('101');
+        });
+
+        it('returns isSatisfied=false with capacity breakdown and fallback solutions when selected rooms cannot fit party', async () => {
+            prismaMock.roomType.findMany.mockResolvedValue([roomTypeA]);
+            // Mock room findMany: physicalRoom1 has maxPhysicalAdults = 2
+            prismaMock.room.findMany
+                .mockResolvedValueOnce([physicalRoom1]) // selected physical rooms lookup
+                .mockResolvedValueOnce([physicalRoom1, { ...physicalRoom1, id: 'room-102', roomNumber: '102' }]); // available rooms lookup
+
+            const results: any = await service.searchAvailableRoomTypes(
+                checkIn,
+                checkOut,
+                10, // 10 adults - far exceeds 1 room capacity (2)
+                0,
+                undefined, // location
+                undefined, // type
+                false, // includeSoldOut
+                1, // rooms
+                undefined, // categoryId
+                undefined, // lat
+                undefined, // lng
+                undefined, // radius
+                'INR', // currency
+                'prop-v2', // propertyId
+                false, // isGroupBooking
+                undefined, // groupSize
+                0, // infants
+                undefined, // childAges
+                false, // includeFlexibleDates
+                undefined, // roomTypeIds
+                ['room-101'] // roomIds (21)
+            );
+
+            expect(results.selectedRoomsEvaluation).toBeDefined();
+            expect(results.selectedRoomsEvaluation.isSatisfied).toBe(false);
+            expect(results.selectedRoomsEvaluation.reason).toBe('CAPACITY_EXCEEDED');
+            expect(results.selectedRoomsEvaluation.maxCapacity.maxAdults).toBe(2);
+            expect(results.selectedRoomsEvaluation.message).toContain('cannot accommodate');
+            expect(results.selectedRoomsEvaluation.message).toContain('Maximum allowed capacity');
+        });
+    });
 });
+

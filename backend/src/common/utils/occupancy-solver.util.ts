@@ -24,6 +24,8 @@ export interface GuestParty {
     infants: number;         // I >= 0 (0–2)
     childAges?: number[];    // Mandatory for C > 0; each age must be 3–12
     requestedRooms?: number; // Optional preference/ranking signal
+    exactRoomCount?: number; // Optional exact room count required
+    exactRoomTypeCounts?: Record<string, number>; // Optional exact count per room type
 }
 
 /**
@@ -126,6 +128,8 @@ export interface RoomTypeInventoryCandidate extends CanonicalRoomPricingConfig {
     maxPhysicalCapacity?: number;
 }
 
+export type RoomTypeOccupancyProfile = RoomTypeInventoryCandidate;
+
 export interface AllocatedRoom {
     roomTypeId: string;
     roomTypeName: string;
@@ -190,6 +194,7 @@ export interface SolverAccommodationSolution {
     spareCapacity: number;
     isRecommended?: boolean;
     badge?: string | null;
+    isExactRoomSelectionMatch?: boolean;
 }
 
 /**
@@ -778,13 +783,13 @@ export function solveAccommodationOptions(
     }
 
     const maxSingleRoomCap = Math.max(...availableTypes.map(rt => rt.totalMaxOccupancy || 1));
-    const minRoomsNeeded = Math.max(1, Math.ceil((adults + children) / maxSingleRoomCap));
+    const minRoomsNeeded = party.exactRoomCount ?? Math.max(1, Math.ceil((adults + children) / maxSingleRoomCap));
 
     // Dynamic search bounds: Start at minRoomsNeeded, upper bounded by requestedRooms or tight envelope
-    const upperLimit = requestedRooms 
+    const upperLimit = party.exactRoomCount ?? (requestedRooms 
         ? Math.max(requestedRooms + 2, minRoomsNeeded + 2) 
-        : Math.min(minRoomsNeeded + 3, adults);
-    const maxRoomsToSearch = Math.min(upperLimit, totalAvailableRooms, adults);
+        : Math.min(minRoomsNeeded + 3, adults));
+    const maxRoomsToSearch = party.exactRoomCount ?? Math.min(upperLimit, totalAvailableRooms, adults);
 
     const solutions: SolverAccommodationSolution[] = [];
     const seenSolutionKeys = new Set<string>();
@@ -793,6 +798,19 @@ export function solveAccommodationOptions(
         const multisets = generateDistinctRoomMultisets(availableTypes, k);
 
         for (const candidateRooms of multisets) {
+            // If exactRoomTypeCounts is provided, strictly enforce this exact multiset composition
+            if (party.exactRoomTypeCounts) {
+                const candidateCounts: Record<string, number> = {};
+                for (const r of candidateRooms) {
+                    candidateCounts[r.id] = (candidateCounts[r.id] || 0) + 1;
+                }
+                const matchesExact = Object.entries(party.exactRoomTypeCounts).every(([id, cnt]) => candidateCounts[id] === cnt)
+                    && Object.keys(candidateCounts).length === Object.keys(party.exactRoomTypeCounts).length;
+                if (!matchesExact) {
+                    continue;
+                }
+            }
+
             // Gross feasibility check before deep search
             const sumMaxAdults = candidateRooms.reduce((acc, r) => acc + r.maxPhysicalAdults, 0);
             const sumMaxChildren = candidateRooms.reduce((acc, r) => acc + r.maxPhysicalChildren, 0);
@@ -979,10 +997,13 @@ export function solveAccommodationOptions(
         return a.totalRooms - b.totalRooms;
     });
 
-    // Mark the top solution as Recommended / Best Value
+    // Mark the top solution as Recommended / Best Value or Selected Rooms
     if (solutions.length > 0) {
         solutions[0].isRecommended = true;
-        solutions[0].badge = 'Best Value';
+        solutions[0].badge = party.exactRoomTypeCounts ? 'Selected Rooms' : 'Best Value';
+        if (party.exactRoomTypeCounts) {
+            solutions[0].isExactRoomSelectionMatch = true;
+        }
     }
 
     return solutions;

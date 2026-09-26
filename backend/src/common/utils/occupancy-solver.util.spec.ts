@@ -768,5 +768,59 @@ describe('Canonical Occupancy & Pricing Engine (Task 2A Phase 1)', () => {
             );
             expect(solutions.every((s) => s.totalRooms === 1)).toBe(true);
         });
+
+        it('Scenario 7: Exact Room Selection Mode produces ONLY exact solution with isExactRoomSelectionMatch', () => {
+            // Suppose staff explicitly selected 2 rooms of adultHeavyAsymmetric ('rt-asym-a') and 1 room of childHeavyAsymmetric ('rt-asym-c')
+            // Party: 4 adults, 2 children [4, 8]
+            const solutions = solveAccommodationOptions(
+                {
+                    adults: 4,
+                    children: 2,
+                    infants: 0,
+                    childAges: [4, 8],
+                    exactRoomCount: 3,
+                    exactRoomTypeCounts: {
+                        'rt-asym-a': 2,
+                        'rt-asym-c': 1,
+                    },
+                },
+                [
+                    { ...adultHeavyAsymmetric, availableQuantity: 5 },
+                    { ...childHeavyAsymmetric, availableQuantity: 5 },
+                    { ...standardRoom, availableQuantity: 5 },
+                ]
+            );
+
+            // Must produce solutions only matching 3 rooms and exact room counts
+            expect(solutions.length).toBeGreaterThan(0);
+            for (const sol of solutions) {
+                expect(sol.totalRooms).toBe(3);
+                expect(sol.roomTypeCounts['rt-asym-a']).toBe(2);
+                expect(sol.roomTypeCounts['rt-asym-c']).toBe(1);
+                expect(sol.isExactRoomSelectionMatch).toBe(true);
+                expect(sol.isRecommended).toBe(true);
+            }
+        });
+
+        it('Scenario 8: Exact Room Selection Mode returns empty if party cannot physically fit exact selection', () => {
+            // Party exceeds capacity: 20 adults cannot fit in 2 standard rooms
+            const solutions = solveAccommodationOptions(
+                {
+                    adults: 20,
+                    children: 0,
+                    infants: 0,
+                    exactRoomCount: 2,
+                    exactRoomTypeCounts: {
+                        'rt-std': 2,
+                    },
+                },
+                [
+                    { ...standardRoom, availableQuantity: 5 },
+                ]
+            );
+
+            expect(solutions).toEqual([]);
+        });
     });
 });
+
