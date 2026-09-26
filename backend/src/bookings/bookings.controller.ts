@@ -229,6 +229,7 @@ export class BookingsController {
             availableRoomTypes: results,
             accommodationSolutions: (results as any).accommodationSolutions || [],
             flexibleDateRates: (results as any).flexibleDateRates || [],
+            selectedRoomsEvaluation: (results as any).selectedRoomsEvaluation || null,
         };
     }
 

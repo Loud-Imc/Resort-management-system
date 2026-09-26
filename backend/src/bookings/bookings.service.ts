@@ -116,6 +116,11 @@ export class BookingsService {
                     dto.extraChildrenCount ?? alloc.extraChildren,
                     dto.infantsCount || alloc.infants || 0,
                     dto.childAges || alloc.childAges,
+                    undefined,
+                    undefined,
+                    alloc.ratePlanId || dto.ratePlanId,
+                    alloc.isAcSelected !== undefined ? alloc.isAcSelected : dto.isAcSelected,
+                    alloc.mealPlan || dto.mealPlan,
                 );
 
                 const singleBreakdown = [{
@@ -165,6 +170,11 @@ export class BookingsService {
                     alloc.extraChildren,
                     alloc.infants || 0,
                     alloc.childAges,
+                    undefined,
+                    undefined,
+                    alloc.ratePlanId || dto.ratePlanId,
+                    alloc.isAcSelected !== undefined ? alloc.isAcSelected : dto.isAcSelected,
+                    alloc.mealPlan || dto.mealPlan,
                 );
                 rawAllocPrices.push(rawPrice);
                 accumulatedBaseAmount += rawPrice.baseAmount;
@@ -384,6 +394,11 @@ export class BookingsService {
             dto.extraChildrenCount,
             dto.infantsCount || 0,
             dto.childAges,
+            undefined,
+            undefined,
+            dto.ratePlanId,
+            dto.isAcSelected,
+            dto.mealPlan,
         );
 
         const singleBreakdown = [{
@@ -704,6 +719,11 @@ export class BookingsService {
                         createBookingDto.extraChildrenCount ?? alloc.extraChildren,
                         alloc.infants || 0,
                         alloc.childAges,
+                        undefined,
+                        undefined,
+                        alloc.ratePlanId || createBookingDto.ratePlanId,
+                        alloc.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected,
+                        alloc.mealPlan || createBookingDto.mealPlan,
                     );
                     allocationPricingList.push(pricing);
                 } else {
@@ -735,6 +755,11 @@ export class BookingsService {
                             undefined,
                             alloc.infants || 0,
                             alloc.childAges,
+                            undefined,
+                            undefined,
+                            alloc.ratePlanId || createBookingDto.ratePlanId,
+                            alloc.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected,
+                            alloc.mealPlan || createBookingDto.mealPlan,
                         );
                         rawAllocPrices.push(rawPrice);
                         accumulatedBaseAmount += rawPrice.baseAmount;
@@ -940,6 +965,11 @@ export class BookingsService {
                     createBookingDto.extraChildrenCount,
                     createBookingDto.infantsCount || 0,
                     createBookingDto.childAges,
+                    undefined,
+                    undefined,
+                    createBookingDto.ratePlanId,
+                    createBookingDto.isAcSelected,
+                    createBookingDto.mealPlan,
                 );
             }
         }
@@ -1034,6 +1064,15 @@ export class BookingsService {
                 generalCode,
                 overrideTotal,
                 createBookingDto.isOverrideInclusive ?? true,
+                undefined,
+                undefined,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                createBookingDto.ratePlanId,
+                createBookingDto.isAcSelected,
+                createBookingDto.mealPlan,
             );
             finalTotal = pricing.totalAmount;
         }
@@ -1560,6 +1599,9 @@ export class BookingsService {
                     specialRequests,
                     whatsappNumber,
                     gstNumber: createBookingDto.gstNumber,
+                    ratePlanId: createBookingDto.ratePlanId || undefined,
+                    mealPlan: (createBookingDto.mealPlan as any) || undefined,
+                    isAcSelected: createBookingDto.isAcSelected !== undefined ? createBookingDto.isAcSelected : undefined,
                     isManualBooking,
                     isHistoricalEntry,
                     transactionDate: transactionDate ? new Date(transactionDate) : null,
@@ -1668,6 +1710,9 @@ export class BookingsService {
                                 extraAdultChargePerNight: roomExtraAdultPerNight != null ? Number(roomExtraAdultPerNight.toFixed(2)) : undefined,
                                 extraChildChargePerNight: roomExtraChildPerNight != null ? Number(roomExtraChildPerNight.toFixed(2)) : undefined,
                                 totalPricePerNight: roomTotalPerNight != null ? Number(roomTotalPerNight.toFixed(2)) : undefined,
+                                ratePlanId: alloc?.ratePlanId || createBookingDto.ratePlanId || undefined,
+                                mealPlan: (alloc?.mealPlan as any) || (createBookingDto.mealPlan as any) || undefined,
+                                isAcSelected: (alloc?.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected) ?? undefined,
                             };
                         }),
                     },

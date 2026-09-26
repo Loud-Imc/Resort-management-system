@@ -1,5 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as fs from 'fs';
+import * as os from 'os';
+import { performance } from 'perf_hooks';
 
 /** Default TTL for the settings cache (5 minutes) */
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -150,5 +153,135 @@ export class SystemSettingsService implements OnModuleInit {
         } else {
             this.cache.clear();
         }
+    }
+
+    /**
+     * Diagnostic health check for production database, disk space, memory, and OS uptime.
+     */
+    async getSystemHealth() {
+        // 1. Database Health & Latency
+        let dbStatus: 'healthy' | 'degraded' | 'down' = 'healthy';
+        let dbLatencyMs = 0;
+        let dbSize = 'Unknown';
+        let dbError: string | null = null;
+
+        try {
+            const start = performance.now();
+            await this.prisma.$queryRaw`SELECT 1`;
+            dbLatencyMs = Math.round(performance.now() - start);
+
+            const sizeResult: any = await this.prisma.$queryRaw`
+                SELECT pg_size_pretty(pg_database_size(current_database())) as size
+            `;
+            if (sizeResult && sizeResult[0]?.size) {
+                dbSize = sizeResult[0].size;
+            }
+
+            if (dbLatencyMs > 250) {
+                dbStatus = 'degraded';
+            }
+        } catch (err: any) {
+            dbStatus = 'down';
+            dbError = err?.message || 'Database query failed';
+        }
+
+        // 2. Disk Space (using Node native fs.statfsSync)
+        let diskInfo = {
+            totalGb: 0,
+            freeGb: 0,
+            usedGb: 0,
+            usedPercentage: 0,
+            status: 'healthy' as 'healthy' | 'warning' | 'critical',
+        };
+
+        try {
+            const targetPath = process.platform === 'win32' ? process.cwd() : '/';
+            const stats = fs.statfsSync(targetPath);
+            const totalBytes = stats.bsize * stats.blocks;
+            const freeBytes = stats.bsize * stats.bavail;
+            const usedBytes = totalBytes - freeBytes;
+
+            const totalGb = +(totalBytes / (1024 ** 3)).toFixed(2);
+            const freeGb = +(freeBytes / (1024 ** 3)).toFixed(2);
+            const usedGb = +(usedBytes / (1024 ** 3)).toFixed(2);
+            const usedPercentage = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0;
+
+            let diskStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+            if (usedPercentage >= 90) {
+                diskStatus = 'critical';
+            } else if (usedPercentage >= 80) {
+                diskStatus = 'warning';
+            }
+
+            diskInfo = {
+                totalGb,
+                freeGb,
+                usedGb,
+                usedPercentage,
+                status: diskStatus,
+            };
+        } catch (err: any) {
+            // Ignore error if statfs fails on unusual environments
+        }
+
+        // 3. Memory & OS
+        const totalMemBytes = os.totalmem();
+        const freeMemBytes = os.freemem();
+        const usedMemBytes = totalMemBytes - freeMemBytes;
+        const memUsedPercentage = Math.round((usedMemBytes / totalMemBytes) * 100);
+        const processRssMb = +(process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
+
+        let memStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+        if (memUsedPercentage >= 92) {
+            memStatus = 'critical';
+        } else if (memUsedPercentage >= 85) {
+            memStatus = 'warning';
+        }
+
+        // 4. Overall Health Status
+        let overallStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+        if (dbStatus === 'down' || diskInfo.status === 'critical' || memStatus === 'critical') {
+            overallStatus = 'critical';
+        } else if (dbStatus === 'degraded' || diskInfo.status === 'warning' || memStatus === 'warning') {
+            overallStatus = 'warning';
+        }
+
+        return {
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            uptimeSeconds: Math.round(process.uptime()),
+            uptimeFormatted: this.formatUptime(process.uptime()),
+            database: {
+                status: dbStatus,
+                latencyMs: dbLatencyMs,
+                size: dbSize,
+                error: dbError,
+            },
+            disk: diskInfo,
+            memory: {
+                totalMb: Math.round(totalMemBytes / (1024 * 1024)),
+                usedMb: Math.round(usedMemBytes / (1024 * 1024)),
+                freeMb: Math.round(freeMemBytes / (1024 * 1024)),
+                usedPercentage: memUsedPercentage,
+                processRssMb,
+                status: memStatus,
+            },
+            system: {
+                nodeVersion: process.version,
+                platform: process.platform,
+                cpus: os.cpus().length,
+            },
+        };
+    }
+
+    private formatUptime(seconds: number): string {
+        const days = Math.floor(seconds / (3600 * 24));
+        const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const parts: string[] = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hours > 0) parts.push(`${hours}h`);
+        parts.push(`${minutes}m`);
+        return parts.join(' ');
     }
 }

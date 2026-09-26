@@ -95,6 +95,9 @@ export interface AllocatedRoomItem {
     maxPhysicalInfants?: number;
     totalMaxOccupancy?: number;
     totalBaseOccupancy?: number;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    isAcSelected?: boolean;
+    basePriceAc?: number | null;
 }
 
 export interface AccommodationSolution {
@@ -116,6 +119,18 @@ export interface AccommodationSolution {
         currency: string;
     };
     rooms: AllocatedRoomItem[];
+    ratesByMealPlan?: {
+        EP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        CP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        MAP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        AP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+    };
+    availableAcOptions?: string[];
+    hasAc?: boolean;
+    selectedMealPlan?: string;
+    ratePlanId?: string;
+    mealPlan?: string;
+    isAcSelected?: boolean;
 }
 
 export interface FlexibleDateRate {
@@ -146,6 +161,9 @@ export interface RoomAllocationItem {
     infants?: number;
     extraAdults?: number;
     extraChildren?: number;
+    ratePlanId?: string;
+    mealPlan?: string;
+    isAcSelected?: boolean;
 }
 
 export interface GuestInfo {
@@ -184,6 +202,9 @@ export interface CreateBookingDto {
     roomsCount?: number;
     roomAllocations?: RoomAllocationItem[];
     selectedSolution?: AccommodationSolution;
+    ratePlanId?: string;
+    mealPlan?: string;
+    isAcSelected?: boolean;
 }
 
 // Marketplace Types

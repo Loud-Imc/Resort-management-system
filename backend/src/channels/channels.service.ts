@@ -518,7 +518,11 @@ export class ChannelsService {
       for (const roomMapping of currentRoomMappings) {
         // Fetch all active rate plans for this room type
         const ratePlans = await this.prisma.ratePlan.findMany({
-          where: { roomTypeId: roomMapping.roomTypeId, isActive: true },
+          where: {
+            propertyId: mapping.propertyId,
+            isActive: true,
+            roomTypePrices: { some: { roomTypeId: roomMapping.roomTypeId } },
+          },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
         });
 

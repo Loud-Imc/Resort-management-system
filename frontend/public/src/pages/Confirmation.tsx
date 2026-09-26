@@ -387,6 +387,26 @@ export default function Confirmation() {
                                                 </span>
                                             </div>
                                         </div>
+                                        <div className="space-y-1">
+                                            <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Meal Package</span>
+                                            <div className="flex items-center gap-2 text-gray-800">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                                    {booking.mealPlan === 'EP' ? '☕ EP (Room Only)' : booking.mealPlan === 'CP' ? '🍳 CP (Breakfast)' : booking.mealPlan === 'MAP' ? '🍽️ MAP (Half Board)' : booking.mealPlan === 'AP' ? '👑 AP (Full Board)' : (booking.mealPlan || 'EP')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Comfort</span>
+                                            <div className="flex items-center gap-2 text-gray-800">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                                    booking.isAcSelected
+                                                        ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                                                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                }`}>
+                                                    {booking.isAcSelected ? '❄️ Air Conditioned' : '🍃 Non-AC'}
+                                                </span>
+                                            </div>
+                                        </div>
                                         {booking.gstNumber && (
                                             <div className="space-y-1">
                                                 <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">GST Number</span>

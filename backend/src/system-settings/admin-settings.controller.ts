@@ -11,6 +11,11 @@ import { UpdateSettingDto } from './dto/update-setting.dto';
 export class AdminSettingsController {
     constructor(private systemSettingsService: SystemSettingsService) {}
 
+    @Get('health')
+    async getHealth() {
+        return this.systemSettingsService.getSystemHealth();
+    }
+
     @Get()
     async getAll() {
         return this.systemSettingsService.getAllSettings();

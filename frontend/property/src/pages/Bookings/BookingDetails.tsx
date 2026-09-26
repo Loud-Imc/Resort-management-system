@@ -107,8 +107,12 @@ const BookingDetails = () => {
     const couponDiscount = Number(booking.couponDiscountAmount || 0);
     const totalDiscount = Number(booking.discountAmount || 0) || (offerDiscount + couponDiscount);
 
+    const isInclusive = Boolean(booking.isGstInclusive ?? property?.isGstInclusive);
+
     // If totalAmount was saved with a bug where extra charges were missed, recalculate effective total
-    const computedTotal = baseAmount + effectiveExtraCharges + taxAmount - totalDiscount;
+    const computedTotal = isInclusive
+        ? (baseAmount + taxAmount - totalDiscount)
+        : (baseAmount + effectiveExtraCharges + taxAmount - totalDiscount);
     const rawTotalAmount = Number(booking.totalAmount || 0);
     const paymentsList = Array.isArray(booking.payments) ? booking.payments : [];
     const totalOriginalPaid = paymentsList.length > 0
@@ -471,13 +475,45 @@ const BookingDetails = () => {
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2 md:justify-end">
-                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">
+                                        {/* AC Status Badge */}
+                                        {(() => {
+                                            const br = booking.bookingRooms[0];
+                                            const isAc = br.isAcSelected !== undefined && br.isAcSelected !== null
+                                                ? Boolean(br.isAcSelected)
+                                                : (booking.isAcSelected !== undefined && booking.isAcSelected !== null
+                                                    ? Boolean(booking.isAcSelected)
+                                                    : (br.room?.roomType?.acOption === 'AC_ONLY' || br.room?.roomType?.acOption !== 'NON_AC_ONLY'));
+                                            return (
+                                                <span className={`text-[10px] px-3 py-1 rounded-full font-bold border shadow-xs flex items-center gap-1 ${
+                                                    isAc
+                                                        ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
+                                                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                }`}>
+                                                    {isAc ? '❄️ AC' : '🍃 Non-AC'}
+                                                </span>
+                                            );
+                                        })()}
+
+                                        {/* Meal Plan Badge */}
+                                        {(() => {
+                                            const mp = booking.bookingRooms[0]?.mealPlan || (booking as any).ratePlan?.mealPlan || booking.mealPlan || 'EP';
+                                            return (
+                                                <span className="text-[10px] px-3 py-1 bg-primary/10 text-primary rounded-full font-bold border border-primary/20 shadow-xs flex items-center gap-1">
+                                                    {mp === 'CP' ? '🍳 Bed & Breakfast (CP)' :
+                                                     mp === 'MAP' ? '🍽️ Half Board (MAP)' :
+                                                     mp === 'AP' ? '👑 Full Board (AP)' :
+                                                     '☕ Room Only (EP)'}
+                                                </span>
+                                            );
+                                        })()}
+
+                                        <span className="text-[10px] px-3 py-1 bg-white dark:bg-card rounded-full font-bold text-muted-foreground border border-border shadow-xs">
                                             {booking.bookingRooms[0].adultsCount ?? booking.adultsCount} Adults
                                             {Number(booking.bookingRooms[0].extraAdultsCount || 0) > 0 && (
                                                 <span className="text-amber-600 font-extrabold ml-1">({booking.bookingRooms[0].extraAdultsCount} Extra)</span>
                                             )}
                                         </span>
-                                        <span className="text-[10px] px-3 py-1 bg-white rounded-full font-bold text-muted-foreground border border-border shadow-sm">
+                                        <span className="text-[10px] px-3 py-1 bg-white dark:bg-card rounded-full font-bold text-muted-foreground border border-border shadow-xs">
                                             {booking.bookingRooms[0].childrenCount ?? booking.childrenCount} Children
                                             {Number(booking.bookingRooms[0].extraChildrenCount || 0) > 0 && (
                                                 <span className="text-amber-600 font-extrabold ml-1">({booking.bookingRooms[0].extraChildrenCount} Extra)</span>
@@ -505,7 +541,45 @@ const BookingDetails = () => {
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2 md:justify-end">
-                                        <span className="text-[10px] px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full font-bold uppercase tracking-widest border border-emerald-100 italic">Blocked for Group</span>
+                                        {/* AC Status Badge */}
+                                        {(() => {
+                                            const isAc = block.isAcSelected !== undefined && block.isAcSelected !== null
+                                                ? Boolean(block.isAcSelected)
+                                                : (booking.isAcSelected !== undefined && booking.isAcSelected !== null
+                                                    ? Boolean(booking.isAcSelected)
+                                                    : (block.room?.roomType?.acOption === 'AC_ONLY' || block.room?.roomType?.acOption !== 'NON_AC_ONLY'));
+                                            return (
+                                                <span className={`text-[10px] px-3 py-1 rounded-full font-bold border shadow-xs flex items-center gap-1 ${
+                                                    isAc
+                                                        ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
+                                                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                }`}>
+                                                    {isAc ? '❄️ AC' : '🍃 Non-AC'}
+                                                </span>
+                                            );
+                                        })()}
+
+                                        {/* Meal Plan Badge */}
+                                        {(() => {
+                                            const mp = block.mealPlan || (booking as any).ratePlan?.mealPlan || booking.mealPlan || 'EP';
+                                            return (
+                                                <span className="text-[10px] px-3 py-1 bg-primary/10 text-primary rounded-full font-bold border border-primary/20 shadow-xs flex items-center gap-1">
+                                                    {mp === 'CP' ? '🍳 CP' : mp === 'MAP' ? '🍽️ MAP' : mp === 'AP' ? '👑 AP' : '☕ EP'}
+                                                </span>
+                                            );
+                                        })()}
+
+                                        <span className="text-[10px] px-3 py-1 bg-white dark:bg-card rounded-full font-bold text-muted-foreground border border-border shadow-xs">
+                                            {block.adultsCount || 1} Adults
+                                            {Number(block.extraAdultsCount || 0) > 0 && (
+                                                <span className="text-amber-600 font-extrabold ml-1">({block.extraAdultsCount} Extra)</span>
+                                            )}
+                                        </span>
+                                        {Number(block.childrenCount || 0) > 0 && (
+                                            <span className="text-[10px] px-3 py-1 bg-white dark:bg-card rounded-full font-bold text-muted-foreground border border-border shadow-xs">
+                                                {block.childrenCount} Children
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -532,7 +606,14 @@ const BookingDetails = () => {
                         <div className="space-y-6">
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm items-center">
-                                    <span className="text-muted-foreground font-bold">Base Rate</span>
+                                    <div className="flex flex-col">
+                                        <span className="text-muted-foreground font-bold">Base Rate</span>
+                                        {isInclusive && effectiveExtraCharges > 0 && (
+                                            <span className="text-[11px] text-muted-foreground/80 font-normal">
+                                                Includes ₹{effectiveExtraCharges.toLocaleString()} for extra guests
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className="font-black text-foreground">₹{Number(booking.baseAmount).toLocaleString()}</span>
                                 </div>
                                 {Number(booking.offerDiscountAmount) > 0 && (
@@ -541,10 +622,12 @@ const BookingDetails = () => {
                                         <span className="font-black">-₹{Number(booking.offerDiscountAmount).toLocaleString()}</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between text-sm items-center">
-                                    <span className="text-muted-foreground font-bold">Extra Charges</span>
-                                    <span className="font-black text-foreground">₹{effectiveExtraCharges.toLocaleString()}</span>
-                                </div>
+                                {!isInclusive && effectiveExtraCharges > 0 && (
+                                    <div className="flex justify-between text-sm items-center">
+                                        <span className="text-muted-foreground font-bold">Extra Charges</span>
+                                        <span className="font-black text-foreground">₹{effectiveExtraCharges.toLocaleString()}</span>
+                                    </div>
+                                )}
                                 {Number(booking.couponDiscountAmount) > 0 && (
                                     <div className="flex justify-between text-sm items-center text-emerald-600 dark:text-emerald-400">
                                         <span className="font-bold">Coupon Discount</span>

@@ -12,4 +12,9 @@ export class LoginDto {
     @IsNotEmpty()
     @MinLength(6)
     password: string;
+
+    @ApiProperty({ example: 'admin', required: false })
+    @IsString()
+    @IsOptional()
+    portal?: string;
 }

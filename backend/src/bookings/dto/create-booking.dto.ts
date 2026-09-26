@@ -287,6 +287,21 @@ export class CreateBookingDto {
     @IsBoolean()
     @IsOptional()
     isHistoricalEntry?: boolean;
+
+    @ApiProperty({ example: 'rate-plan-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    ratePlanId?: string;
+
+    @ApiProperty({ example: 'EP', required: false, enum: ['EP', 'CP', 'MAP', 'AP'] })
+    @IsString()
+    @IsOptional()
+    mealPlan?: string;
+
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isAcSelected?: boolean;
 }
 
 export class RoomAllocationItemDto {
@@ -338,5 +353,20 @@ export class RoomAllocationItemDto {
     @IsOptional()
     @Type(() => Number)
     childAges?: number[];
+
+    @ApiProperty({ example: 'rate-plan-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    ratePlanId?: string;
+
+    @ApiProperty({ example: 'EP', required: false, enum: ['EP', 'CP', 'MAP', 'AP'] })
+    @IsString()
+    @IsOptional()
+    mealPlan?: string;
+
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isAcSelected?: boolean;
 }
 

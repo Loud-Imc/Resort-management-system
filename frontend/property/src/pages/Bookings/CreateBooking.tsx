@@ -142,6 +142,7 @@ export default function CreateBooking() {
     const [accommodationSolutions, setAccommodationSolutions] = useState<any[] | null>(null);
     const [selectedSolution, setSelectedSolution] = useState<any | null>(null);
     const [solutionRoomAssignments, setSolutionRoomAssignments] = useState<Record<number, string>>({});
+    const [selectedRoomsEvaluation, setSelectedRoomsEvaluation] = useState<any | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [originalPriceDetails, setOriginalPriceDetails] = useState<PriceCalculationResult | null>(null);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
@@ -155,6 +156,8 @@ export default function CreateBooking() {
     const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
     const [childAges, setChildAges] = useState<number[]>([]);
     const [infantsCount, setInfantsCount] = useState<number>(0);
+    const [selectedMealPlan, setSelectedMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('EP');
+    const [roomAcSelections, setRoomAcSelections] = useState<Record<number, boolean>>({});
 
     // Promo / Referral Code State
     const [isApplyingPromoCode, setIsApplyingPromoCode] = useState(false);
@@ -498,6 +501,7 @@ export default function CreateBooking() {
         setValue('childrenCount', 0);
         setFilterRoomTypeIds([]);
         setFilterRoomIds([]);
+        setSelectedRoomsEvaluation(null);
 
         if (enableGroup) {
             const currentAdults = Math.max(2, Number(getValues('adultsCount')) || 2);
@@ -533,7 +537,9 @@ export default function CreateBooking() {
                 ? dateFilteredRooms
                 : (rt?.rooms?.filter((r: any) => r.isEnabled) || []);
 
-            const availableRoom = candidateRooms.find((r: any) => (r.isEnabled !== false) && !chosenRoomIds.includes(r.id) && (filterRoomIds.length === 0 || filterRoomIds.includes(r.id)))
+            const targetRoomId = ar.roomId;
+            const availableRoom = (targetRoomId && candidateRooms.find((r: any) => r.id === targetRoomId && !chosenRoomIds.includes(r.id)))
+                || candidateRooms.find((r: any) => (r.isEnabled !== false) && !chosenRoomIds.includes(r.id) && (filterRoomIds.length === 0 || filterRoomIds.includes(r.id)))
                 || candidateRooms.find((r: any) => (r.isEnabled !== false) && !chosenRoomIds.includes(r.id));
             if (availableRoom) {
                 initialAssignments[idx] = availableRoom.id;
@@ -543,6 +549,14 @@ export default function CreateBooking() {
         setSolutionRoomAssignments(initialAssignments);
         setValue('selectedRoomIds', chosenRoomIds);
         setValue('roomId', chosenRoomIds[0] || '');
+        setValue('roomsCount', allocatedRooms.length);
+
+        // Initialize room AC selections
+        const initialAcSelections: Record<number, boolean> = {};
+        allocatedRooms.forEach((ar: any, idx: number) => {
+            initialAcSelections[idx] = ar.isAcSelected ?? (ar.acOption !== 'NON_AC_ONLY');
+        });
+        setRoomAcSelections(initialAcSelections);
 
         const pricing = solution.pricing || solution.pricingSummary;
         if (pricing) {
@@ -577,17 +591,92 @@ export default function CreateBooking() {
         }
     };
 
+    const updatePriceForSolution = (
+        solution: any,
+        mealPlan: string = selectedMealPlan,
+        acSelections: Record<number, boolean> = roomAcSelections
+    ) => {
+        if (!solution) return;
+        const allocatedRooms = solution.rooms || solution.allocatedRooms || [];
+        const nights = solution.pricing?.numberOfNights || solution.pricing?.nights || 1;
+        const mealPricing = solution.ratesByMealPlan?.[mealPlan] || solution.pricing || solution.pricingSummary;
+
+        if (mealPricing) {
+            let baseAmount = mealPricing.baseAmount ?? mealPricing.basePrice ?? 0;
+            const extraAdultAmount = mealPricing.extraAmount ?? mealPricing.extraGuestTotal ?? 0;
+            let taxAmount = mealPricing.taxAmount ?? 0;
+            let totalAmount = mealPricing.totalPrice ?? mealPricing.grandTotal ?? (baseAmount + extraAdultAmount + taxAmount);
+            const numberOfNights = mealPricing.numberOfNights ?? nights;
+
+            const acDelta = allocatedRooms.reduce((acc: number, r: any, idx: number) => {
+                if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
+                    const defaultIsAc = r.isAcSelected ?? true;
+                    const currentIsAc = acSelections[idx] !== undefined ? acSelections[idx] : defaultIsAc;
+                    if (defaultIsAc && !currentIsAc) {
+                        return acc - ((r.basePriceAc - r.basePriceNonAc) * numberOfNights);
+                    } else if (!defaultIsAc && currentIsAc) {
+                        return acc + ((r.basePriceAc - r.basePriceNonAc) * numberOfNights);
+                    }
+                }
+                return acc;
+            }, 0);
+
+            totalAmount = Math.max(0, totalAmount + acDelta);
+            baseAmount = Math.max(0, baseAmount + acDelta);
+            const taxRate = mealPricing.taxRate ?? ((taxAmount > 0 && (baseAmount + extraAdultAmount) > 0) ? Math.round((taxAmount / (baseAmount + extraAdultAmount)) * 100) : 0);
+
+            const solPrice: PriceCalculationResult = {
+                baseAmount,
+                extraAdultAmount,
+                extraChildAmount: 0,
+                taxAmount,
+                discountAmount: 0,
+                offerDiscountAmount: 0,
+                couponDiscountAmount: 0,
+                referralDiscountAmount: 0,
+                totalAmount,
+                numberOfNights,
+                pricePerNight: totalAmount / numberOfNights,
+                taxRate,
+                isGstInclusive: Boolean(mealPricing.isGstInclusive ?? solution.pricing?.isGstInclusive),
+            };
+            setPriceDetails(solPrice);
+            setOriginalPriceDetails(solPrice);
+        }
+    };
+
+    const handleMealPlanChange = (plan: string) => {
+        setSelectedMealPlan(plan as any);
+        if (selectedSolution) {
+            updatePriceForSolution(selectedSolution, plan, roomAcSelections);
+        }
+    };
+
+    const handleRoomAcToggle = (roomIndex: number, isAc: boolean) => {
+        const next = { ...roomAcSelections, [roomIndex]: isAc };
+        setRoomAcSelections(next);
+        if (selectedSolution) {
+            updatePriceForSolution(selectedSolution, selectedMealPlan, next);
+        }
+    };
+
     const extractSolutionAllocations = (solution: any) => {
         if (!solution) return undefined;
         const rooms = solution.rooms || solution.allocatedRooms;
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) return undefined;
-        return rooms.map((r: any) => ({
-            roomTypeId: r.roomTypeId,
-            adults: Number(r.adults) || 1,
-            children: Number(r.children) || 0,
-            infants: Number(r.infants) || 0,
-            childAges: r.childAges,
-        }));
+        return rooms.map((r: any, idx: number) => {
+            const isAc = roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (r.isAcSelected ?? (r.acOption !== 'NON_AC_ONLY'));
+            return {
+                roomTypeId: r.roomTypeId,
+                adults: Number(r.adults) || 1,
+                children: Number(r.children) || 0,
+                infants: Number(r.infants) || 0,
+                childAges: r.childAges,
+                ratePlanId: r.ratePlanId || solution.ratePlanId || undefined,
+                mealPlan: selectedMealPlan || 'EP',
+                isAcSelected: isAc,
+            };
+        });
     };
 
     const handleApplyPromoCode = async (code: string) => {
@@ -843,9 +932,11 @@ export default function CreateBooking() {
 
                 if (searchRes.accommodationSolutions && searchRes.accommodationSolutions.length > 0) {
                     setAccommodationSolutions(searchRes.accommodationSolutions);
+                    setSelectedRoomsEvaluation(searchRes.selectedRoomsEvaluation || null);
                     handleSelectSolution(searchRes.accommodationSolutions[0]);
                 } else {
                     setAccommodationSolutions(null);
+                    setSelectedRoomsEvaluation(searchRes.selectedRoomsEvaluation || null);
                     setSelectedSolution(null);
                     setPriceDetails(null);
                     setOriginalPriceDetails(null);
@@ -1179,6 +1270,7 @@ export default function CreateBooking() {
                 const isValidRoom = assignedRoomId && backendAvailableRooms.length > 0
                     ? backendAvailableRooms.some((r: any) => r.id === assignedRoomId)
                     : Boolean(assignedRoomId);
+                const isAc = roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (ar.isAcSelected ?? (ar.acOption !== 'NON_AC_ONLY'));
 
                 return {
                     roomTypeId: ar.roomTypeId,
@@ -1189,6 +1281,9 @@ export default function CreateBooking() {
                     infants: ar.infants || 0,
                     extraAdults: ar.extraAdults || 0,
                     extraChildren: ar.extraChildren || 0,
+                    ratePlanId: ar.ratePlanId || selectedSolution?.ratePlanId || undefined,
+                    mealPlan: selectedMealPlan || 'EP',
+                    isAcSelected: isAc,
                 };
             });
         } else if (!data.isGroupBooking && data.roomTypeId) {
@@ -1201,6 +1296,8 @@ export default function CreateBooking() {
                 infants: Number(infantsCount || 0),
                 extraAdults: Number(data.extraAdultsCount || 0),
                 extraChildren: Number(data.extraChildrenCount || 0),
+                mealPlan: selectedMealPlan || 'EP',
+                isAcSelected: true,
             }];
         }
 
@@ -1248,6 +1345,9 @@ export default function CreateBooking() {
             isGroupBooking: Boolean(data.isGroupBooking),
             groupSize: totalGroupSize,
             roomTypeId: data.isGroupBooking ? undefined : (allocatedRooms[0]?.roomTypeId || rest.roomTypeId),
+            ratePlanId: selectedSolution?.ratePlanId || undefined,
+            mealPlan: selectedMealPlan || 'EP',
+            isAcSelected: roomAllocationsPayload?.[0]?.isAcSelected ?? undefined,
             bookingSourceId: data.bookingSourceId || undefined,
             roomId: data.selectedRoomIds && data.selectedRoomIds.length > 0 ? data.selectedRoomIds[0] : (data.roomId || undefined),
             selectedRoomIds: data.selectedRoomIds || undefined,
@@ -1637,6 +1737,48 @@ export default function CreateBooking() {
                                     </div>
 
                                     {/* Group Summary Banner */}
+                                    {/* Group Meal Plan Selector */}
+                                    <div className="space-y-2 p-3.5 bg-card border border-border rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                Group Meal Plan & Dining Entitlement
+                                            </label>
+                                            <span className="text-[10px] text-muted-foreground font-medium">Per-head dining supplement</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            {[
+                                                { code: 'EP', label: 'Room Only', sub: 'Base tariff only', icon: '☕' },
+                                                { code: 'CP', label: 'Breakfast', sub: '+₹250/adult, +₹150/child', icon: '🍳' },
+                                                { code: 'MAP', label: 'Half Board', sub: '+₹700/adult, +₹400/child', icon: '🍽️' },
+                                                { code: 'AP', label: 'Full Board', sub: '+₹1,200/adult, +₹700/child', icon: '👑' },
+                                            ].map(mp => {
+                                                const isSelected = selectedMealPlan === mp.code;
+                                                return (
+                                                    <button
+                                                        key={mp.code}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedMealPlan(mp.code as any);
+                                                        }}
+                                                        className={clsx(
+                                                            "p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                                                            isSelected
+                                                                ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
+                                                                : "bg-background border-border hover:border-primary/40 text-foreground"
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                                            {isSelected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
+                                                        </div>
+                                                        <div className="text-[11px] font-bold text-foreground mt-0.5">{mp.label}</div>
+                                                        <div className="text-[10px] text-muted-foreground font-medium mt-0.5 leading-tight">{mp.sub}</div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
                                     <div className="flex items-center justify-between p-3.5 bg-primary/5 border border-primary/20 rounded-xl">
                                         <div>
                                             <span className="text-[10px] font-black uppercase tracking-wider text-primary block">
@@ -1688,6 +1830,7 @@ export default function CreateBooking() {
                                                     e.stopPropagation();
                                                     setFilterRoomTypeIds([]);
                                                     setFilterRoomIds([]);
+                                                    setSelectedRoomsEvaluation(null);
                                                     toast.success('Room filters cleared. Searching all inventory.');
                                                 }}
                                                 className="px-2.5 py-1 text-[11px] font-bold text-muted-foreground hover:text-rose-600 bg-background/80 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-border rounded-lg transition-all flex items-center gap-1 cursor-pointer"
@@ -1816,11 +1959,16 @@ export default function CreateBooking() {
                                                                 key={room.id}
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    setFilterRoomIds(prev =>
-                                                                        prev.includes(room.id)
+                                                                    setFilterRoomIds(prev => {
+                                                                        const next = prev.includes(room.id)
                                                                             ? prev.filter(id => id !== room.id)
-                                                                            : [...prev, room.id]
-                                                                    );
+                                                                            : [...prev, room.id];
+                                                                        if (next.length > 0) {
+                                                                            setValue('roomsCount', next.length);
+                                                                        }
+                                                                        return next;
+                                                                    });
+                                                                    setSelectedRoomsEvaluation(null);
                                                                 }}
                                                                 className={clsx(
                                                                     "px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
@@ -1921,6 +2069,63 @@ export default function CreateBooking() {
                             ) : !isGroupMode ? (
                                 /* Standard Booking Mode Solutions */
                                 <>
+                                    {/* Selected Rooms Feasibility & Capacity Banner */}
+                                    {selectedRoomsEvaluation && !selectedRoomsEvaluation.isSatisfied && (
+                                        <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                                                    <AlertCircle className="h-5 w-5" />
+                                                </div>
+                                                <div className="space-y-1.5 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                                                            Selected Rooms Capacity Notice
+                                                        </h4>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                                                            {selectedRoomsEvaluation.reason === 'CAPACITY_EXCEEDED' ? 'Capacity Exceeded' : selectedRoomsEvaluation.reason === 'ROOMS_UNAVAILABLE' ? 'Rooms Unavailable' : 'Occupancy Requirement'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-medium text-amber-800 dark:text-amber-200 leading-relaxed">
+                                                        {selectedRoomsEvaluation.message}
+                                                    </p>
+                                                    {selectedRoomsEvaluation.maxCapacity && (
+                                                        <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-semibold">
+                                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
+                                                                Max Adults: {selectedRoomsEvaluation.maxCapacity.maxAdults}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
+                                                                Max Children: {selectedRoomsEvaluation.maxCapacity.maxChildren}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 font-bold text-amber-900 dark:text-amber-100">
+                                                                Total Max Capacity: {selectedRoomsEvaluation.maxCapacity.maxTotalCapacity} Guests
+                                                            </span>
+                                                            {selectedRoomsEvaluation.maxCapacity.minAdultsRequired > 1 && (
+                                                                <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
+                                                                    Min Adults Required: {selectedRoomsEvaluation.maxCapacity.minAdultsRequired} (1 per room)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {accommodationSolutions && accommodationSolutions.length > 0 && (
+                                                        <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90 pt-1 font-semibold flex items-center gap-1.5">
+                                                            <Sparkles className="h-3.5 w-3.5" />
+                                                            We have displayed alternative accommodation solutions below that can host your entire party.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selectedRoomsEvaluation && selectedRoomsEvaluation.isSatisfied && (
+                                        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-950 dark:text-emerald-200 flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                            <div className="text-xs">
+                                                <span className="font-bold">Exact Match for Selected Rooms:</span> Accommodating your party in {selectedRoomsEvaluation.selectedRooms?.map((r: any) => `#${r.roomNumber}`).join(', ')} ({selectedRoomsEvaluation.selectedRooms?.length} {selectedRoomsEvaluation.selectedRooms?.length === 1 ? 'room' : 'rooms'}).
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {accommodationSolutions && accommodationSolutions.length > 0 ? (
                                         <div className="space-y-3.5">
                                             {/* Show top solutions directly on page with currently selected solution always first */}
@@ -1932,6 +2137,10 @@ export default function CreateBooking() {
                                                     adultsCount={Number(watch('adultsCount')) || 1}
                                                     childrenCount={Number(watch('childrenCount')) || 0}
                                                     onSelect={handleSelectSolution}
+                                                    selectedMealPlan={selectedMealPlan}
+                                                    onMealPlanChange={handleMealPlanChange}
+                                                    roomAcSelections={roomAcSelections}
+                                                    onRoomAcToggle={handleRoomAcToggle}
                                                 />
                                             ))}
 
@@ -2046,6 +2255,10 @@ export default function CreateBooking() {
                                             adultsCount={Number(watch('adultsCount')) || 1}
                                             childrenCount={Number(watch('childrenCount')) || 0}
                                             onSelect={() => {}}
+                                            selectedMealPlan={selectedMealPlan}
+                                            onMealPlanChange={handleMealPlanChange}
+                                            roomAcSelections={roomAcSelections}
+                                            onRoomAcToggle={handleRoomAcToggle}
                                         />
                                     ) : (
                                         <div className="p-6 text-center rounded-2xl border border-dashed border-rose-500/30 bg-rose-500/5 space-y-2">
@@ -2685,6 +2898,8 @@ export default function CreateBooking() {
                         isPriceLoading={isPriceLoading || isApplyingOverride || isApplyingPromoCode}
                         codeMessage={promoCodeMessage}
                         isCodeError={isPromoCodeError}
+                        selectedMealPlan={selectedMealPlan}
+                        roomAcSelections={roomAcSelections}
                     />
                 </div>
 
@@ -2759,6 +2974,8 @@ export default function CreateBooking() {
                             isPriceLoading={isPriceLoading || isApplyingOverride || isApplyingPromoCode}
                             codeMessage={promoCodeMessage}
                             isCodeError={isPromoCodeError}
+                            selectedMealPlan={selectedMealPlan}
+                            roomAcSelections={roomAcSelections}
                         />
                     </div>
                 </div>
@@ -2795,6 +3012,10 @@ export default function CreateBooking() {
                                         handleSelectSolution(s);
                                         setShowFullSolutionsModal(false);
                                     }}
+                                    selectedMealPlan={selectedMealPlan}
+                                    onMealPlanChange={handleMealPlanChange}
+                                    roomAcSelections={roomAcSelections}
+                                    onRoomAcToggle={handleRoomAcToggle}
                                 />
                             ))}
                         </div>

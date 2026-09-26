@@ -205,15 +205,11 @@ export const BulkPricingRuleModal: React.FC<BulkPricingRuleModalProps> = ({
     { num: 0, label: 'Sun' },
   ];
 
-  // Resolve available rate plans for dropdown
+  // Resolve available rate plans for dropdown (rate plans are property-level)
   const availablePlans =
-    selectedRoomTypeId === 'ALL'
-      ? ratePlans && ratePlans.length > 0
-        ? ratePlans
-        : roomTypes.flatMap((rt) => rt.ratePlans || [])
-      : ratePlans.find((p) => p.roomTypeId === selectedRoomTypeId)
-      ? ratePlans.filter((p) => p.roomTypeId === selectedRoomTypeId)
-      : roomTypes.find((rt) => rt.id === selectedRoomTypeId)?.ratePlans || [];
+    ratePlans && ratePlans.length > 0
+      ? ratePlans
+      : roomTypes.flatMap((rt) => rt.ratePlans || []);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">

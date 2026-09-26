@@ -7,6 +7,7 @@ import { format, eachDayOfInterval, differenceInDays } from 'date-fns';
 import { DateUtils } from '../common/utils/date.utils';
 import {
     solveAccommodationOptions,
+    SolverAccommodationSolution,
     RoomTypeInventoryCandidate,
     validatePhysicalFeasibility,
     validateChildAges,
@@ -1445,7 +1446,6 @@ export class AvailabilityService {
                     rooms: {
                         some: { 
                             isEnabled: true,
-                            ...(roomIds && roomIds.length > 0 ? { id: { in: roomIds } } : {})
                         }
                     },
                     ...occupancyCandidateFilter,
@@ -1455,7 +1455,6 @@ export class AvailabilityService {
                     rooms: {
                         some: { 
                             isEnabled: true,
-                            ...(roomIds && roomIds.length > 0 ? { id: { in: roomIds } } : {})
                         }
                     },
                     ...occupancyCandidateFilter,
@@ -1477,8 +1476,20 @@ export class AvailabilityService {
             },
         });
 
-        const allSuitableTypeIds = suitableTypes.map(rt => rt.id);
-        const { availableCountMap, availableRoomsMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate, undefined, roomIds);
+        // Preload any explicitly selected physical rooms to evaluate their feasibility and capacity
+        let selectedPhysicalRooms: any[] = [];
+        if (roomIds && roomIds.length > 0) {
+            selectedPhysicalRooms = await this.prisma.room.findMany({
+                where: { id: { in: roomIds }, isEnabled: true },
+                include: { roomType: true }
+            });
+        }
+
+        const allSuitableTypeIds = Array.from(new Set([
+            ...suitableTypes.map(rt => rt.id),
+            ...selectedPhysicalRooms.map(r => r.roomTypeId)
+        ]));
+        const { availableCountMap, availableRoomsMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate);
 
         // Preload global GST tiers, offers, and pricing rules once in parallel
         const [globalGstTiers, allOffers, allPricingRules] = await Promise.all([
@@ -1502,43 +1513,182 @@ export class AvailabilityService {
         const propertyExecutionPromises = Array.from(propertyMap.entries()).map(async ([propId, propRoomTypes]) => {
             const propResults: any[] = [];
             const propSolutions: any[] = [];
+            let propSelectedRoomsEvaluation: any = null;
 
             const firstType = propRoomTypes[0];
-            const property = firstType.property;
+            const property = firstType?.property;
+
+            // Include any selected rooms belonging to this property
+            const propSelectedRooms = selectedPhysicalRooms.filter(r => r.propertyId === propId || r.roomType?.propertyId === propId);
+            for (const sr of propSelectedRooms) {
+                if (sr.roomType && !propRoomTypes.some((rt: any) => rt.id === sr.roomTypeId)) {
+                    propRoomTypes.push({ ...sr.roomType, property });
+                }
+            }
+
             // Property.occupancyVersion or RoomType.occupancyVersion is the authoritative RUNTIME ACTIVATION switch.
             const isV2Property = (property as any)?.occupancyVersion === 'V2' || propRoomTypes.some((rt: any) => rt.occupancyVersion === 'V2');
 
             if (isV2Property) {
-                // V2 Canonical Search & Accommodation Solver Path (All room counts resolved in-memory from batch)
-                const availableCandidates: RoomTypeInventoryCandidate[] = propRoomTypes
-                    .filter((rt: any) => (availableCountMap.get(rt.id) || 0) > 0 && rt.maxPhysicalAdults >= 1)
-                    .map((rt: any) => ({
-                        id: rt.id,
-                        name: rt.name,
-                        totalBaseOccupancy: rt.totalBaseOccupancy ?? ((rt.baseAdults ?? 2) + (rt.baseChildren ?? 1)),
-                        totalMaxOccupancy: rt.totalMaxOccupancy ?? (rt.maxPhysicalAdults + (rt.maxPhysicalChildren || 0)),
-                        maxPhysicalAdults: rt.maxPhysicalAdults,
-                        maxPhysicalChildren: rt.maxPhysicalChildren,
-                        maxPhysicalInfants: rt.maxPhysicalInfants ?? 1,
-                        baseMaxAdults: rt.baseMaxAdults,
-                        baseMaxChildren: rt.baseMaxChildren,
-                        freeChildrenCount: rt.freeChildrenCount ?? 0,
-                        basePrice: Number(rt.basePrice),
-                        extraAdultPrice: Number(rt.extraAdultPrice),
-                        extraChildPrice: Number(rt.extraChildPrice),
-                        isGstInclusive: Boolean(rt.isGstInclusive),
-                        availableQuantity: availableCountMap.get(rt.id) || 0,
-                    }));
+                let solutions: SolverAccommodationSolution[] = [];
+                let isExactSelectionFeasible = false;
 
-                const solutions = solveAccommodationOptions(
-                    { adults, children, infants: infants || 0, childAges, requestedRooms: rooms || 1 },
-                    availableCandidates
-                );
+                // Evaluate selected physical rooms if provided
+                if (propSelectedRooms.length > 0) {
+                    const availableSelectedRooms = propSelectedRooms.filter(r =>
+                        (availableRoomsMap.get(r.roomTypeId) || []).some((ar: any) => ar.id === r.id)
+                    );
+                    const unavailableSelectedRooms = propSelectedRooms.filter(r =>
+                        !availableSelectedRooms.some((ar: any) => ar.id === r.id)
+                    );
+
+                    const totalSelected = propSelectedRooms.length;
+                    const minAdultsRequired = totalSelected;
+                    const maxAdults = propSelectedRooms.reduce((sum, r) => sum + (r.roomType?.maxPhysicalAdults ?? r.roomType?.maxAdults ?? 2), 0);
+                    const maxChildren = propSelectedRooms.reduce((sum, r) => sum + (r.roomType?.maxPhysicalChildren ?? r.roomType?.maxChildren ?? 1), 0);
+                    const maxInfants = propSelectedRooms.reduce((sum, r) => sum + (r.roomType?.maxPhysicalInfants ?? 1), 0);
+                    const maxTotalCapacity = propSelectedRooms.reduce((sum, r) => {
+                        return sum + (r.roomType?.totalMaxOccupancy ?? ((r.roomType?.maxPhysicalAdults ?? 2) + (r.roomType?.maxPhysicalChildren ?? 1)));
+                    }, 0);
+
+                    let failureReason: 'ROOMS_UNAVAILABLE' | 'MIN_ADULTS_NOT_MET' | 'CAPACITY_EXCEEDED' | null = null;
+                    if (unavailableSelectedRooms.length > 0) {
+                        failureReason = 'ROOMS_UNAVAILABLE';
+                    } else if (adults < minAdultsRequired) {
+                        failureReason = 'MIN_ADULTS_NOT_MET';
+                    } else if (adults > maxAdults || (adults + children) > maxTotalCapacity || (infants || 0) > maxInfants) {
+                        failureReason = 'CAPACITY_EXCEEDED';
+                    }
+
+                    if (!failureReason) {
+                        const counts: Record<string, number> = {};
+                        for (const r of propSelectedRooms) {
+                            counts[r.roomTypeId] = (counts[r.roomTypeId] || 0) + 1;
+                        }
+
+                        const selectedCandidates: RoomTypeInventoryCandidate[] = propRoomTypes
+                            .filter((rt: any) => (counts[rt.id] || 0) > 0)
+                            .map((rt: any) => ({
+                                id: rt.id,
+                                name: rt.name,
+                                totalBaseOccupancy: rt.totalBaseOccupancy ?? ((rt.baseAdults ?? 2) + (rt.baseChildren ?? 1)),
+                                totalMaxOccupancy: rt.totalMaxOccupancy ?? (rt.maxPhysicalAdults + (rt.maxPhysicalChildren || 0)),
+                                maxPhysicalAdults: rt.maxPhysicalAdults,
+                                maxPhysicalChildren: rt.maxPhysicalChildren,
+                                maxPhysicalInfants: rt.maxPhysicalInfants ?? 1,
+                                baseMaxAdults: rt.baseMaxAdults,
+                                baseMaxChildren: rt.baseMaxChildren,
+                                freeChildrenCount: rt.freeChildrenCount ?? 0,
+                                basePrice: Number(rt.basePrice),
+                                extraAdultPrice: Number(rt.extraAdultPrice),
+                                extraChildPrice: Number(rt.extraChildPrice),
+                                isGstInclusive: Boolean(rt.isGstInclusive),
+                                availableQuantity: counts[rt.id],
+                            }));
+
+                        const exactSolutions = solveAccommodationOptions(
+                            {
+                                adults,
+                                children,
+                                infants: infants || 0,
+                                childAges,
+                                exactRoomCount: totalSelected,
+                                exactRoomTypeCounts: counts,
+                            },
+                            selectedCandidates
+                        );
+
+                        if (exactSolutions && exactSolutions.length > 0) {
+                            isExactSelectionFeasible = true;
+                            solutions = exactSolutions;
+                            propSelectedRoomsEvaluation = {
+                                isSatisfied: true,
+                                selectedRooms: propSelectedRooms.map(r => ({
+                                    id: r.id,
+                                    roomNumber: r.roomNumber,
+                                    roomTypeId: r.roomTypeId,
+                                    roomTypeName: r.roomType?.name || 'Standard'
+                                })),
+                                maxCapacity: {
+                                    maxAdults,
+                                    maxChildren,
+                                    maxTotalCapacity,
+                                    minAdultsRequired
+                                }
+                            };
+                        } else {
+                            failureReason = 'CAPACITY_EXCEEDED';
+                        }
+                    }
+
+                    if (failureReason) {
+                        propSelectedRoomsEvaluation = {
+                            isSatisfied: false,
+                            reason: failureReason,
+                            message: failureReason === 'ROOMS_UNAVAILABLE'
+                                ? `Selected room(s) ${unavailableSelectedRooms.map(r => `#${r.roomNumber}`).join(', ')} are already booked or unavailable for the chosen dates.`
+                                : failureReason === 'MIN_ADULTS_NOT_MET'
+                                ? `Your selected ${totalSelected} rooms require at least ${minAdultsRequired} adult(s) (minimum 1 adult per room), but only ${adults} adult(s) were specified.`
+                                : `Your selected rooms (${propSelectedRooms.map(r => `#${r.roomNumber}`).join(', ')}) cannot accommodate the requested party of ${adults} adult${adults > 1 ? 's' : ''}${children > 0 ? ` and ${children} child${children > 1 ? 'ren' : ''}` : ''}. Maximum allowed capacity is ${maxAdults} adults and ${maxChildren} children (up to ${maxTotalCapacity} total guests).`,
+                            selectedRooms: propSelectedRooms.map(r => ({
+                                id: r.id,
+                                roomNumber: r.roomNumber,
+                                roomTypeId: r.roomTypeId,
+                                roomTypeName: r.roomType?.name || 'Standard'
+                            })),
+                            unavailableRooms: unavailableSelectedRooms.map(r => ({
+                                id: r.id,
+                                roomNumber: r.roomNumber,
+                                roomTypeName: r.roomType?.name || 'Standard'
+                            })),
+                            maxCapacity: {
+                                maxAdults,
+                                maxChildren,
+                                maxTotalCapacity,
+                                minAdultsRequired
+                            },
+                            requestedParty: {
+                                adults,
+                                children,
+                                infants
+                            }
+                        };
+                    }
+                }
+
+                // If not exact feasible (e.g. no rooms preselected, or selected rooms could not hold the party), solve for available alternative solutions
+                if (!isExactSelectionFeasible) {
+                    const availableCandidates: RoomTypeInventoryCandidate[] = propRoomTypes
+                        .filter((rt: any) => (availableCountMap.get(rt.id) || 0) > 0 && rt.maxPhysicalAdults >= 1)
+                        .map((rt: any) => ({
+                            id: rt.id,
+                            name: rt.name,
+                            totalBaseOccupancy: rt.totalBaseOccupancy ?? ((rt.baseAdults ?? 2) + (rt.baseChildren ?? 1)),
+                            totalMaxOccupancy: rt.totalMaxOccupancy ?? (rt.maxPhysicalAdults + (rt.maxPhysicalChildren || 0)),
+                            maxPhysicalAdults: rt.maxPhysicalAdults,
+                            maxPhysicalChildren: rt.maxPhysicalChildren,
+                            maxPhysicalInfants: rt.maxPhysicalInfants ?? 1,
+                            baseMaxAdults: rt.baseMaxAdults,
+                            baseMaxChildren: rt.baseMaxChildren,
+                            freeChildrenCount: rt.freeChildrenCount ?? 0,
+                            basePrice: Number(rt.basePrice),
+                            extraAdultPrice: Number(rt.extraAdultPrice),
+                            extraChildPrice: Number(rt.extraChildPrice),
+                            isGstInclusive: Boolean(rt.isGstInclusive),
+                            availableQuantity: availableCountMap.get(rt.id) || 0,
+                        }));
+
+                    solutions = solveAccommodationOptions(
+                        { adults, children, infants: infants || 0, childAges, requestedRooms: rooms || 1 },
+                        availableCandidates
+                    );
+                }
 
                 const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber);
                 const gstTiers = isPropertyGstApplicable ? globalGstTiers : [];
 
                 const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                const usedSelectedRoomIds = new Set<string>();
                 const propertySolutions = solutions.map((sol, idx) => {
                     let solTotalBaseAmount = 0;
                     let solTotalTaxAmount = 0;
@@ -1546,6 +1696,15 @@ export class AvailabilityService {
 
                     const enrichedRooms = sol.rooms.map(r => {
                         const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
+
+                        let matchedPhysicalRoom: any = null;
+                        if (isExactSelectionFeasible && propSelectedRooms.length > 0) {
+                            matchedPhysicalRoom = propSelectedRooms.find(spr => spr.roomTypeId === r.roomTypeId && !usedSelectedRoomIds.has(spr.id));
+                            if (matchedPhysicalRoom) {
+                                usedSelectedRoomIds.add(matchedPhysicalRoom.id);
+                            }
+                        }
+
                         const freeRooms = (availableRoomsMap.get(r.roomTypeId) || []).map((fr: any) => ({
                             id: fr.id,
                             roomNumber: fr.roomNumber,
@@ -1553,6 +1712,18 @@ export class AvailabilityService {
                             status: fr.status,
                             isEnabled: fr.isEnabled,
                         }));
+
+                        if (matchedPhysicalRoom) {
+                            const restRooms = freeRooms.filter((fr: any) => fr.id !== matchedPhysicalRoom.id);
+                            freeRooms.length = 0;
+                            freeRooms.push({
+                                id: matchedPhysicalRoom.id,
+                                roomNumber: matchedPhysicalRoom.roomNumber,
+                                name: matchedPhysicalRoom.name || (rt as any)?.name || 'Standard',
+                                status: matchedPhysicalRoom.status,
+                                isEnabled: matchedPhysicalRoom.isEnabled,
+                            }, ...restRooms);
+                        }
 
                         const isRoomInclusive = isPropertyGstApplicable && Boolean((rt as any)?.isGstInclusive);
                         const roomPerNightGrossOrNet = r.totalPricePerNight;
@@ -1603,6 +1774,16 @@ export class AvailabilityService {
                         solTotalTaxAmount += roomTaxTotal;
                         solGrandTotal += roomGrandTotal;
 
+                        const roomAcOption = (rt as any)?.acOption || 'AC_ONLY';
+                        const roomAvailableAcOptions = roomAcOption === 'BOTH'
+                            ? ['AC', 'NON_AC']
+                            : (roomAcOption === 'NON_AC_ONLY' ? ['NON_AC'] : ['AC']);
+                        const defaultIsAc = roomAcOption !== 'NON_AC_ONLY';
+                        const basePriceNonAc = Number((rt as any)?.basePrice || r.basePricePerNight);
+                        const basePriceAc = (rt as any)?.basePriceAc !== null && (rt as any)?.basePriceAc !== undefined
+                            ? Number((rt as any).basePriceAc)
+                            : basePriceNonAc;
+
                         return {
                             roomTypeId: r.roomTypeId,
                             roomTypeName: r.roomTypeName,
@@ -1616,6 +1797,11 @@ export class AvailabilityService {
                             freeChildren: r.freeChildren || 0,
                             paidChildren: r.paidChildren || 0,
                             basePricePerNight: r.basePricePerNight,
+                            basePriceNonAc,
+                            basePriceAc,
+                            acOption: roomAcOption,
+                            availableAcOptions: roomAvailableAcOptions,
+                            isAcSelected: defaultIsAc,
                             extraAdultChargePerNight: r.extraAdultChargePerNight,
                             extraChildChargePerNight: r.extraChildChargePerNight,
                             totalPricePerNight: r.totalPricePerNight,
@@ -1626,6 +1812,8 @@ export class AvailabilityService {
                             totalPrice: roomGrandTotal,
                             availableQuantity: availableCountMap.get(r.roomTypeId) || 0,
                             availableRooms: freeRooms,
+                            roomId: matchedPhysicalRoom ? matchedPhysicalRoom.id : undefined,
+                            roomNumber: matchedPhysicalRoom ? matchedPhysicalRoom.roomNumber : undefined,
                             maxPhysicalAdults: r.maxPhysicalAdults,
                             maxPhysicalChildren: r.maxPhysicalChildren,
                             maxPhysicalInfants: r.maxPhysicalInfants,
@@ -1645,6 +1833,78 @@ export class AvailabilityService {
                         ? Math.round((taxAmount / baseAmount) * 100)
                         : 0;
 
+                    // Task 3.1: Precompute ratesByMealPlan (EP, CP, MAP, AP) for this Accommodation Solution
+                    const mealPlanConfigs: Record<string, { name: string; adult: number; child: number }> = {
+                        EP: { name: 'Room Only (EP)', adult: 0, child: 0 },
+                        CP: { name: 'Bed & Breakfast (CP)', adult: 250, child: 150 },
+                        MAP: { name: 'Half Board (MAP)', adult: 700, child: 400 },
+                        AP: { name: 'Full Board (AP)', adult: 1200, child: 700 },
+                    };
+
+                    const ratesByMealPlan: Record<string, any> = {};
+
+                    for (const [mCode, mConfig] of Object.entries(mealPlanConfigs)) {
+                        let mpBaseTotal = 0;
+                        let mpTaxTotal = 0;
+                        let mpGrandTotal = 0;
+
+                        for (const r of sol.rooms) {
+                            const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
+                            const isRoomInclusive = isPropertyGstApplicable && Boolean((rt as any)?.isGstInclusive);
+                            const roomMealSupplementPerNight = (r.adults * mConfig.adult) + (r.children * mConfig.child);
+                            const roomPerNightWithMeal = r.totalPricePerNight + roomMealSupplementPerNight;
+
+                            let roomTaxThisNight = 0;
+                            let roomBaseThisNight = 0;
+                            let roomTotalThisNight = 0;
+
+                            if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
+                                if (isRoomInclusive) {
+                                    const sortedTiers = [...gstTiers].sort((a, b) => b.rate - a.rate);
+                                    let targetRate = 0;
+                                    for (const tier of sortedTiers) {
+                                        const tierRate = tier.rate / 100;
+                                        const testTariff = roomPerNightWithMeal / (1 + tierRate);
+                                        if (testTariff >= tier.min && (tier.max === null || tier.max === undefined || testTariff <= tier.max)) {
+                                            targetRate = tierRate;
+                                            break;
+                                        }
+                                    }
+                                    if (targetRate === 0) {
+                                        const appTier = this.pricingService.getApplicableTier(roomPerNightWithMeal, gstTiers);
+                                        targetRate = appTier.rate / 100;
+                                    }
+                                    roomTaxThisNight = roomPerNightWithMeal - (roomPerNightWithMeal / (1 + targetRate));
+                                    roomBaseThisNight = roomPerNightWithMeal - roomTaxThisNight;
+                                    roomTotalThisNight = roomPerNightWithMeal;
+                                } else {
+                                    roomTaxThisNight = this.pricingService.calculateTaxForTariff(roomPerNightWithMeal, gstTiers);
+                                    roomBaseThisNight = roomPerNightWithMeal;
+                                    roomTotalThisNight = roomBaseThisNight + roomTaxThisNight;
+                                }
+                            } else {
+                                roomBaseThisNight = roomPerNightWithMeal;
+                                roomTotalThisNight = roomPerNightWithMeal;
+                                roomTaxThisNight = 0;
+                            }
+
+                            mpBaseTotal += roomBaseThisNight * nights;
+                            mpTaxTotal += roomTaxThisNight * nights;
+                            mpGrandTotal += roomTotalThisNight * nights;
+                        }
+
+                        ratesByMealPlan[mCode] = {
+                            mealPlan: mCode,
+                            name: mConfig.name,
+                            baseAmount: Number(mpBaseTotal.toFixed(2)),
+                            taxAmount: Number(mpTaxTotal.toFixed(2)),
+                            totalPrice: Number(mpGrandTotal.toFixed(2)),
+                            pricePerNight: Number((mpGrandTotal / nights).toFixed(2)),
+                            isGstInclusive: allRoomsInclusive,
+                            currency: currency || 'INR',
+                        };
+                    }
+
                     const solutionAvailableRoomsByRoomType: Record<string, any[]> = {};
                     for (const r of sol.rooms) {
                         if (!solutionAvailableRoomsByRoomType[r.roomTypeId]) {
@@ -1656,6 +1916,8 @@ export class AvailabilityService {
                             }));
                         }
                     }
+
+                    const solutionAcOptions = Array.from(new Set(enrichedRooms.flatMap(r => r.availableAcOptions)));
 
                     return {
                         id: `${property.id}_sol_${idx}`,
@@ -1673,8 +1935,9 @@ export class AvailabilityService {
                             reviewCount: property.reviewCount,
                         },
                         totalRooms: sol.totalRooms,
-                        isRecommended: sol.isRecommended ?? false,
-                        badge: sol.badge ?? null,
+                        isRecommended: isExactSelectionFeasible ? true : (sol.isRecommended ?? false),
+                        badge: isExactSelectionFeasible ? 'Selected Rooms' : (sol.badge ?? null),
+                        isExactRoomSelectionMatch: isExactSelectionFeasible || (sol as any).isExactRoomSelectionMatch || false,
                         roomTypeCounts: sol.roomTypeCounts,
                         numberOfNights: nights,
                         pricing: {
@@ -1688,6 +1951,8 @@ export class AvailabilityService {
                             numberOfNights: nights,
                             currency: currency || 'INR',
                         },
+                        ratesByMealPlan,
+                        availableAcOptions: solutionAcOptions,
                         rooms: enrichedRooms,
                         availableRoomsByRoomType: solutionAvailableRoomsByRoomType,
                     };
@@ -1941,13 +2206,17 @@ export class AvailabilityService {
                 );
             }
 
-            return { propResults, propSolutions };
+            return { propResults, propSolutions, propSelectedRoomsEvaluation };
         });
 
         const executedProperties = await Promise.all(propertyExecutionPromises);
+        let overallSelectedRoomsEvaluation: any = null;
         for (const exec of executedProperties) {
             results.push(...exec.propResults);
             allAccommodationSolutions.push(...exec.propSolutions);
+            if (exec.propSelectedRoomsEvaluation) {
+                overallSelectedRoomsEvaluation = exec.propSelectedRoomsEvaluation;
+            }
         }
 
         // Sort results: Available rooms first, lowest price first
@@ -1959,6 +2228,7 @@ export class AvailabilityService {
         });
 
         (results as any).accommodationSolutions = allAccommodationSolutions;
+        (results as any).selectedRoomsEvaluation = overallSelectedRoomsEvaluation;
 
         // Compute flexible date rates if propertyId is provided or includeFlexibleDates is requested
         if (propertyId || includeFlexibleDates) {

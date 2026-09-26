@@ -68,7 +68,29 @@ export const bookingsService = {
         roomIds?: string[];
         roomId?: string;
     }) => {
-        const response = await api.post<{ availableRoomTypes: any[]; accommodationSolutions?: any[] }>('/bookings/search', data);
+        const response = await api.post<{
+            availableRoomTypes: any[];
+            accommodationSolutions?: any[];
+            flexibleDateRates?: any[];
+            selectedRoomsEvaluation?: {
+                isSatisfied: boolean;
+                reason?: 'ROOMS_UNAVAILABLE' | 'MIN_ADULTS_NOT_MET' | 'CAPACITY_EXCEEDED';
+                message?: string;
+                selectedRooms?: Array<{ id: string; roomNumber: string; roomTypeId: string; roomTypeName: string }>;
+                unavailableRooms?: Array<{ id: string; roomNumber: string; roomTypeName: string }>;
+                maxCapacity?: {
+                    maxAdults: number;
+                    maxChildren: number;
+                    maxTotalCapacity: number;
+                    minAdultsRequired: number;
+                };
+                requestedParty?: {
+                    adults: number;
+                    children: number;
+                    infants?: number;
+                };
+            } | null;
+        }>('/bookings/search', data);
         return response.data;
     },
 

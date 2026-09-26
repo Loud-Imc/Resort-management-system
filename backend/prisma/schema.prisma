@@ -122,10 +122,14 @@ model RoomType {
   description                String?
   size                       Int?
   amenities                  String[]
+  acOption                   AcOption            @default(AC_ONLY)
   basePrice                  Decimal             @db.Decimal(10, 2)
+  basePriceAc                Decimal?            @db.Decimal(10, 2)
   originalPrice              Decimal?            @db.Decimal(10, 2)
   extraAdultPrice            Decimal             @db.Decimal(10, 2)
   extraChildPrice            Decimal             @db.Decimal(10, 2)
+  extraAdultPriceAc          Decimal?            @db.Decimal(10, 2)
+  extraChildPriceAc          Decimal?            @db.Decimal(10, 2)
   freeChildrenCount          Int                 @default(0)
   maxAdults                  Int                 @default(2)
   maxChildren                Int                 @default(2)
@@ -165,7 +169,7 @@ model RoomType {
   rooms                      Room[]
   channelMappings            ChannelRoomTypeMapping[]
   connectivityMappings       ConnectivityRoomTypeMapping[]
-  ratePlans                  RatePlan[]
+  ratePlanPrices             RoomTypeRatePlanPrice[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
   restrictionRules           RestrictionRule[]
 
@@ -332,6 +336,10 @@ model Booking {
   roomBlocks              RoomBlock[]
   otaThreads              OtaMessageThread[]
   otaRequests             OtaGuestRequest[]
+  ratePlanId              String?
+  mealPlan                MealPlan               @default(EP)
+  isAcSelected            Boolean                @default(true)
+  ratePlan                RatePlan?              @relation(fields: [ratePlanId], references: [id])
   bookingRooms            BookingRoom[]
   expenses                Expense[]
   connectivityReservationMapping ConnectivityReservationMapping?
@@ -632,6 +640,7 @@ model Property {
   restrictionRules           RestrictionRule[]
   otaThreads                 OtaMessageThread[]
   otaRequests                OtaGuestRequest[]
+  ratePlans                  RatePlan[]
 
   @@map("properties")
 }
@@ -1412,8 +1421,12 @@ model BookingRoom {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
+  ratePlanId               String?
+  mealPlan                 MealPlan?              @default(EP)
+  isAcSelected             Boolean                @default(true)
   booking                  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   room                     Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  ratePlan                 RatePlan? @relation(fields: [ratePlanId], references: [id])
 
   @@unique([bookingId, roomId])
   @@index([bookingId])
@@ -1854,34 +1867,62 @@ enum AcType {
   DEFAULT
 }
 
+enum AcOption {
+  AC_ONLY
+  NON_AC_ONLY
+  BOTH
+}
+
 model RatePlan {
   id                   String              @id @default(uuid())
-  roomTypeId           String
+  propertyId           String
   name                 String
   code                 String?
   mealPlan             MealPlan            @default(EP)
-  acType               AcType              @default(DEFAULT)
   isPrimary            Boolean             @default(false)
   pricingType          RatePlanPricingType @default(ABSOLUTE)
   derivedFromId        String?
   derivedAmount        Decimal?            @db.Decimal(10, 2)
   derivedPercentage    Decimal?            @db.Decimal(5, 2)
-  basePrice            Decimal             @db.Decimal(10, 2)
-  extraAdultPrice      Decimal             @db.Decimal(10, 2)
-  extraChildPrice      Decimal             @db.Decimal(10, 2)
+  basePrice            Decimal             @default(0) @db.Decimal(10, 2)
+  extraAdultPrice      Decimal             @default(0) @db.Decimal(10, 2)
+  extraChildPrice      Decimal             @default(0) @db.Decimal(10, 2)
   cancellationPolicyId String?
   isActive             Boolean             @default(true)
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
-  roomType             RoomType            @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  property             Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   derivedFrom          RatePlan?           @relation("DerivedRatePlans", fields: [derivedFromId], references: [id])
   derivedChildren      RatePlan[]          @relation("DerivedRatePlans")
+  roomTypePrices       RoomTypeRatePlanPrice[]
   pricingRules         PricingRule[]
   channelMappings      ChannelRoomTypeMapping[]
   connectivityMappings ConnectivityRoomTypeMapping[]
+  bookings             Booking[]
+  bookingRooms         BookingRoom[]
 
   @@map("rate_plans")
+}
+
+model RoomTypeRatePlanPrice {
+  id                String    @id @default(uuid())
+  ratePlanId        String
+  roomTypeId        String
+  basePrice         Decimal   @db.Decimal(10, 2)
+  extraAdultPrice   Decimal   @default(0) @db.Decimal(10, 2)
+  extraChildPrice   Decimal   @default(0) @db.Decimal(10, 2)
+  basePriceAc       Decimal?  @db.Decimal(10, 2)
+  extraAdultPriceAc Decimal?  @db.Decimal(10, 2)
+  extraChildPriceAc Decimal?  @db.Decimal(10, 2)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  ratePlan          RatePlan  @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  roomType          RoomType  @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([ratePlanId, roomTypeId])
+  @@map("room_type_rate_plan_prices")
 }
 
 model CalendarEventMarker {

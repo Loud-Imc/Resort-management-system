@@ -72,6 +72,12 @@ export interface AccommodationSolutionRoom {
     infants?: number;
     extraAdults?: number;
     extraChildren?: number;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    isAcSelected?: boolean;
+    basePriceAc?: number | null;
+    basePriceNonAc?: number | null;
+    ratePlanId?: string;
+    mealPlan?: string;
 }
 
 export interface AccommodationSolution {
@@ -81,6 +87,17 @@ export interface AccommodationSolution {
     totalRooms: number;
     rooms: AccommodationSolutionRoom[];
     isRecommended?: boolean;
+    ratesByMealPlan?: {
+        EP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        CP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        MAP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        AP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+    };
+    availableAcOptions?: string[];
+    hasAc?: boolean;
+    ratePlanId?: string;
+    mealPlan?: string;
+    isAcSelected?: boolean;
     pricing: {
         totalPrice: number;
         pricePerNight: number;
@@ -216,6 +233,8 @@ const InlineBookingPage: React.FC = () => {
     const [availableSolutionsMap, setAvailableSolutionsMap] = useState<Record<string, AccommodationSolution[]>>({});
     const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
     const [selectedSolution, setSelectedSolution] = useState<AccommodationSolution | null>(null);
+    const [selectedMealPlan, setSelectedMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('EP');
+    const [roomAcSelections, setRoomAcSelections] = useState<Record<number, boolean>>({});
     const [viewingRoomDetails, setViewingRoomDetails] = useState<RoomType | null>(null);
     const [guests, setGuests] = useState<{
         firstName: string;
@@ -579,7 +598,7 @@ const InlineBookingPage: React.FC = () => {
         ? (paymentOption === 'PARTIAL' ? advanceAmount : afterWallet)
         : (paymentOption === 'PARTIAL' ? advanceAmount : afterDiscount);
 
-    // Fetch server-side pricing when a single room is directly selected
+    // Fetch server-side pricing when a single room or solution is directly selected
     const fetchPricing = async (
         room: any,
         overrideCheckIn?: string,
@@ -589,7 +608,10 @@ const InlineBookingPage: React.FC = () => {
         overrideChildAges?: number[],
         overrideInfants?: number,
         overrideRooms?: number,
-        overrideIsGroupBooking?: boolean
+        overrideIsGroupBooking?: boolean,
+        overrideSolution?: AccommodationSolution | null,
+        overrideMealPlan?: string,
+        overrideAcSelections?: Record<number, boolean>
     ) => {
         const cIn = overrideCheckIn !== undefined ? overrideCheckIn : checkIn;
         const cOut = overrideCheckOut !== undefined ? overrideCheckOut : checkOut;
@@ -599,26 +621,32 @@ const InlineBookingPage: React.FC = () => {
         const inf = overrideInfants !== undefined ? overrideInfants : infants;
         const rm = overrideRooms !== undefined ? overrideRooms : rooms;
         const isGb = overrideIsGroupBooking !== undefined ? overrideIsGroupBooking : isGroupBooking;
+        const activeSolution = overrideSolution !== undefined ? overrideSolution : selectedSolution;
+        const activeMeal = overrideMealPlan !== undefined ? overrideMealPlan : selectedMealPlan;
+        const activeAcMap = overrideAcSelections !== undefined ? overrideAcSelections : roomAcSelections;
 
         if (!cIn || !cOut) return;
         setIsPricingLoading(true);
         let allocs: any[] | undefined = undefined;
         let singleRoomTypeId: string | undefined = undefined;
 
-        if (selectedSolution) {
-            const solRooms = selectedSolution.rooms || (selectedSolution as any).allocatedRooms;
+        if (activeSolution) {
+            const solRooms = activeSolution.rooms || (activeSolution as any).allocatedRooms;
             if (!solRooms || !Array.isArray(solRooms) || solRooms.length === 0) {
                 console.error('Invalid accommodation solution: missing room allocations');
                 setPricing(null);
                 setIsPricingLoading(false);
                 return;
             }
-            allocs = solRooms.map((r: any) => ({
+            allocs = solRooms.map((r: any, idx: number) => ({
                 roomTypeId: r.roomTypeId,
                 adults: Number(r.adults) || 1,
                 children: Number(r.children) || 0,
                 infants: Number(r.infants) || 0,
                 childAges: r.childAges,
+                ratePlanId: r.ratePlanId || activeSolution.ratePlanId,
+                mealPlan: r.mealPlan || activeMeal,
+                isAcSelected: activeAcMap[idx] !== undefined ? activeAcMap[idx] : (r.isAcSelected ?? true),
             }));
             singleRoomTypeId = undefined;
         } else {
@@ -641,6 +669,9 @@ const InlineBookingPage: React.FC = () => {
                 currency: selectedProperty?.currency || 'INR',
                 isGroupBooking: isGb,
                 groupSize: isGb ? (ad + ch) : undefined,
+                ratePlanId: activeSolution?.ratePlanId,
+                mealPlan: activeMeal,
+                isAcSelected: Object.values(activeAcMap).length > 0 ? Object.values(activeAcMap).some(v => v) : (room ? (room as any).acOption !== 'NON_AC_ONLY' : true),
             });
             setPricing(res.data || res);
         } catch (e) {
@@ -809,7 +840,7 @@ const InlineBookingPage: React.FC = () => {
                 : selectedRoom!.id;
 
             const roomAllocationsPayload = selectedSolution
-                ? selectedSolution.rooms.map((r: any) => ({
+                ? selectedSolution.rooms.map((r: any, idx: number) => ({
                     roomTypeId: r.roomTypeId,
                     adults: r.adults,
                     children: r.children || 0,
@@ -817,6 +848,9 @@ const InlineBookingPage: React.FC = () => {
                     infants: r.infants || 0,
                     extraAdults: r.extraAdults || 0,
                     extraChildren: r.extraChildren || 0,
+                    ratePlanId: r.ratePlanId || selectedSolution.ratePlanId,
+                    mealPlan: r.mealPlan || selectedMealPlan,
+                    isAcSelected: roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (r.isAcSelected ?? true),
                 }))
                 : [{
                     roomTypeId: selectedRoom!.id,
@@ -826,6 +860,9 @@ const InlineBookingPage: React.FC = () => {
                     infants: infants,
                     extraAdults: pricing?.extraAdultsCount || 0,
                     extraChildren: pricing?.extraChildrenCount || 0,
+                    ratePlanId: undefined,
+                    mealPlan: selectedMealPlan,
+                    isAcSelected: selectedRoom ? (selectedRoom as any).acOption !== 'NON_AC_ONLY' : true,
                 }];
 
             const bookingRes: any = await api.post('/bookings', {
@@ -841,6 +878,9 @@ const InlineBookingPage: React.FC = () => {
                 isGroupBooking,
                 groupSize: isGroupBooking ? (adults + children) : undefined,
                 roomAllocations: roomAllocationsPayload,
+                ratePlanId: selectedSolution?.ratePlanId,
+                mealPlan: selectedMealPlan,
+                isAcSelected: Object.values(roomAcSelections).length > 0 ? Object.values(roomAcSelections).some(v => v) : (selectedRoom ? (selectedRoom as any).acOption !== 'NON_AC_ONLY' : true),
                 guests: guests.map(g => ({
                     firstName: g.firstName,
                     lastName: g.lastName || undefined,
@@ -1563,8 +1603,10 @@ const InlineBookingPage: React.FC = () => {
                                                 ).map((item: any) => `${item.count}× ${item.name}`).join(' + ');
 
                                                 const defaultCommPct = cpStats?.commissionRate || 15;
-                                                const grossPrice = sol.pricing.totalPrice;
-                                                const estCommission = Math.round((grossPrice * defaultCommPct) / 100);
+                                                const solMealPricing = sol.ratesByMealPlan?.[selectedMealPlan];
+                                                const solPricePerNight = solMealPricing?.pricePerNight ?? sol.pricing.pricePerNight;
+                                                const solTotalPrice = solMealPricing?.totalPrice ?? sol.pricing.totalPrice;
+                                                const estCommission = Math.round((solTotalPrice * defaultCommPct) / 100);
 
                                                 return (
                                                     <div
@@ -1590,30 +1632,159 @@ const InlineBookingPage: React.FC = () => {
                                                                 <h4 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#111827' }}>
                                                                     {headline} ({sol.totalRooms} {sol.totalRooms === 1 ? 'Room' : 'Rooms'})
                                                                 </h4>
-                                                                <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '0.25rem' }}>
-                                                                    {sol.rooms.map((r: any, idx: number) => (
-                                                                        <span key={idx} style={{ marginRight: '0.75rem', display: 'inline-block' }}>
-                                                                            Room {idx + 1}: <strong>{r.adults}A{r.children > 0 ? ` + ${r.children}C` : ''}</strong>
-                                                                        </span>
-                                                                    ))}
+                                                                <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                                    {sol.rooms.map((r: any, idx: number) => {
+                                                                        const hasBothAc = r.acOption === 'BOTH' || (r.availableAcOptions?.includes('AC') && r.availableAcOptions?.includes('NON_AC'));
+                                                                        const defaultIsAc = r.isAcSelected ?? (r.acOption !== 'NON_AC_ONLY');
+                                                                        const isAc = roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : defaultIsAc;
+                                                                        return (
+                                                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.02)', padding: '0.3rem 0.6rem', borderRadius: '6px' }}>
+                                                                                <span>
+                                                                                    Room {idx + 1}: <strong>{r.roomTypeName}</strong> ({r.adults}A{r.children > 0 ? ` + ${r.children}C` : ''})
+                                                                                </span>
+                                                                                <div>
+                                                                                    {hasBothAc ? (
+                                                                                        <div style={{ display: 'inline-flex', background: '#e5e7eb', borderRadius: '6px', padding: '2px', gap: '2px' }}>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => setRoomAcSelections(prev => ({ ...prev, [idx]: false }))}
+                                                                                                style={{
+                                                                                                    border: 'none',
+                                                                                                    borderRadius: '4px',
+                                                                                                    padding: '2px 6px',
+                                                                                                    fontSize: '0.65rem',
+                                                                                                    fontWeight: 800,
+                                                                                                    cursor: 'pointer',
+                                                                                                    background: !isAc ? '#059669' : 'transparent',
+                                                                                                    color: !isAc ? '#fff' : '#4b5563'
+                                                                                                }}
+                                                                                            >
+                                                                                                🍃 Non-AC
+                                                                                            </button>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => setRoomAcSelections(prev => ({ ...prev, [idx]: true }))}
+                                                                                                style={{
+                                                                                                    border: 'none',
+                                                                                                    borderRadius: '4px',
+                                                                                                    padding: '2px 6px',
+                                                                                                    fontSize: '0.65rem',
+                                                                                                    fontWeight: 800,
+                                                                                                    cursor: 'pointer',
+                                                                                                    background: isAc ? '#0284c7' : 'transparent',
+                                                                                                    color: isAc ? '#fff' : '#4b5563'
+                                                                                                }}
+                                                                                            >
+                                                                                                ❄️ AC
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    ) : r.acOption === 'AC_ONLY' ? (
+                                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#0284c7', background: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>
+                                                                                            ❄️ AC
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>
+                                                                                            🍃 Non-AC
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </div>
                                                             <div style={{ textAlign: 'right' }}>
                                                                 <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#111827' }}>
-                                                                    ₹{sol.pricing.pricePerNight.toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6b7280' }}>/night</span>
+                                                                    ₹{solPricePerNight.toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6b7280' }}>/night</span>
                                                                 </div>
                                                                 <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>
                                                                     Est. Partner Commission: ₹{estCommission.toLocaleString()}
                                                                 </div>
                                                             </div>
                                                         </div>
+
+                                                        {/* Interactive Meal Plan Selector Tabs */}
+                                                        {sol.ratesByMealPlan && Object.keys(sol.ratesByMealPlan).length > 0 && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                                                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                    Meal Package Entitlement
+                                                                </div>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                                                                    {[
+                                                                        { code: 'EP' as const, label: 'Room Only', icon: '☕' },
+                                                                        { code: 'CP' as const, label: 'Breakfast', icon: '🍳' },
+                                                                        { code: 'MAP' as const, label: 'Half Board', icon: '🍽️' },
+                                                                        { code: 'AP' as const, label: 'Full Board', icon: '👑' },
+                                                                    ].map(mp => {
+                                                                        const isActive = selectedMealPlan === mp.code;
+                                                                        const mpData = sol.ratesByMealPlan?.[mp.code];
+                                                                        return (
+                                                                            <button
+                                                                                key={mp.code}
+                                                                                type="button"
+                                                                                onClick={() => setSelectedMealPlan(mp.code)}
+                                                                                style={{
+                                                                                    padding: '0.4rem 0.5rem',
+                                                                                    borderRadius: '0.5rem',
+                                                                                    border: isActive ? '2px solid #0d9488' : '1px solid #e5e7eb',
+                                                                                    background: isActive ? '#f0fdfa' : '#fff',
+                                                                                    color: isActive ? '#0f766e' : '#374151',
+                                                                                    fontWeight: 700,
+                                                                                    fontSize: '0.75rem',
+                                                                                    textAlign: 'left',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                            >
+                                                                                <div>{mp.icon} {mp.code}</div>
+                                                                                <div style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 500 }}>{mp.label}</div>
+                                                                                {mpData && (
+                                                                                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#111827', marginTop: '0.15rem' }}>
+                                                                                        ₹{mpData.totalPrice.toLocaleString()}
+                                                                                    </div>
+                                                                                )}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
                                                         <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                                                             <button
                                                                 onClick={() => {
-                                                                    setSelectedSolution(sol);
+                                                                    const enrichedSol: AccommodationSolution = {
+                                                                        ...sol,
+                                                                        mealPlan: selectedMealPlan,
+                                                                        ratePlanId: solMealPricing?.ratePlanId || sol.ratePlanId,
+                                                                        isAcSelected: Object.values(roomAcSelections).length > 0 ? Object.values(roomAcSelections).some(v => v) : true,
+                                                                        pricing: {
+                                                                            ...sol.pricing,
+                                                                            totalPrice: solTotalPrice,
+                                                                            pricePerNight: solPricePerNight,
+                                                                        },
+                                                                        rooms: sol.rooms.map((r: any, idx: number) => ({
+                                                                            ...r,
+                                                                            isAcSelected: roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (r.isAcSelected ?? true),
+                                                                        })),
+                                                                    };
+                                                                    setSelectedSolution(enrichedSol);
                                                                     const rt = availableRoomsMap[selectedProperty.id]?.find(r => r.id === sol.rooms[0]?.roomTypeId)
-                                                                        || { id: sol.rooms[0]?.roomTypeId, name: sol.rooms[0]?.roomTypeName, basePrice: sol.pricing.pricePerNight };
+                                                                        || { id: sol.rooms[0]?.roomTypeId, name: sol.rooms[0]?.roomTypeName, basePrice: solPricePerNight };
                                                                     setSelectedRoom(rt as any);
+                                                                    fetchPricing(
+                                                                        rt as any,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        undefined,
+                                                                        enrichedSol,
+                                                                        selectedMealPlan,
+                                                                        roomAcSelections
+                                                                    );
                                                                     setStep(3);
                                                                 }}
                                                                 style={{
@@ -2220,15 +2391,26 @@ const InlineBookingPage: React.FC = () => {
                                 {selectedSolution ? (
                                     <div style={{ marginBottom: '0.5rem' }}>
                                         <p style={{ fontWeight: 900, color: 'var(--text-main)', fontSize: '1.1rem' }}>{selectedProperty?.name}</p>
-                                        <p style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-teal)', marginTop: '0.2rem' }}>
-                                            {selectedSolution.totalRooms} Room{selectedSolution.totalRooms > 1 ? 's' : ''} Package
-                                        </p>
-                                        <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                            {selectedSolution.rooms.map((r, idx) => (
-                                                <div key={idx} style={{ background: 'rgba(0,0,0,0.03)', padding: '0.3rem 0.5rem', borderRadius: '4px' }}>
-                                                    Room {idx + 1}: <strong>{r.roomTypeName}</strong> ({r.adults}A{r.children > 0 ? ` + ${r.children}C` : ''})
-                                                </div>
-                                            ))}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem', flexWrap: 'wrap', gap: '0.25rem' }}>
+                                            <p style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-teal)', margin: 0 }}>
+                                                {selectedSolution.totalRooms} Room{selectedSolution.totalRooms > 1 ? 's' : ''} Package
+                                            </p>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                {selectedMealPlan === 'EP' ? '☕ EP (Room Only)' : selectedMealPlan === 'CP' ? '🍳 CP (Breakfast)' : selectedMealPlan === 'MAP' ? '🍽️ MAP (Half Board)' : '👑 AP (Full Board)'}
+                                            </span>
+                                        </div>
+                                        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            {selectedSolution.rooms.map((r, idx) => {
+                                                const isRoomAc = roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (r.isAcSelected ?? true);
+                                                return (
+                                                    <div key={idx} style={{ background: 'rgba(0,0,0,0.03)', padding: '0.35rem 0.6rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span>Room {idx + 1}: <strong>{r.roomTypeName}</strong> ({r.adults}A{r.children > 0 ? ` + ${r.children}C` : ''})</span>
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', background: isRoomAc ? '#e0f2fe' : '#dcfce7', color: isRoomAc ? '#0284c7' : '#059669' }}>
+                                                            {isRoomAc ? '❄️ AC' : '🍃 Non-AC'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                         <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.4rem' }}>
                                             {adults} Adults, {children} Children{infants > 0 ? `, ${infants} Infant${infants > 1 ? 's' : ''}` : ''}
@@ -2237,7 +2419,12 @@ const InlineBookingPage: React.FC = () => {
                                 ) : (
                                     <div style={{ marginBottom: '0.5rem' }}>
                                         <p style={{ fontWeight: 900, color: 'var(--text-main)', fontSize: '1.1rem' }}>{selectedProperty?.name}</p>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>{selectedRoom?.name}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', margin: 0 }}>{selectedRoom?.name}</p>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                {selectedMealPlan === 'EP' ? '☕ EP' : selectedMealPlan === 'CP' ? '🍳 CP' : selectedMealPlan === 'MAP' ? '🍽️ MAP' : '👑 AP'}
+                                            </span>
+                                        </div>
                                         <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-teal)', marginTop: '0.2rem' }}>
                                             {!isGroupBooking && `${rooms} Room${rooms > 1 ? 's' : ''} • `}{adults + children} Guest{adults + children > 1 ? 's' : ''}
                                         </p>

@@ -32,6 +32,8 @@ interface BookingSummarySidebarProps {
     isPriceLoading?: boolean;
     codeMessage?: string | null;
     isCodeError?: boolean;
+    selectedMealPlan?: string;
+    roomAcSelections?: Record<number, boolean>;
 }
 
 export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
@@ -63,6 +65,8 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     isPriceLoading = false,
     codeMessage,
     isCodeError = false,
+    selectedMealPlan = 'EP',
+    roomAcSelections,
 }) => {
     const [inputCode, setInputCode] = useState('');
 
@@ -136,6 +140,15 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                             <span className="font-medium text-foreground">{childAges.join(', ')} yrs</span>
                         </div>
                     )}
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
+                        <span className="text-muted-foreground font-semibold">Meal Plan:</span>
+                        <span className="font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-md border border-primary/20 flex items-center gap-1 text-[11px]">
+                            {selectedMealPlan === 'CP' ? '🍳 Bed & Breakfast (CP)' :
+                             selectedMealPlan === 'MAP' ? '🍽️ Half Board (MAP)' :
+                             selectedMealPlan === 'AP' ? '👑 Full Board (AP)' :
+                             '☕ Room Only (EP)'}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Selected Accommodation Solution & Physical Rooms Checklist */}
@@ -225,24 +238,47 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 const roomPrice = rb?.totalAmount 
                                     ?? (ar?.totalPrice ? Number(ar.totalPrice) : (roomBasePerNight > 0 ? (roomBasePerNight * nights * (isRoomInc ? 1 : (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)))) : 0));
 
+                                const extraA = ar.extraAdults || ar.extraAdultsCount || 0;
+                                const extraAPrice = (ar.extraAdultChargePerNight || 0) * nights;
+                                const basePerNightGross = (ar.basePricePerNight || ar.basePrice || 0) * nights;
+
                                 return (
                                     <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border/40 last:border-0">
-                                        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
-                                            <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[160px]" title={`${ar.roomTypeName} (${ar.adults}A${ar.children > 0 ? `, ${ar.children}C` : ''})`}>
-                                                R{idx + 1}: {ar.roomTypeName} <span className="text-muted-foreground font-normal">({ar.adults}A{ar.children > 0 ? `, ${ar.children}C${childAgesStr}` : ''})</span>
-                                            </span>
-                                            {roomTaxRate > 0 && (
-                                                <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                                    roomTaxRate === 18
-                                                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                                                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                                                }`}>
-                                                    GST {roomTaxRate}%
+                                        <div className="flex flex-col flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                                <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[160px]" title={`${ar.roomTypeName} (${ar.adults}A${ar.children > 0 ? `, ${ar.children}C` : ''})`}>
+                                                    R{idx + 1}: {ar.roomTypeName} <span className="text-muted-foreground font-normal">({ar.adults}A{ar.children > 0 ? `, ${ar.children}C${childAgesStr}` : ''})</span>
+                                                </span>
+                                                {roomTaxRate > 0 && (
+                                                    <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                                        roomTaxRate === 18
+                                                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                                                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                                    }`}>
+                                                        GST {roomTaxRate}%
+                                                    </span>
+                                                )}
+                                                <span className="font-bold text-[9.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
+                                                    {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
+                                                </span>
+                                                {(() => {
+                                                    const isAc = roomAcSelections?.[idx] !== undefined ? roomAcSelections[idx] : (ar.isAcSelected ?? (ar.acOption !== 'NON_AC_ONLY'));
+                                                    return (
+                                                        <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                                                            isAc
+                                                                ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
+                                                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                        }`}>
+                                                            {isAc ? '❄️ AC' : '🍃 Non-AC'}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </div>
+                                            {extraA > 0 && (
+                                                <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                                                    ₹{basePerNightGross.toLocaleString()} base + ₹{extraAPrice.toLocaleString()} ({extraA} Extra {extraA > 1 ? 'Beds' : 'Bed'})
                                                 </span>
                                             )}
-                                            <span className="font-bold text-[9.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
-                                                {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
-                                            </span>
                                         </div>
                                         {!isGroupBooking && roomPrice > 0 && (
                                             <span className="font-black text-foreground shrink-0 text-xs text-right pl-1 min-w-[45px] flex items-center justify-end">
@@ -274,12 +310,19 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
 
                         {/* Base Room Rate */}
                         <div className="flex justify-between text-xs">
-                            <span className="text-muted-foreground font-medium">
-                                {isGroupBooking 
-                                    ? `Group Accommodation (${groupSize || (adultsCount + childrenCount)} Guests × ${nights} Nt${nights > 1 ? 's' : ''})`
-                                    : `Accommodation (${allocatedRooms.length || 1} Rms × ${nights} Nt${nights > 1 ? 's' : ''})`
-                                }
-                            </span>
+                            <div className="flex flex-col">
+                                <span className="text-muted-foreground font-medium">
+                                    {isGroupBooking 
+                                        ? `Group Accommodation (${groupSize || (adultsCount + childrenCount)} Guests × ${nights} Nt${nights > 1 ? 's' : ''})`
+                                        : `Accommodation (${allocatedRooms.length || 1} Rms × ${nights} Nt${nights > 1 ? 's' : ''})`
+                                    }
+                                </span>
+                                {isInclusive && (details.extraAdultAmount > 0 || details.extraChildAmount > 0) && (
+                                    <span className="text-[10px] text-muted-foreground/80 font-normal">
+                                        Includes ₹{(details.extraAdultAmount + details.extraChildAmount).toFixed(2)} for extra guests
+                                    </span>
+                                )}
+                            </div>
                             <span className="font-semibold text-foreground flex items-center gap-1">
                                 {isPriceLoading ? (
                                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
@@ -289,14 +332,14 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                             </span>
                         </div>
 
-                        {/* Extra Adult/Child Charges */}
-                        {details.extraAdultAmount > 0 && (
+                        {/* Extra Adult/Child Charges (Only additive for GST Exclusive) */}
+                        {!isInclusive && details.extraAdultAmount > 0 && (
                             <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground font-medium">Extra Adults</span>
                                 <span className="font-semibold text-foreground">+₹{details.extraAdultAmount.toFixed(2)}</span>
                             </div>
                         )}
-                        {details.extraChildAmount > 0 && (
+                        {!isInclusive && details.extraChildAmount > 0 && (
                             <div className="flex justify-between text-xs">
                                 <span className="text-muted-foreground font-medium">Extra Children</span>
                                 <span className="font-semibold text-foreground">+₹{details.extraChildAmount.toFixed(2)}</span>

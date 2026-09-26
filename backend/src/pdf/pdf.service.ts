@@ -109,9 +109,14 @@ export class PdfService {
     const roomType = booking.roomType || booking.room?.roomType || booking.bookingRooms?.[0]?.room?.roomType;
     const user = booking.user;
 
-    const hasAc = Array.isArray(roomType?.amenities) && roomType.amenities.some((a: string) =>
-      /air\s*conditioning|a\/c|\bac\b/i.test(String(a))
-    );
+    const hasAc = booking.isAcSelected !== undefined && booking.isAcSelected !== null
+      ? Boolean(booking.isAcSelected)
+      : (roomType?.acOption === 'AC_ONLY'
+          ? true
+          : roomType?.acOption === 'NON_AC_ONLY'
+          ? false
+          : Array.isArray(roomType?.amenities) && roomType.amenities.some((a: string) => /air\s*conditioning|a\/c|\bac\b/i.test(String(a)))
+        );
     const acLabel = hasAc ? 'A/C' : 'Non-A/C';
 
     const isPartner = recipientType === 'PARTNER';
@@ -361,9 +366,17 @@ export class PdfService {
                     const totalRoomsCount = booking.roomsCount || booking.bookingRooms?.length || 1;
                     const isMulti = Boolean(booking.isGroupBooking || totalRoomsCount > 1);
 
-                    const isAcType = (rt: any, rp?: any) => {
+                    const isAcType = (rt: any, rp?: any, br?: any) => {
+                      if (br?.isAcSelected !== undefined && br?.isAcSelected !== null) {
+                        return Boolean(br.isAcSelected);
+                      }
+                      if (booking?.isAcSelected !== undefined && booking?.isAcSelected !== null) {
+                        return Boolean(booking.isAcSelected);
+                      }
                       if (rp?.acType === 'AC') return true;
                       if (rp?.acType === 'NON_AC') return false;
+                      if (rt?.acOption === 'AC_ONLY') return true;
+                      if (rt?.acOption === 'NON_AC_ONLY') return false;
                       if (!rt) return false;
                       const amenities = Array.isArray(rt.amenities) ? rt.amenities : [];
                       return /a\/c|\bac\b|air\s*conditioning/i.test(rt.name || '') || amenities.some((a: string) =>
@@ -373,7 +386,7 @@ export class PdfService {
 
                     const bookingMealPlan = (booking as any).ratePlan?.mealPlan || (booking as any).mealPlan || 'EP';
                     const mealPlanDesc = bookingMealPlan === 'CP'
-                      ? 'CP (With Breakfast)'
+                      ? 'CP (Bed & Breakfast)'
                       : bookingMealPlan === 'MAP'
                       ? 'MAP (Half Board)'
                       : bookingMealPlan === 'AP'
@@ -385,8 +398,9 @@ export class PdfService {
                       const formattedRooms = booking.bookingRooms.map((br: any) => {
                         const roomNum = br.room?.roomNumber || br.room?.roomType?.name || 'Room';
                         const rt = br.room?.roomType || br.roomType || roomType;
-                        const acTag = isAcType(rt, (booking as any).ratePlan) ? 'A/C' : 'Non-A/C';
-                        return `${roomNum} (${acTag})`;
+                        const acTag = isAcType(rt, (booking as any).ratePlan, br) ? 'A/C' : 'Non-A/C';
+                        const brMeal = br.mealPlan ? ` - ${br.mealPlan}` : '';
+                        return `${roomNum} (${acTag}${brMeal})`;
                       }).filter(Boolean);
                       assignedRoomsText = formattedRooms.join(', ');
                     }
@@ -441,9 +455,26 @@ export class PdfService {
                 { text: 'Amount', style: 'tableHeader', alignment: 'right' },
               ],
               [
-                { text: isGstProperty ? 'Accommodation Charges (SAC 996311)' : 'Accommodation Charges', style: 'tableCell' },
+                {
+                  text: (() => {
+                    const label = isGstProperty ? 'Accommodation Charges (SAC 996311)' : 'Accommodation Charges';
+                    const isGstInclusive = Boolean(booking.isGstInclusive ?? property?.isGstInclusive);
+                    const totalExtra = Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0);
+                    if (isGstInclusive && totalExtra > 0) {
+                      return `${label}\n(Includes ₹${totalExtra.toLocaleString('en-IN', { minimumFractionDigits: totalExtra % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })} for extra guests)`;
+                    }
+                    return label;
+                  })(),
+                  style: 'tableCell',
+                },
                 { text: `₹${Number(booking.baseAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: Number(booking.baseAmount) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
               ],
+              ...((!(booking.isGstInclusive ?? property?.isGstInclusive) && (Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)) > 0) ? [
+                [
+                  { text: 'Extra Guest Surcharge', style: 'tableCell' },
+                  { text: `₹${(Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: (Number(booking.extraAdultAmount || 0) + Number(booking.extraChildAmount || 0)) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}`, style: 'tableCell', alignment: 'right' },
+                ]
+              ] : []),
               ...(isGstProperty ? [
                 [
                   { text: `GST (${effectiveTaxRate}%)`, style: 'tableCell' },

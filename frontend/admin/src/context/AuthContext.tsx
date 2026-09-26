@@ -32,12 +32,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const login = async (credentials: LoginCredentials) => {
         try {
-            const { data } = await api.post<AuthResponse>('/auth/login', credentials);
+            const { data } = await api.post<AuthResponse>('/auth/login', {
+                ...credentials,
+                portal: 'admin',
+            });
 
-            // Portal guard — only SuperAdmin or Admin may access the admin portal
+            // Portal guard — allow SuperAdmin, Admin, or any custom admin-side role (blocking purely external portal roles)
             const roles: string[] = data.user.roles || (data.user.role ? [data.user.role] : []);
-            const ADMIN_ROLES = ['SuperAdmin', 'Admin'];
-            const hasAccess = roles.some(r => ADMIN_ROLES.includes(r));
+            const EXTERNAL_ROLES = [
+                'Customer',
+                'ChannelPartner',
+                'PropertyOwner',
+                'Manager',
+                'Staff',
+                'Receptionist',
+                'Housekeeping',
+                'Kitchen',
+                'Security',
+                'EventOrganizer',
+                'VerificationStaff'
+            ];
+            const isCoreAdmin = roles.some(r => ['SuperAdmin', 'Admin'].includes(r));
+            const hasAdminSideRole = roles.some(r => !EXTERNAL_ROLES.includes(r));
+            const hasPermissions = Array.isArray(data.user.permissions) && data.user.permissions.length > 0;
+            const onlyExternal = roles.length > 0 && roles.every(r => EXTERNAL_ROLES.includes(r));
+
+            const hasAccess = isCoreAdmin || (hasAdminSideRole && !onlyExternal) || (hasPermissions && !onlyExternal);
             if (!hasAccess) {
                 throw new Error('Access denied. This portal is for Administrators only.');
             }

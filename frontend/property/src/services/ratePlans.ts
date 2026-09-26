@@ -4,9 +4,29 @@ export type MealPlan = 'EP' | 'CP' | 'MAP' | 'AP';
 export type RatePlanPricingType = 'ABSOLUTE' | 'DERIVED';
 export type AcType = 'AC' | 'NON_AC' | 'DEFAULT';
 
+export interface RoomTypeRatePlanPrice {
+  id?: string;
+  ratePlanId?: string;
+  roomTypeId: string;
+  basePrice: number;
+  extraAdultPrice?: number;
+  extraChildPrice?: number;
+  basePriceAc?: number | null;
+  extraAdultPriceAc?: number | null;
+  extraChildPriceAc?: number | null;
+  roomType?: {
+    id: string;
+    name: string;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    basePrice?: number;
+    basePriceAc?: number | null;
+  };
+}
+
 export interface RatePlan {
   id: string;
-  roomTypeId: string;
+  propertyId?: string;
+  roomTypeId?: string;
   name: string;
   code?: string;
   mealPlan: MealPlan;
@@ -21,6 +41,7 @@ export interface RatePlan {
   extraChildPrice: number;
   cancellationPolicyId?: string;
   pricingRules?: any[];
+  roomTypePrices?: RoomTypeRatePlanPrice[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -31,7 +52,8 @@ export interface RatePlan {
 }
 
 export interface CreateRatePlanDto {
-  roomTypeId: string;
+  propertyId?: string;
+  roomTypeId?: string;
   name: string;
   code?: string;
   mealPlan: MealPlan;
@@ -41,10 +63,19 @@ export interface CreateRatePlanDto {
   derivedFromId?: string;
   derivedAmount?: number;
   derivedPercentage?: number;
-  basePrice: number;
-  extraAdultPrice: number;
-  extraChildPrice: number;
+  basePrice?: number;
+  extraAdultPrice?: number;
+  extraChildPrice?: number;
   cancellationPolicyId?: string;
+  roomTypePrices?: {
+    roomTypeId: string;
+    basePrice: number;
+    extraAdultPrice?: number;
+    extraChildPrice?: number;
+    basePriceAc?: number | null;
+    extraAdultPriceAc?: number | null;
+    extraChildPriceAc?: number | null;
+  }[];
 }
 
 export interface BulkPricingRuleDto {
@@ -144,6 +175,11 @@ export const ratePlansService = {
     return res.data;
   },
 
+  resetPropertyRatePlans: async (propertyId: string): Promise<RatePlan[]> => {
+    const res = await api.post(`/rate-plans/reset-defaults/${propertyId}`);
+    return res.data;
+  },
+
   createRatePlan: async (dto: CreateRatePlanDto): Promise<RatePlan> => {
     const res = await api.post('/rate-plans', dto);
     return res.data;
@@ -151,6 +187,11 @@ export const ratePlansService = {
 
   updateRatePlan: async (id: string, dto: Partial<CreateRatePlanDto>): Promise<RatePlan> => {
     const res = await api.put(`/rate-plans/${id}`, dto);
+    return res.data;
+  },
+
+  updateRoomTypePrices: async (id: string, roomTypePrices: any[]): Promise<{ success: boolean; count: number }> => {
+    const res = await api.put(`/rate-plans/${id}/room-type-prices`, { roomTypePrices });
     return res.data;
   },
 

@@ -21,45 +21,213 @@ export class RatePlansService {
   ) {}
 
   /**
-   * Seed default primary EP rate plan if a room type has no rate plans yet.
+   * Seed and standardize property-level rate plans (EP, CP, MAP, AP),
+   * consolidating legacy per-room plans into the canonical 4 property tiers.
    */
-  async ensureDefaultRatePlan(roomTypeId: string) {
-    const existing = await this.prisma.ratePlan.findFirst({
-      where: { roomTypeId, isActive: true },
+  async ensureDefaultPropertyRatePlans(propertyId: string) {
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+      include: {
+        roomTypes: true,
+      },
     });
 
-    if (existing) return existing;
-
-    const roomType = await this.prisma.roomType.findUnique({
-      where: { id: roomTypeId },
-    });
-
-    if (!roomType) {
-      throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${propertyId} not found.`);
     }
 
-    this.logger.log(`Seeding default primary EP RatePlan for RoomType '${roomType.name}' (${roomTypeId})`);
+    const existingPlans = await this.prisma.ratePlan.findMany({
+      where: { propertyId, isActive: true },
+      include: { roomTypePrices: true },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    return this.prisma.ratePlan.create({
-      data: {
-        roomTypeId,
-        name: `${roomType.name} EP (Room Only)`,
+    // Detect legacy per-room plans (plans named after room types like "Lake View Haven EP (Room Only)")
+    const rtNames = property.roomTypes.map((rt) => rt.name.trim().toLowerCase());
+    const isLegacyPerRoomPlan = (name: string) => {
+      const lower = name.trim().toLowerCase();
+      return rtNames.some((rtn) => rtn.length > 2 && lower.includes(rtn) && lower.includes('ep'));
+    };
+
+    const legacyPlans = existingPlans.filter((p) => isLegacyPerRoomPlan(p.name));
+    if (legacyPlans.length > 0) {
+      this.logger.log(
+        `Consolidating ${legacyPlans.length} legacy per-room rate plans for property '${property.name}' (${propertyId})`
+      );
+      for (const lp of legacyPlans) {
+        await this.prisma.ratePlan.update({
+          where: { id: lp.id },
+          data: { isActive: false, isPrimary: false },
+        });
+      }
+    }
+
+    // Re-fetch remaining active plans after deactivating legacy per-room plans
+    let activePlans = await this.prisma.ratePlan.findMany({
+      where: { propertyId, isActive: true },
+      include: { roomTypePrices: true },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    const standardPlans = [
+      {
+        name: 'Room Only (EP)',
         code: 'EP',
         mealPlan: MealPlan.EP,
         isPrimary: true,
-        pricingType: RatePlanPricingType.ABSOLUTE,
-        basePrice: roomType.basePrice,
-        extraAdultPrice: roomType.extraAdultPrice,
-        extraChildPrice: roomType.extraChildPrice,
+        supplementAdult: 0,
+        supplementChild: 0,
       },
+      {
+        name: 'Bed & Breakfast (CP)',
+        code: 'CP',
+        mealPlan: MealPlan.CP,
+        isPrimary: false,
+        supplementAdult: 250,
+        supplementChild: 150,
+      },
+      {
+        name: 'Half Board - Breakfast & Dinner (MAP)',
+        code: 'MAP',
+        mealPlan: MealPlan.MAP,
+        isPrimary: false,
+        supplementAdult: 700,
+        supplementChild: 400,
+      },
+      {
+        name: 'Full Board - All Meals (AP)',
+        code: 'AP',
+        mealPlan: MealPlan.AP,
+        isPrimary: false,
+        supplementAdult: 1200,
+        supplementChild: 700,
+      },
+    ];
+
+    // Ensure each of the 4 standard meal plans exists
+    for (const sp of standardPlans) {
+      let plan = activePlans.find((p) => p.mealPlan === sp.mealPlan);
+      if (!plan) {
+        plan = await this.prisma.ratePlan.create({
+          data: {
+            propertyId,
+            name: sp.name,
+            code: sp.code,
+            mealPlan: sp.mealPlan,
+            isPrimary: sp.isPrimary,
+            pricingType: RatePlanPricingType.ABSOLUTE,
+            basePrice: 0,
+            extraAdultPrice: sp.supplementAdult,
+            extraChildPrice: sp.supplementChild,
+          },
+          include: { roomTypePrices: true },
+        });
+        activePlans.push(plan);
+      } else if (sp.isPrimary && !plan.isPrimary) {
+        await this.prisma.ratePlan.update({
+          where: { id: plan.id },
+          data: { isPrimary: true },
+        });
+        plan.isPrimary = true;
+      }
+    }
+
+    // Ensure only ONE plan is primary
+    const primaryPlans = activePlans.filter((p) => p.isPrimary);
+    if (primaryPlans.length > 1) {
+      for (let i = 1; i < primaryPlans.length; i++) {
+        await this.prisma.ratePlan.update({
+          where: { id: primaryPlans[i].id },
+          data: { isPrimary: false },
+        });
+        primaryPlans[i].isPrimary = false;
+      }
+    }
+
+    // Ensure all room types have their RoomTypeRatePlanPrice records under each plan
+    for (const plan of activePlans) {
+      const sp = standardPlans.find((s) => s.mealPlan === plan.mealPlan);
+      const adultOffset = sp ? sp.supplementAdult : 0;
+      const childOffset = sp ? sp.supplementChild : 0;
+
+      for (const rt of property.roomTypes) {
+        const hasPrice = plan.roomTypePrices?.some((p) => p.roomTypeId === rt.id);
+        if (!hasPrice) {
+          const base = Number(rt.basePrice) + adultOffset * (Number(rt.baseAdults) || 2);
+          const baseAc =
+            rt.basePriceAc !== null
+              ? Number(rt.basePriceAc) + adultOffset * (Number(rt.baseAdults) || 2)
+              : null;
+
+          await this.prisma.roomTypeRatePlanPrice.create({
+            data: {
+              ratePlanId: plan.id,
+              roomTypeId: rt.id,
+              basePrice: base,
+              extraAdultPrice: Number(rt.extraAdultPrice) + adultOffset,
+              extraChildPrice: Number(rt.extraChildPrice) + childOffset,
+              basePriceAc: baseAc,
+              extraAdultPriceAc:
+                rt.extraAdultPriceAc !== null ? Number(rt.extraAdultPriceAc) + adultOffset : null,
+              extraChildPriceAc:
+                rt.extraChildPriceAc !== null ? Number(rt.extraChildPriceAc) + childOffset : null,
+            },
+          });
+        }
+      }
+    }
+
+    return this.prisma.ratePlan.findMany({
+      where: { propertyId, isActive: true },
+      include: {
+        roomTypePrices: {
+          include: {
+            roomType: true,
+          },
+        },
+      },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
     });
   }
 
+  /**
+   * Explicitly reset a property's rate plans to the canonical 4 tiers (EP, CP, MAP, AP)
+   */
+  async resetPropertyRatePlans(propertyId: string) {
+    // Deactivate all existing rate plans for this property
+    await this.prisma.ratePlan.updateMany({
+      where: { propertyId },
+      data: { isActive: false, isPrimary: false },
+    });
+
+    return this.ensureDefaultPropertyRatePlans(propertyId);
+  }
+
+  async ensureDefaultRatePlan(roomTypeId: string) {
+    const roomType = await this.prisma.roomType.findUnique({
+      where: { id: roomTypeId },
+    });
+    if (!roomType) {
+      throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
+    }
+    const plans = await this.ensureDefaultPropertyRatePlans(roomType.propertyId);
+    return plans.find(p => p.isPrimary) || plans[0];
+  }
+
   async getRatePlansForRoomType(roomTypeId: string) {
-    await this.ensureDefaultRatePlan(roomTypeId);
+    const roomType = await this.prisma.roomType.findUnique({
+      where: { id: roomTypeId },
+    });
+    if (!roomType) {
+      throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
+    }
+    await this.ensureDefaultPropertyRatePlans(roomType.propertyId);
     return this.prisma.ratePlan.findMany({
-      where: { roomTypeId, isActive: true },
+      where: { propertyId: roomType.propertyId, isActive: true },
       include: {
+        roomTypePrices: {
+          where: { roomTypeId },
+        },
         derivedFrom: true,
         pricingRules: {
           where: { isActive: true },
@@ -70,91 +238,111 @@ export class RatePlansService {
   }
 
   async getRatePlansForProperty(propertyId: string) {
-    const roomTypes = await this.prisma.roomType.findMany({
-      where: { propertyId },
-      select: { id: true },
-    });
-
-    for (const rt of roomTypes) {
-      await this.ensureDefaultRatePlan(rt.id);
-    }
+    await this.ensureDefaultPropertyRatePlans(propertyId);
 
     return this.prisma.ratePlan.findMany({
       where: {
-        roomType: { propertyId },
+        propertyId,
         isActive: true,
       },
       include: {
-        roomType: {
-          select: { id: true, name: true },
+        roomTypePrices: {
+          include: {
+            roomType: {
+              select: { id: true, name: true, acOption: true, basePrice: true, basePriceAc: true },
+            },
+          },
         },
         derivedFrom: true,
         pricingRules: {
           where: { isActive: true },
         },
       },
-      orderBy: [{ roomTypeId: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
     });
   }
 
   async createRatePlan(dto: CreateRatePlanDto) {
-    const roomType = await this.prisma.roomType.findUnique({
-      where: { id: dto.roomTypeId },
-    });
+    let propertyId = dto.propertyId;
+    if (!propertyId && dto.roomTypeId) {
+      const rt = await this.prisma.roomType.findUnique({ where: { id: dto.roomTypeId } });
+      if (rt) propertyId = rt.propertyId;
+    }
 
-    if (!roomType) {
-      throw new NotFoundException(`RoomType with ID ${dto.roomTypeId} not found.`);
+    if (!propertyId) {
+      throw new BadRequestException('propertyId is required to create a RatePlan.');
     }
 
     if (dto.isPrimary) {
-      // Demote other primary rate plans for this room type
       await this.prisma.ratePlan.updateMany({
-        where: { roomTypeId: dto.roomTypeId, isPrimary: true },
+        where: { propertyId, isPrimary: true },
         data: { isPrimary: false },
       });
     }
 
-    const createData: any = {
-      roomTypeId: dto.roomTypeId,
-      name: dto.name,
-      code: dto.code || dto.mealPlan,
-      mealPlan: dto.mealPlan,
-      isPrimary: dto.isPrimary || false,
-      pricingType: dto.pricingType || RatePlanPricingType.ABSOLUTE,
-      derivedFromId: dto.derivedFromId || null,
-      derivedAmount: dto.derivedAmount !== undefined ? dto.derivedAmount : null,
-      derivedPercentage: dto.derivedPercentage !== undefined ? dto.derivedPercentage : null,
-      basePrice: dto.basePrice,
-      extraAdultPrice: dto.extraAdultPrice,
-      extraChildPrice: dto.extraChildPrice,
-      cancellationPolicyId: dto.cancellationPolicyId || null,
-    };
-
     const createdPlan = await this.prisma.ratePlan.create({
-      data: createData,
+      data: {
+        propertyId,
+        name: dto.name,
+        code: dto.code || dto.mealPlan,
+        mealPlan: dto.mealPlan,
+        isPrimary: dto.isPrimary || false,
+        pricingType: dto.pricingType || RatePlanPricingType.ABSOLUTE,
+        derivedFromId: dto.derivedFromId || null,
+        derivedAmount: dto.derivedAmount !== undefined ? dto.derivedAmount : null,
+        derivedPercentage: dto.derivedPercentage !== undefined ? dto.derivedPercentage : null,
+        basePrice: dto.basePrice || 0,
+        extraAdultPrice: dto.extraAdultPrice || 0,
+        extraChildPrice: dto.extraChildPrice || 0,
+        cancellationPolicyId: dto.cancellationPolicyId || null,
+      },
     });
 
-    if (dto.acType) {
-      try {
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE "rate_plans" SET "acType" = $1::"AcType" WHERE "id" = $2`,
-          dto.acType,
-          createdPlan.id,
-        );
-      } catch (err) {
-        this.logger.warn(`Could not set acType on rate_plans: ${err.message}`);
+    if (dto.roomTypePrices && dto.roomTypePrices.length > 0) {
+      for (const rtp of dto.roomTypePrices) {
+        await this.prisma.roomTypeRatePlanPrice.upsert({
+          where: {
+            ratePlanId_roomTypeId: {
+              ratePlanId: createdPlan.id,
+              roomTypeId: rtp.roomTypeId,
+            },
+          },
+          create: {
+            ratePlanId: createdPlan.id,
+            roomTypeId: rtp.roomTypeId,
+            basePrice: rtp.basePrice,
+            extraAdultPrice: rtp.extraAdultPrice || 0,
+            extraChildPrice: rtp.extraChildPrice || 0,
+            basePriceAc: rtp.basePriceAc !== undefined ? rtp.basePriceAc : null,
+            extraAdultPriceAc: rtp.extraAdultPriceAc !== undefined ? rtp.extraAdultPriceAc : null,
+            extraChildPriceAc: rtp.extraChildPriceAc !== undefined ? rtp.extraChildPriceAc : null,
+          },
+          update: {
+            basePrice: rtp.basePrice,
+            extraAdultPrice: rtp.extraAdultPrice || 0,
+            extraChildPrice: rtp.extraChildPrice || 0,
+            basePriceAc: rtp.basePriceAc !== undefined ? rtp.basePriceAc : null,
+            extraAdultPriceAc: rtp.extraAdultPriceAc !== undefined ? rtp.extraAdultPriceAc : null,
+            extraChildPriceAc: rtp.extraChildPriceAc !== undefined ? rtp.extraChildPriceAc : null,
+          },
+        });
       }
-    }
-
-    if (createdPlan.isPrimary) {
-      await this.prisma.roomType.update({
-        where: { id: createdPlan.roomTypeId },
-        data: {
-          basePrice: Number(createdPlan.basePrice),
-          extraAdultPrice: Number(createdPlan.extraAdultPrice ?? 0),
-          extraChildPrice: Number(createdPlan.extraChildPrice ?? 0),
-        },
-      });
+    } else {
+      const roomTypes = await this.prisma.roomType.findMany({ where: { propertyId } });
+      for (const rt of roomTypes) {
+        await this.prisma.roomTypeRatePlanPrice.create({
+          data: {
+            ratePlanId: createdPlan.id,
+            roomTypeId: rt.id,
+            basePrice: dto.basePrice !== undefined ? dto.basePrice : rt.basePrice,
+            extraAdultPrice: dto.extraAdultPrice !== undefined ? dto.extraAdultPrice : rt.extraAdultPrice,
+            extraChildPrice: dto.extraChildPrice !== undefined ? dto.extraChildPrice : rt.extraChildPrice,
+            basePriceAc: rt.basePriceAc,
+            extraAdultPriceAc: rt.extraAdultPriceAc,
+            extraChildPriceAc: rt.extraChildPriceAc,
+          },
+        });
+      }
     }
 
     return createdPlan;
@@ -168,7 +356,7 @@ export class RatePlansService {
 
     if (dto.isPrimary) {
       await this.prisma.ratePlan.updateMany({
-        where: { roomTypeId: ratePlan.roomTypeId, isPrimary: true, NOT: { id } },
+        where: { propertyId: ratePlan.propertyId, isPrimary: true, NOT: { id } },
         data: { isPrimary: false },
       });
     }
@@ -194,42 +382,49 @@ export class RatePlansService {
       data: updateData,
     });
 
-    if (dto.acType !== undefined) {
-      try {
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE "rate_plans" SET "acType" = $1::"AcType" WHERE "id" = $2`,
-          dto.acType,
-          id,
-        );
-      } catch (err) {
-        this.logger.warn(`Could not set acType on rate_plans: ${err.message}`);
-      }
-    }
-
-    if (updatedPlan.isPrimary) {
-      await this.prisma.roomType.update({
-        where: { id: updatedPlan.roomTypeId },
-        data: {
-          basePrice: Number(updatedPlan.basePrice),
-          extraAdultPrice: Number(updatedPlan.extraAdultPrice ?? 0),
-          extraChildPrice: Number(updatedPlan.extraChildPrice ?? 0),
-        },
-      });
+    if (dto.roomTypePrices && dto.roomTypePrices.length > 0) {
+      await this.updateRoomTypePrices(id, dto.roomTypePrices);
     }
 
     if (this.channelsService) {
-      const rt = await this.prisma.roomType.findUnique({
-        where: { id: updatedPlan.roomTypeId },
-        select: { propertyId: true },
+      this.channelsService.pushAriForProperty(ratePlan.propertyId, 60).catch((err) => {
+        this.logger.warn(`Failed to auto-sync Channex after rate plan update: ${err.message}`);
       });
-      if (rt?.propertyId) {
-        this.channelsService.pushAriForProperty(rt.propertyId, 60).catch((err) => {
-          this.logger.warn(`Failed to auto-sync Channex after rate plan update: ${err.message}`);
-        });
-      }
     }
 
     return updatedPlan;
+  }
+
+  async updateRoomTypePrices(ratePlanId: string, prices: any[]) {
+    for (const rtp of prices) {
+      await this.prisma.roomTypeRatePlanPrice.upsert({
+        where: {
+          ratePlanId_roomTypeId: {
+            ratePlanId,
+            roomTypeId: rtp.roomTypeId,
+          },
+        },
+        create: {
+          ratePlanId,
+          roomTypeId: rtp.roomTypeId,
+          basePrice: rtp.basePrice,
+          extraAdultPrice: rtp.extraAdultPrice ?? 0,
+          extraChildPrice: rtp.extraChildPrice ?? 0,
+          basePriceAc: rtp.basePriceAc ?? null,
+          extraAdultPriceAc: rtp.extraAdultPriceAc ?? null,
+          extraChildPriceAc: rtp.extraChildPriceAc ?? null,
+        },
+        update: {
+          basePrice: rtp.basePrice,
+          extraAdultPrice: rtp.extraAdultPrice ?? 0,
+          extraChildPrice: rtp.extraChildPrice ?? 0,
+          basePriceAc: rtp.basePriceAc ?? null,
+          extraAdultPriceAc: rtp.extraAdultPriceAc ?? null,
+          extraChildPriceAc: rtp.extraChildPriceAc ?? null,
+        },
+      });
+    }
+    return { success: true, count: prices.length };
   }
 
   async deleteRatePlan(id: string) {
@@ -270,19 +465,21 @@ export class RatePlansService {
     });
 
     // Ensure default rate plans exist
-    for (const rt of roomTypes) {
-      await this.ensureDefaultRatePlan(rt.id);
-    }
+    await this.ensureDefaultPropertyRatePlans(propertyId);
 
-    // 2. Fetch Rate Plans with pricing rules
+    // 2. Fetch Rate Plans with pricing rules and roomTypePrices
     const ratePlans = await this.prisma.ratePlan.findMany({
       where: {
-        roomType: { propertyId },
+        propertyId,
         isActive: true,
       },
       include: {
-        roomType: {
-          select: { id: true, name: true, amenities: true },
+        roomTypePrices: {
+          include: {
+            roomType: {
+              select: { id: true, name: true, amenities: true, acOption: true, basePrice: true, basePriceAc: true },
+            },
+          },
         },
         derivedFrom: true,
         pricingRules: {
@@ -294,7 +491,7 @@ export class RatePlansService {
           orderBy: [{ isFestivalRule: 'desc' }, { createdAt: 'desc' }],
         },
       },
-      orderBy: [{ roomTypeId: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
     });
 
     // 3. Fetch RestrictionRules
@@ -467,16 +664,14 @@ export class RatePlansService {
     if (targetRatePlanId && !targetRoomTypeId) {
       const rp = await this.prisma.ratePlan.findUnique({
         where: { id: targetRatePlanId },
-        include: { roomType: true },
       });
       if (!rp) {
         throw new NotFoundException(`RatePlan ${targetRatePlanId} not found.`);
       }
-      targetRoomTypeId = rp.roomTypeId;
-      propertyId = propertyId || rp.roomType.propertyId;
+      propertyId = propertyId || rp.propertyId;
     } else if (!targetRatePlanId && targetRoomTypeId) {
       const primaryPlan = await this.ensureDefaultRatePlan(targetRoomTypeId);
-      targetRatePlanId = primaryPlan.id;
+      targetRatePlanId = primaryPlan?.id;
     }
 
     if (targetRoomTypeId && !propertyId) {

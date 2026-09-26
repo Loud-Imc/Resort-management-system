@@ -422,7 +422,7 @@ export class RoomTypesService {
                     where: { isEnabled: true },
                 },
                 cancellationPolicy: true,
-                ratePlans: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
+                ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
         });
         return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
@@ -448,7 +448,7 @@ export class RoomTypesService {
                 property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
                 rooms: true,
                 cancellationPolicy: true,
-                ratePlans: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
+                ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
         });
         return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
@@ -470,7 +470,7 @@ export class RoomTypesService {
                 },
                 rooms: true,
                 cancellationPolicy: true,
-                ratePlans: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
+                ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
         });
 

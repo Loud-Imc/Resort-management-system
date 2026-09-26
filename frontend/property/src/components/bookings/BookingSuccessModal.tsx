@@ -76,8 +76,12 @@ export const BookingSuccessModal: React.FC<BookingSuccessModalProps> = ({
     const couponDiscount = Number(booking.couponDiscountAmount || 0);
     const totalDiscount = Number(booking.discountAmount || 0) || (offerDiscount + couponDiscount);
 
+    const isInclusive = booking.isGstInclusive ?? false;
+
     // If totalAmount was saved with a bug where extra charges were missed, recalculate effective total
-    const computedTotal = baseAmount + effectiveExtraCharges + taxAmount - totalDiscount;
+    const computedTotal = isInclusive
+        ? (baseAmount + taxAmount - totalDiscount)
+        : (baseAmount + effectiveExtraCharges + taxAmount - totalDiscount);
     const rawTotalAmount = Number(booking.totalAmount || 0);
     const paidAmount = Number(booking.paidAmount || 0);
     const totalAmount = (rawTotalAmount < paidAmount && Math.abs(computedTotal - paidAmount) < 1)
@@ -169,10 +173,17 @@ export const BookingSuccessModal: React.FC<BookingSuccessModalProps> = ({
                         {baseAmount > 0 && (effectiveExtraCharges > 0 || taxAmount > 0 || totalDiscount > 0) && (
                             <div className="space-y-1.5 pb-2 border-b border-border/50 text-xs">
                                 <div className="flex justify-between items-center text-muted-foreground">
-                                    <span>Accommodation ({bookingRooms.length || 1} Rm × {nights} Nt):</span>
+                                    <div className="flex flex-col">
+                                        <span>Accommodation ({bookingRooms.length || 1} Rm × {nights} Nt):</span>
+                                        {isInclusive && effectiveExtraCharges > 0 && (
+                                            <span className="text-[10px] text-muted-foreground/80 font-normal">
+                                                Includes ₹{effectiveExtraCharges.toLocaleString()} for extra guests
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className="font-semibold text-foreground">₹{baseAmount.toLocaleString()}</span>
                                 </div>
-                                {effectiveExtraCharges > 0 && (
+                                {!isInclusive && effectiveExtraCharges > 0 && (
                                     <div className="flex justify-between items-center text-muted-foreground">
                                         <span>Extra Guests Surcharge:</span>
                                         <span className="font-semibold text-foreground">+₹{effectiveExtraCharges.toLocaleString()}</span>
