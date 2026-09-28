@@ -202,7 +202,7 @@ export class RoomTypesService {
         });
     }
 
-    private validatePricing(basePrice: number, originalPrice?: number) {
+    private validatePricing(basePrice: number, originalPrice?: number | null) {
         if (originalPrice !== undefined && originalPrice !== null) {
             if (originalPrice <= basePrice) {
                 throw new BadRequestException('Original price (MRP) must be higher than the base price');
@@ -496,9 +496,11 @@ export class RoomTypesService {
             const existing = await this.findOne(id, requestUser);
 
             const basePrice = updateRoomTypeDto.basePrice !== undefined ? updateRoomTypeDto.basePrice : Number((existing as any).basePrice);
-            const originalPrice = updateRoomTypeDto.originalPrice !== undefined ? updateRoomTypeDto.originalPrice : ((existing as any).originalPrice ? Number((existing as any).originalPrice) : undefined);
+            const originalPrice = updateRoomTypeDto.originalPrice !== undefined 
+                ? (updateRoomTypeDto.originalPrice !== null ? Number(updateRoomTypeDto.originalPrice) : null)
+                : ((existing as any).originalPrice ? Number((existing as any).originalPrice) : null);
 
-            this.validatePricing(basePrice, originalPrice);
+            this.validatePricing(basePrice, originalPrice ?? undefined);
 
             const resolvedBaseOcc = updateRoomTypeDto.totalBaseOccupancy !== undefined ? updateRoomTypeDto.totalBaseOccupancy : existing.totalBaseOccupancy;
             const resolvedMaxOcc = updateRoomTypeDto.totalMaxOccupancy !== undefined ? updateRoomTypeDto.totalMaxOccupancy : existing.totalMaxOccupancy;
@@ -506,13 +508,13 @@ export class RoomTypesService {
             const resolvedBMC = updateRoomTypeDto.baseMaxChildren !== undefined ? updateRoomTypeDto.baseMaxChildren : existing.baseMaxChildren;
 
             const physAdults = updateRoomTypeDto.maxPhysicalAdults !== undefined
-                ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : existing.maxPhysicalAdults)
+                ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : (resolvedMaxOcc ? Number(resolvedMaxOcc) : 2))
                 : existing.maxPhysicalAdults;
             const physChildren = updateRoomTypeDto.maxPhysicalChildren !== undefined
-                ? (updateRoomTypeDto.maxPhysicalChildren !== null ? Number(updateRoomTypeDto.maxPhysicalChildren) : existing.maxPhysicalChildren)
+                ? (updateRoomTypeDto.maxPhysicalChildren !== null ? Number(updateRoomTypeDto.maxPhysicalChildren) : null)
                 : existing.maxPhysicalChildren;
             const physInfants = updateRoomTypeDto.maxPhysicalInfants !== undefined
-                ? (updateRoomTypeDto.maxPhysicalInfants !== null ? Number(updateRoomTypeDto.maxPhysicalInfants) : existing.maxPhysicalInfants)
+                ? (updateRoomTypeDto.maxPhysicalInfants !== null ? Number(updateRoomTypeDto.maxPhysicalInfants) : null)
                 : existing.maxPhysicalInfants;
 
             this.validateOccupancyHierarchy({
@@ -542,27 +544,28 @@ export class RoomTypesService {
             const data: any = {
                 ...rest,
                 groupMaxOccupancy: resolvedGroupMax,
+                originalPrice,
             };
 
-            if (physAdults !== null && physAdults !== undefined) {
+            if (updateRoomTypeDto.maxPhysicalAdults !== undefined) {
                 data.maxPhysicalAdults = physAdults;
             }
-            if (physChildren !== null && physChildren !== undefined) {
+            if (updateRoomTypeDto.maxPhysicalChildren !== undefined) {
                 data.maxPhysicalChildren = physChildren;
             }
-            if (physInfants !== null && physInfants !== undefined) {
+            if (updateRoomTypeDto.maxPhysicalInfants !== undefined) {
                 data.maxPhysicalInfants = physInfants;
             }
 
             if (cancellationPolicy !== undefined) {
-                data.cancellationPolicyText = cancellationPolicy;
+                data.cancellationPolicyText = (cancellationPolicy && cancellationPolicy.trim() !== '') ? cancellationPolicy.trim() : null;
             }
 
             if (cancellationPolicyId !== undefined) {
-                data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null;
+                data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId.trim() : null;
             }
 
-            // Remove any undefined keys
+            // Remove any undefined keys, but KEEP null values so Prisma sets them to NULL
             Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
 
             const updated = await this.prisma.roomType.update({

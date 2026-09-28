@@ -521,6 +521,12 @@ export default function CreateBooking() {
         if (!solution) return;
         selectedSolutionIdRef.current = solution.id || null;
         setSelectedSolution(solution);
+
+        // If current selectedMealPlan is not available in this solution's ratesByMealPlan, reset to EP
+        if (solution.ratesByMealPlan && !solution.ratesByMealPlan[selectedMealPlan]) {
+            setSelectedMealPlan('EP');
+        }
+
         const allocatedRooms = solution.rooms || solution.allocatedRooms || [];
         const firstRoomType = allocatedRooms[0]?.roomTypeId;
         if (firstRoomType) {
@@ -617,10 +623,18 @@ export default function CreateBooking() {
                 if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
                     const defaultIsAc = r.isAcSelected ?? true;
                     const currentIsAc = acSelections[idx] !== undefined ? acSelections[idx] : defaultIsAc;
+                    const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null)
+                        ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0)
+                        : 0;
+                    const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null)
+                        ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0)
+                        : 0;
+                    const roomNightDelta = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
+
                     if (defaultIsAc && !currentIsAc) {
-                        return acc - ((r.basePriceAc - r.basePriceNonAc) * numberOfNights);
+                        return acc - (roomNightDelta * numberOfNights);
                     } else if (!defaultIsAc && currentIsAc) {
-                        return acc + ((r.basePriceAc - r.basePriceNonAc) * numberOfNights);
+                        return acc + (roomNightDelta * numberOfNights);
                     }
                 }
                 return acc;
@@ -669,6 +683,8 @@ export default function CreateBooking() {
         if (!solution) return undefined;
         const rooms = solution.rooms || solution.allocatedRooms;
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) return undefined;
+        const activePlanDetails = solution.ratesByMealPlan?.[selectedMealPlan || 'EP'];
+        const activeRatePlanId = activePlanDetails?.ratePlanId || solution.ratePlanId || undefined;
         return rooms.map((r: any, idx: number) => {
             const isAc = roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (r.isAcSelected ?? (r.acOption !== 'NON_AC_ONLY'));
             return {
@@ -677,7 +693,7 @@ export default function CreateBooking() {
                 children: Number(r.children) || 0,
                 infants: Number(r.infants) || 0,
                 childAges: r.childAges,
-                ratePlanId: r.ratePlanId || solution.ratePlanId || undefined,
+                ratePlanId: r.ratePlanId || activeRatePlanId,
                 mealPlan: selectedMealPlan || 'EP',
                 isAcSelected: isAc,
             };
@@ -1276,6 +1292,8 @@ export default function CreateBooking() {
         }
 
         const allocatedRooms = selectedSolution?.rooms || selectedSolution?.allocatedRooms || [];
+        const activePlanDetails = selectedSolution?.ratesByMealPlan?.[selectedMealPlan || 'EP'];
+        const activeRatePlanId = activePlanDetails?.ratePlanId || selectedSolution?.ratePlanId || undefined;
         let roomAllocationsPayload = undefined;
         if (!data.isGroupBooking && selectedSolution && allocatedRooms.length > 0) {
             roomAllocationsPayload = allocatedRooms.map((ar: any, idx: number) => {
@@ -1295,7 +1313,7 @@ export default function CreateBooking() {
                     infants: ar.infants || 0,
                     extraAdults: ar.extraAdults || 0,
                     extraChildren: ar.extraChildren || 0,
-                    ratePlanId: ar.ratePlanId || selectedSolution?.ratePlanId || undefined,
+                    ratePlanId: ar.ratePlanId || activeRatePlanId,
                     mealPlan: selectedMealPlan || 'EP',
                     isAcSelected: isAc,
                 };
@@ -1310,6 +1328,7 @@ export default function CreateBooking() {
                 infants: Number(infantsCount || 0),
                 extraAdults: Number(data.extraAdultsCount || 0),
                 extraChildren: Number(data.extraChildrenCount || 0),
+                ratePlanId: activeRatePlanId,
                 mealPlan: selectedMealPlan || 'EP',
                 isAcSelected: true,
             }];
@@ -1359,7 +1378,7 @@ export default function CreateBooking() {
             isGroupBooking: Boolean(data.isGroupBooking),
             groupSize: totalGroupSize,
             roomTypeId: data.isGroupBooking ? undefined : (allocatedRooms[0]?.roomTypeId || rest.roomTypeId),
-            ratePlanId: selectedSolution?.ratePlanId || undefined,
+            ratePlanId: activeRatePlanId,
             mealPlan: selectedMealPlan || 'EP',
             isAcSelected: roomAllocationsPayload?.[0]?.isAcSelected ?? undefined,
             bookingSourceId: data.bookingSourceId || undefined,

@@ -36,15 +36,15 @@ const FALLBACK_AMENITIES = [
     'Plush Towels', 'Laundry Service'
 ];
 
-const optionalNumPreprocess = (fallback?: number) => z.preprocess(
+const optionalNumPreprocess = (fallback?: number | null) => z.preprocess(
     (val) => {
         if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
-            return fallback;
+            return fallback !== undefined ? fallback : null;
         }
         const parsed = Number(val);
-        return isNaN(parsed) ? fallback : parsed;
+        return isNaN(parsed) ? (fallback !== undefined ? fallback : null) : parsed;
     },
-    z.number().optional().nullable()
+    z.number().nullable().optional()
 );
 
 const roomTypeSchema = z.object({
@@ -77,16 +77,16 @@ const roomTypeSchema = z.object({
     inclusions: z.array(z.object({ value: z.string() })),
     cancellationPolicy: z.string().optional(),
     cancellationPolicyId: z.string().optional(),
-    marketingBadgeText: z.string().optional(),
-    marketingBadgeType: z.string().optional(),
+    marketingBadgeText: z.string().nullable().optional(),
+    marketingBadgeType: z.string().nullable().optional(),
     images: z.array(z.string()).min(1, 'At least one image is required'),
     isAvailableForGroupBooking: z.boolean(),
-    groupMaxOccupancy: z.number().min(0).optional(),
+    groupMaxOccupancy: z.number().min(0).nullable().optional(),
     isGstInclusive: z.boolean(),
     allowPayAtProperty: z.boolean(),
     size: z.preprocess(
-        (val) => (val === '' || val === undefined || val === null || (typeof val === 'number' && Number.isNaN(val)) ? undefined : Number(val)),
-        z.number().min(0, 'Room size must be positive').optional()
+        (val) => (val === '' || val === undefined || val === null || (typeof val === 'number' && Number.isNaN(val)) ? null : Number(val)),
+        z.number().min(0, 'Room size must be positive').nullable().optional()
     ),
 }).superRefine((data, ctx) => {
     if (data.acOption === 'BOTH') {
@@ -339,7 +339,7 @@ export default function CreateRoomType() {
                 basePriceAc: existingRoomType.basePriceAc !== null && existingRoomType.basePriceAc !== undefined ? Number(existingRoomType.basePriceAc) : null,
                 extraAdultPriceAc: existingRoomType.extraAdultPriceAc !== null && existingRoomType.extraAdultPriceAc !== undefined ? Number(existingRoomType.extraAdultPriceAc) : null,
                 extraChildPriceAc: existingRoomType.extraChildPriceAc !== null && existingRoomType.extraChildPriceAc !== undefined ? Number(existingRoomType.extraChildPriceAc) : null,
-                originalPrice: existingRoomType.originalPrice ? Number(existingRoomType.originalPrice) : null,
+                originalPrice: existingRoomType.originalPrice !== null && existingRoomType.originalPrice !== undefined ? Number(existingRoomType.originalPrice) : null,
                 maxAdults: existingRoomType.maxAdults,
                 maxChildren: existingRoomType.maxChildren,
                 baseAdults: rawBaseA,
@@ -368,7 +368,7 @@ export default function CreateRoomType() {
                 groupMaxOccupancy: existingRoomType.groupMaxOccupancy || 0,
                 isGstInclusive: existingRoomType.isGstInclusive || false,
                 allowPayAtProperty: existingRoomType.allowPayAtProperty || false,
-                size: existingRoomType.size || undefined,
+                size: existingRoomType.size !== null && existingRoomType.size !== undefined ? Number(existingRoomType.size) : null,
             });
         }
     }, [existingRoomType, isEdit, reset]);
@@ -473,38 +473,47 @@ export default function CreateRoomType() {
                 baseChildren: resolvedBaseChildren,
                 totalBaseOccupancy: resolvedTotalBase,
                 totalMaxOccupancy: resolvedTotalMax,
-                baseMaxAdults: (data.baseMaxAdults !== undefined && data.baseMaxAdults !== null) ? Number(data.baseMaxAdults) : null,
-                baseMaxChildren: (data.baseMaxChildren !== undefined && data.baseMaxChildren !== null) ? Number(data.baseMaxChildren) : null,
+                baseMaxAdults: (data.baseMaxAdults !== undefined && data.baseMaxAdults !== null && (data.baseMaxAdults as any) !== '') ? Number(data.baseMaxAdults) : null,
+                baseMaxChildren: (data.baseMaxChildren !== undefined && data.baseMaxChildren !== null && (data.baseMaxChildren as any) !== '') ? Number(data.baseMaxChildren) : null,
                 maxPhysicalAdults: resolvedMaxPhysA,
                 maxPhysicalChildren: resolvedMaxPhysC,
                 maxPhysicalInfants: resolvedMaxInfants,
                 acOption: data.acOption || 'AC_ONLY',
                 basePrice: Number(data.basePrice),
                 basePriceAc: data.acOption === 'BOTH'
-                    ? (data.basePriceAc !== null && data.basePriceAc !== undefined ? Number(data.basePriceAc) : null)
+                    ? (data.basePriceAc !== null && data.basePriceAc !== undefined && (data.basePriceAc as any) !== '' ? Number(data.basePriceAc) : null)
                     : (data.acOption === 'AC_ONLY' ? Number(data.basePrice) : null),
                 extraAdultPrice: Number(data.extraAdultPrice ?? 0),
                 extraAdultPriceAc: data.acOption === 'BOTH'
-                    ? (data.extraAdultPriceAc !== null && data.extraAdultPriceAc !== undefined ? Number(data.extraAdultPriceAc) : null)
+                    ? (data.extraAdultPriceAc !== null && data.extraAdultPriceAc !== undefined && (data.extraAdultPriceAc as any) !== '' ? Number(data.extraAdultPriceAc) : null)
                     : (data.acOption === 'AC_ONLY' ? Number(data.extraAdultPrice ?? 0) : null),
                 extraChildPrice: Number(data.extraChildPrice ?? 0),
                 extraChildPriceAc: data.acOption === 'BOTH'
-                    ? (data.extraChildPriceAc !== null && data.extraChildPriceAc !== undefined ? Number(data.extraChildPriceAc) : null)
+                    ? (data.extraChildPriceAc !== null && data.extraChildPriceAc !== undefined && (data.extraChildPriceAc as any) !== '' ? Number(data.extraChildPriceAc) : null)
                     : (data.acOption === 'AC_ONLY' ? Number(data.extraChildPrice ?? 0) : null),
                 maxAdults: resolvedMaxPhysA ?? resolvedTotalMax,
                 maxChildren: resolvedMaxPhysC ?? Math.max(0, resolvedTotalMax - 1),
                 freeChildrenCount: data.freeChildrenCount ?? 0,
-                groupMaxOccupancy: data.groupMaxOccupancy !== undefined ? data.groupMaxOccupancy : (isEdit ? existingRoomType?.groupMaxOccupancy : undefined),
-                originalPrice: (data.originalPrice === null || data.originalPrice === undefined) ? null : Number(data.originalPrice),
-                amenities: data.amenities.map(a => a.value).filter(v => v),
-                highlights: data.highlights.map(h => h.value).filter(v => v),
-                inclusions: data.inclusions.map(i => i.value).filter(v => v),
+                groupMaxOccupancy: (data.groupMaxOccupancy !== undefined && data.groupMaxOccupancy !== null && (data.groupMaxOccupancy as any) !== '') ? Number(data.groupMaxOccupancy) : null,
+                originalPrice: (data.originalPrice !== null && data.originalPrice !== undefined && (data.originalPrice as any) !== '' && !isNaN(Number(data.originalPrice))) ? Number(data.originalPrice) : null,
+                size: (data.size !== null && data.size !== undefined && (data.size as any) !== '' && !isNaN(Number(data.size))) ? Number(data.size) : null,
+                marketingBadgeText: (data.marketingBadgeText && data.marketingBadgeText.trim() !== '') ? data.marketingBadgeText.trim() : null,
+                marketingBadgeType: (data.marketingBadgeText && data.marketingBadgeText.trim() !== '') ? (data.marketingBadgeType || 'POSITIVE') : null,
+                cancellationPolicy: (data.cancellationPolicy && data.cancellationPolicy.trim() !== '') ? data.cancellationPolicy.trim() : null,
+                cancellationPolicyId: (data.cancellationPolicyId && data.cancellationPolicyId.trim() !== '') ? data.cancellationPolicyId.trim() : null,
+                amenities: data.amenities.map((a: any) => a.value).filter((v: any) => v),
+                highlights: data.highlights.map((h: any) => h.value).filter((v: any) => v),
+                inclusions: data.inclusions.map((i: any) => i.value).filter((v: any) => v),
             };
-            return isEdit ? roomTypesService.update(id!, payload) : roomTypesService.create(payload);
+            return isEdit ? roomTypesService.update(id!, payload as any) : roomTypesService.create(payload as any);
         },
         onSuccess: () => {
             toast.success(isEdit ? 'Room type updated!' : 'Room type created!');
             queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
+            if (id) {
+                queryClient.invalidateQueries({ queryKey: ['roomType', id] });
+                queryClient.removeQueries({ queryKey: ['roomType', id] });
+            }
             navigate('/room-types');
         },
         onError: (error: any) => {
@@ -592,7 +601,7 @@ export default function CreateRoomType() {
                             </label>
                             <input
                                 type="number"
-                                {...register('size', { valueAsNumber: true })}
+                                {...register('size', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? null : Number(v)) })}
                                 placeholder="e.g. 280"
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.size ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
                             />
@@ -692,7 +701,7 @@ export default function CreateRoomType() {
                                     </label>
                                     <input
                                         type="number"
-                                        {...register('basePriceAc', { valueAsNumber: true })}
+                                        {...register('basePriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? null : Number(v)) })}
                                         placeholder="e.g. 3500"
                                         className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.basePriceAc ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-black`}
                                     />
@@ -720,7 +729,7 @@ export default function CreateRoomType() {
                             </label>
                             <input
                                 type="number"
-                                {...register('originalPrice')}
+                                {...register('originalPrice', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? null : Number(v)) })}
                                 placeholder="e.g. 5000 (Optional)"
                                 className={`w-full px-4 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${errors.originalPrice ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl focus:ring-2 focus:ring-primary-500 transition-all font-bold placeholder:text-gray-400`}
                             />
@@ -1139,7 +1148,7 @@ export default function CreateRoomType() {
                                                     type="number"
                                                     min="0"
                                                     placeholder="Defaults to Non-AC price if blank"
-                                                    {...register('extraAdultPriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                                    {...register('extraAdultPriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? null : Number(v)) })}
                                                     className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
                                                 />
                                             </div>
@@ -1152,7 +1161,7 @@ export default function CreateRoomType() {
                                                     type="number"
                                                     min="0"
                                                     placeholder="Defaults to Non-AC price if blank"
-                                                    {...register('extraChildPriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? undefined : Number(v)) })}
+                                                    {...register('extraChildPriceAc', { setValueAs: (v) => (v === '' || v === null || isNaN(v) ? null : Number(v)) })}
                                                     className="w-full px-3.5 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-primary-500 font-bold text-sm shadow-sm"
                                                 />
                                             </div>

@@ -211,8 +211,11 @@ export class RatePlansService {
     if (!roomType) {
       throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
     }
-    const plans = await this.ensureDefaultPropertyRatePlans(roomType.propertyId);
-    return plans.find(p => p.isPrimary) || plans[0];
+    const plans = await this.prisma.ratePlan.findMany({
+      where: { propertyId: roomType.propertyId, isActive: true },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    return plans.find(p => p.isPrimary) || plans[0] || null;
   }
 
   async getRatePlansForRoomType(roomTypeId: string) {
@@ -222,7 +225,6 @@ export class RatePlansService {
     if (!roomType) {
       throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
     }
-    await this.ensureDefaultPropertyRatePlans(roomType.propertyId);
     return this.prisma.ratePlan.findMany({
       where: { propertyId: roomType.propertyId, isActive: true },
       include: {
@@ -239,8 +241,6 @@ export class RatePlansService {
   }
 
   async getRatePlansForProperty(propertyId: string) {
-    await this.ensureDefaultPropertyRatePlans(propertyId);
-
     return this.prisma.ratePlan.findMany({
       where: {
         propertyId,
@@ -517,9 +517,6 @@ export class RatePlansService {
       },
       orderBy: { createdAt: 'asc' },
     });
-
-    // Ensure default rate plans exist
-    await this.ensureDefaultPropertyRatePlans(propertyId);
 
     // 2. Fetch Rate Plans with pricing rules and roomTypePrices
     const ratePlans = await this.prisma.ratePlan.findMany({
