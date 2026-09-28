@@ -322,3 +322,32 @@ export class CreateCalendarEventMarkerDto {
   @IsString()
   colorTag?: string;
 }
+
+export class QueryRateRestrictionLogsDto {
+  @IsOptional()
+  @IsString()
+  roomTypeId?: string;
+
+  @IsOptional()
+  @IsString()
+  actionType?: string; // 'RATE_UPDATE' | 'RESTRICTION_UPDATE' | 'STOP_SELL_TOGGLE' | 'INVENTORY_OVERRIDE'
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
+}
+

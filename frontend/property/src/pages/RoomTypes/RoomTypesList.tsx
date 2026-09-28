@@ -7,15 +7,15 @@ import {
     Plus,
     Edit2,
     Trash2,
-    Users,
     Image as ImageIcon,
     Building2,
-    BedDouble,
     Sparkles,
     Utensils,
-    Sliders,
+    LayoutGrid,
+    DollarSign,
     Calendar,
-    LayoutGrid
+    Users,
+    BedDouble,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProperty } from '../../context/PropertyContext';
@@ -23,8 +23,8 @@ import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import AddRoomModal from '../../components/Rooms/AddRoomModal';
 import OccupancyMigrationModal from '../../components/OccupancyMigrationModal';
-import { RoomPlanRatesModal } from '../../components/RoomPlanRatesModal';
-import { BulkPricingRuleModal } from '../../components/BulkPricingRuleModal';
+import { BulkRatesModal } from '../../components/BulkRatesModal';
+import { RateChangeLogDrawer } from '../../components/RateChangeLogDrawer';
 import { PropertyRateMatrix } from './PropertyRateMatrix';
 import { PropertyRatePlansManager } from './PropertyRatePlansManager';
 
@@ -40,9 +40,11 @@ export default function RoomTypesList() {
     // Active View Tab ('list', 'matrix', or 'rate-plans')
     const [activeTab, setActiveTab] = useState<'list' | 'matrix' | 'rate-plans'>('list');
 
-    // Rate Plans & Bulk Pricing Modal States
-    const [ratePlanModalTarget, setRatePlanModalTarget] = useState<RoomType | null>(null);
+    // Bulk Pricing Modal State
     const [bulkPricingModalTarget, setBulkPricingModalTarget] = useState<RoomType | null>(null);
+
+    // Rate & Restriction Change Log Drawer State
+    const [isChangeLogOpen, setIsChangeLogOpen] = useState(false);
 
     const { data: roomTypes, isLoading } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', propertyId],
@@ -104,7 +106,7 @@ export default function RoomTypesList() {
                         }`}
                     >
                         <Calendar className="h-4 w-4" />
-                        📅 Monthly Rate Matrix & All Room Prices
+                        Rate Matrix
                     </button>
                     <button
                         onClick={() => setActiveTab('rate-plans')}
@@ -115,21 +117,23 @@ export default function RoomTypesList() {
                         }`}
                     >
                         <Utensils className="h-4 w-4" />
-                        🍽️ Property Rate Plans (Meals)
+                        Property Rate Plans (Meals)
                     </button>
                 </div>
 
                 {/* Right Actions */}
                 <div className="flex items-center gap-3">
                     {propertyId && (
-                        <button
-                            type="button"
-                            onClick={() => setIsMigrationModalOpen(true)}
-                            className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center gap-2 font-bold shadow-sm text-xs cursor-pointer"
-                        >
-                            <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                            Occupancy Readiness (V2)
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => setIsMigrationModalOpen(true)}
+                                className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center gap-2 font-bold shadow-sm text-xs cursor-pointer"
+                            >
+                                <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                Occupancy Readiness (V2)
+                            </button>
+                        </>
                     )}
                     <Link
                         to="/room-types/create"
@@ -287,24 +291,15 @@ export default function RoomTypesList() {
                                             Add Room
                                         </button>
 
-                                         <button
-                                             type="button"
-                                             onClick={() => setRatePlanModalTarget(type)}
-                                             className="px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-600 text-indigo-600 hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                                             title="View and adjust rates for this room across Property Rate Plans (EP, CP, MAP, AP)"
-                                         >
-                                             <Utensils className="h-3.5 w-3.5" />
-                                             Plan Rates
-                                         </button>
 
                                         <button
                                             type="button"
                                             onClick={() => setBulkPricingModalTarget(type)}
                                             className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-600 hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                                            title="Set Seasonal / Weekend / Festival Pricing Overrides"
+                                            title="Set Seasonal & Weekend Pricing for this Room Category"
                                         >
-                                            <Sliders className="h-3.5 w-3.5" />
-                                            Date Overrides
+                                            <DollarSign className="h-3.5 w-3.5" />
+                                            Seasonal Rates
                                         </button>
                                     </div>
 
@@ -354,23 +349,10 @@ export default function RoomTypesList() {
                 />
             )}
 
-            {/* Room Plan Rates Modal (EP, CP, MAP, AP) */}
-            {ratePlanModalTarget && (
-                <RoomPlanRatesModal
-                    isOpen={!!ratePlanModalTarget}
-                    onClose={() => {
-                        setRatePlanModalTarget(null);
-                        queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
-                    }}
-                    roomType={ratePlanModalTarget}
-                    propertyId={propertyId || ''}
-                    onNavigateToPropertyPlans={() => setActiveTab('rate-plans')}
-                />
-            )}
 
-            {/* Bulk Pricing Rule Modal (Weekends vs Weekdays & Festivals) */}
+            {/* Bulk Seasonal & Weekend Rates Modal */}
             {bulkPricingModalTarget && (
-                <BulkPricingRuleModal
+                <BulkRatesModal
                     isOpen={!!bulkPricingModalTarget}
                     onClose={() => setBulkPricingModalTarget(null)}
                     propertyId={propertyId || ''}
@@ -381,6 +363,14 @@ export default function RoomTypesList() {
                     onSuccess={() => queryClient.invalidateQueries({ queryKey: ['roomTypes'] })}
                 />
             )}
+
+            {/* Rate & Restriction Change Log Drawer */}
+            <RateChangeLogDrawer
+                isOpen={isChangeLogOpen}
+                onClose={() => setIsChangeLogOpen(false)}
+                propertyId={propertyId || ''}
+                roomTypes={roomTypes || []}
+            />
 
             {/* Custom Confirm Modal for Room Type Deletion */}
             {(() => {

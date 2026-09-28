@@ -141,6 +141,7 @@ export default function CreateBooking() {
     // const [availableRoomTypesList, setAvailableRoomTypesList] = useState<any[] | null>(null);
     const [accommodationSolutions, setAccommodationSolutions] = useState<any[] | null>(null);
     const [selectedSolution, setSelectedSolution] = useState<any | null>(null);
+    const selectedSolutionIdRef = useRef<string | null>(null);
     const [solutionRoomAssignments, setSolutionRoomAssignments] = useState<Record<number, string>>({});
     const [selectedRoomsEvaluation, setSelectedRoomsEvaluation] = useState<any | null>(null);
     const [priceDetails, setPriceDetails] = useState<PriceCalculationResult | null>(null);
@@ -209,14 +210,16 @@ export default function CreateBooking() {
         Boolean(preSelectedRoomTypeIds.length > 0 || preSelectedRoomIds.length > 0)
     );
 
-    // Compute top solutions to display on the page, ensuring the selected solution always appears first
+    // Compute top solutions to display on the page stably without swapping card positions on selection.
+    // If user selected a solution outside the top 3 (e.g. from modal), ensure it is displayed alongside top solutions.
     const displayedAccommodationSolutions = useMemo(() => {
         if (!accommodationSolutions || accommodationSolutions.length === 0) return [];
-        if (!selectedSolution) {
-            return accommodationSolutions.slice(0, 2);
+        const maxInline = Math.min(3, accommodationSolutions.length);
+        const topSolutions = accommodationSolutions.slice(0, maxInline);
+        if (!selectedSolution || topSolutions.some((s: any) => s.id === selectedSolution.id)) {
+            return topSolutions;
         }
-        const otherSolutions = accommodationSolutions.filter((s: any) => s.id !== selectedSolution.id);
-        return [selectedSolution, ...otherSolutions].slice(0, 2);
+        return [...topSolutions.slice(0, 2), selectedSolution];
     }, [accommodationSolutions, selectedSolution]);
 
     const {
@@ -485,6 +488,7 @@ export default function CreateBooking() {
     const handleToggleGroupMode = (enableGroup: boolean) => {
         setValue('isGroupBooking', enableGroup);
         setHasSearched(false);
+        selectedSolutionIdRef.current = null;
         setSelectedSolution(null);
         setAccommodationSolutions(null);
         // setAvailableRoomTypesList(null);
@@ -514,6 +518,8 @@ export default function CreateBooking() {
     };
 
     const handleSelectSolution = (solution: any) => {
+        if (!solution) return;
+        selectedSolutionIdRef.current = solution.id || null;
         setSelectedSolution(solution);
         const allocatedRooms = solution.rooms || solution.allocatedRooms || [];
         const firstRoomType = allocatedRooms[0]?.roomTypeId;
@@ -549,7 +555,6 @@ export default function CreateBooking() {
         setSolutionRoomAssignments(initialAssignments);
         setValue('selectedRoomIds', chosenRoomIds);
         setValue('roomId', chosenRoomIds[0] || '');
-        setValue('roomsCount', allocatedRooms.length);
 
         // Initialize room AC selections
         const initialAcSelections: Record<number, boolean> = {};
@@ -755,6 +760,7 @@ export default function CreateBooking() {
     };
 
     const handleApplyCustomSolution = (customSol: any, roomAssignments: Record<number, string>) => {
+        selectedSolutionIdRef.current = customSol?.id || null;
         setSelectedSolution(customSol);
         setSolutionRoomAssignments(roomAssignments);
         const chosenRoomIds = Object.values(roomAssignments).filter(Boolean);
@@ -798,19 +804,18 @@ export default function CreateBooking() {
 
         if (isExplicitClick) {
             setHasSearched(true);
+            selectedSolutionIdRef.current = null;
+            setSelectedSolution(null);
+            setSolutionRoomAssignments({});
+            setValue('selectedRoomIds', []);
+            setValue('roomId', '');
+            setValue('roomTypeId', '');
+            setPriceDetails(null);
+            setOriginalPriceDetails(null);
         }
 
         const currentSearch = ++searchRequestId.current;
         setCheckingAvailability(true);
-
-        // Invalidate old selection & solutions immediately on new search
-        setSelectedSolution(null);
-        setSolutionRoomAssignments({});
-        setValue('selectedRoomIds', []);
-        setValue('roomId', '');
-        setValue('roomTypeId', '');
-        setPriceDetails(null);
-        setOriginalPriceDetails(null);
 
         try {
             if (isGroupMode) {
@@ -933,8 +938,17 @@ export default function CreateBooking() {
                 if (searchRes.accommodationSolutions && searchRes.accommodationSolutions.length > 0) {
                     setAccommodationSolutions(searchRes.accommodationSolutions);
                     setSelectedRoomsEvaluation(searchRes.selectedRoomsEvaluation || null);
-                    handleSelectSolution(searchRes.accommodationSolutions[0]);
+                    // Maintain current user selection if still present in search results, otherwise fallback to top solution
+                    const matchingSol = selectedSolutionIdRef.current
+                        ? searchRes.accommodationSolutions.find((s: any) => s.id === selectedSolutionIdRef.current)
+                        : null;
+                    if (matchingSol) {
+                        handleSelectSolution(matchingSol);
+                    } else {
+                        handleSelectSolution(searchRes.accommodationSolutions[0]);
+                    }
                 } else {
+                    selectedSolutionIdRef.current = null;
                     setAccommodationSolutions(null);
                     setSelectedRoomsEvaluation(searchRes.selectedRoomsEvaluation || null);
                     setSelectedSolution(null);
@@ -2144,8 +2158,8 @@ export default function CreateBooking() {
                                                 />
                                             ))}
 
-                                            {/* Button to view all solutions in modal if > 2 solutions */}
-                                            {accommodationSolutions.length > 2 && (
+                                            {/* Button to view all solutions in modal if > displayed solutions */}
+                                            {accommodationSolutions.length > displayedAccommodationSolutions.length && (
                                                 <div className="pt-1">
                                                     <button
                                                         type="button"

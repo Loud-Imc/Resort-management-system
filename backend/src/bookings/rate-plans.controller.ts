@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RatePlansService } from './services/rate-plans.service';
@@ -9,6 +9,7 @@ import {
   CreateCalendarEventMarkerDto,
   ApplyRestrictionsDto,
   SetInventoryOverrideDto,
+  QueryRateRestrictionLogsDto,
 } from './dto/rate-plan.dto';
 
 @ApiTags('Rate Plans & Calendar Rules')
@@ -38,6 +39,16 @@ export class RatePlansController {
     return this.ratePlansService.getRatePlansForProperty(propertyId);
   }
 
+  @Get('logs/:propertyId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Get activity & rate restriction audit logs for property' })
+  async getRateRestrictionLogs(
+    @Param('propertyId') propertyId: string,
+    @Query() query: QueryRateRestrictionLogsDto,
+  ) {
+    return this.ratePlansService.getRateRestrictionLogs(propertyId, query);
+  }
+
   @Post('reset-defaults/:propertyId')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Consolidate and reset property rate plans to standard 4 tiers (EP, CP, MAP, AP)' })
@@ -55,8 +66,8 @@ export class RatePlansController {
   @Put(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Update an existing Rate Plan' })
-  async updateRatePlan(@Param('id') id: string, @Body() dto: UpdateRatePlanDto) {
-    return this.ratePlansService.updateRatePlan(id, dto);
+  async updateRatePlan(@Param('id') id: string, @Body() dto: UpdateRatePlanDto, @Req() req?: any) {
+    return this.ratePlansService.updateRatePlan(id, dto, req?.user);
   }
 
   @Put(':id/room-type-prices')
@@ -79,22 +90,22 @@ export class RatePlansController {
   @Post('bulk-rule')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Apply bulk pricing rule (Weekdays vs Weekends or Festival Overrides)' })
-  async applyBulkPricingRule(@Body() dto: BulkPricingRuleDto) {
-    return this.ratePlansService.applyBulkPricingRule(dto);
+  async applyBulkPricingRule(@Body() dto: BulkPricingRuleDto, @Req() req?: any) {
+    return this.ratePlansService.applyBulkPricingRule(dto, req?.user);
   }
 
   @Post('restrictions')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Apply restrictions (Min Stay, Max Stay, CTA, CTD, Stop Sell)' })
-  async applyRestrictions(@Body() dto: ApplyRestrictionsDto) {
-    return this.ratePlansService.applyRestrictions(dto);
+  async applyRestrictions(@Body() dto: ApplyRestrictionsDto, @Req() req?: any) {
+    return this.ratePlansService.applyRestrictions(dto, req?.user);
   }
 
   @Post('inventory-override')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Set manual physical room inventory quantity override' })
-  async setInventoryOverride(@Body() dto: SetInventoryOverrideDto) {
-    return this.ratePlansService.setInventoryOverride(dto);
+  async setInventoryOverride(@Body() dto: SetInventoryOverrideDto, @Req() req?: any) {
+    return this.ratePlansService.setInventoryOverride(dto, req?.user);
   }
 
   @Get('events/:propertyId')
@@ -121,3 +132,4 @@ export class RatePlansController {
     return this.ratePlansService.deleteCalendarEventMarker(id);
   }
 }
+

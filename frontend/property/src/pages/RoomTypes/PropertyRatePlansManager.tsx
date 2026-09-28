@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Utensils, Plus, Star, Edit2, Trash2,
-  Snowflake, Wind, Info, Save, Loader2, Sparkles, ChevronDown, ChevronUp
+  Snowflake, Wind, Info, Save, Loader2, Sparkles, ChevronDown, ChevronUp, CheckCircle2
 } from 'lucide-react';
 import {
   ratePlansService,
   type RatePlan,
   type MealPlan,
-  type RatePlanPricingType,
 } from '../../services/ratePlans';
 import type { RoomType } from '../../types/room';
 import toast from 'react-hot-toast';
@@ -29,13 +28,8 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
 
-  // Local prices edit state: key is `${ratePlanId}_${roomTypeId}`
-  const [priceEdits, setPriceEdits] = useState<Record<string, {
-    basePrice: number;
-    basePriceAc: number | null;
-    extraAdultPrice: number;
-    extraChildPrice: number;
-  }>>({});
+  // Per-plan meal supplement edit state: planId -> { adultMealRate, childMealRate }
+  const [mealRateEdits, setMealRateEdits] = useState<Record<string, { adult: number; child: number }>>({});
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
 
   // Fetch all property rate plans
@@ -45,11 +39,17 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
     enabled: !!propertyId,
   });
 
-  // Auto-expand first (primary) rate plan when data loads
+  // Initialize mealRateEdits when ratePlans load
   useEffect(() => {
-    if (ratePlans && ratePlans.length > 0 && !expandedPlanId) {
-      const primary = ratePlans.find(p => p.isPrimary) || ratePlans[0];
-      setExpandedPlanId(primary.id);
+    if (ratePlans) {
+      const initial: Record<string, { adult: number; child: number }> = {};
+      ratePlans.forEach((p) => {
+        initial[p.id] = {
+          adult: Number(p.extraAdultPrice || 0),
+          child: Number(p.extraChildPrice || 0),
+        };
+      });
+      setMealRateEdits(initial);
     }
   }, [ratePlans]);
 
@@ -57,12 +57,12 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
   const setPrimaryMutation = useMutation({
     mutationFn: (id: string) => ratePlansService.updateRatePlan(id, { isPrimary: true }),
     onSuccess: () => {
-      toast.success('Primary rate plan updated');
+      toast.success('Default stay offer updated');
       queryClient.invalidateQueries({ queryKey: ['propertyRatePlans', propertyId] });
       queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Failed to set primary rate plan');
+      toast.error(err.response?.data?.message || 'Failed to set default rate plan');
     },
   });
 
@@ -79,38 +79,21 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
     },
   });
 
-  // Save room prices for a rate plan
-  const handleSavePrices = async (planId: string) => {
+  // Save meal supplement rates for a rate plan
+  const handleSaveMealRates = async (planId: string) => {
     setSavingPlanId(planId);
     try {
-      const targetPlan = ratePlans?.find(p => p.id === planId);
-      if (!targetPlan) return;
-
-      const updatedPrices: any[] = roomTypes.map(rt => {
-        const key = `${planId}_${rt.id}`;
-        const existing = targetPlan.roomTypePrices?.find(p => p.roomTypeId === rt.id);
-        const edit = priceEdits[key];
-
-        const basePrice = edit?.basePrice !== undefined ? edit.basePrice : Number(existing?.basePrice ?? rt.basePrice ?? 1000);
-        const basePriceAc = edit?.basePriceAc !== undefined ? edit.basePriceAc : (existing?.basePriceAc !== undefined ? existing.basePriceAc : (rt.basePriceAc ?? null));
-        const extraAdultPrice = edit?.extraAdultPrice !== undefined ? edit.extraAdultPrice : Number(existing?.extraAdultPrice ?? rt.extraAdultPrice ?? 500);
-        const extraChildPrice = edit?.extraChildPrice !== undefined ? edit.extraChildPrice : Number(existing?.extraChildPrice ?? rt.extraChildPrice ?? 250);
-
-        return {
-          roomTypeId: rt.id,
-          basePrice,
-          basePriceAc: rt.acOption === 'NON_AC_ONLY' ? null : basePriceAc,
-          extraAdultPrice,
-          extraChildPrice,
-        };
+      const rates = mealRateEdits[planId] || { adult: 0, child: 0 };
+      await ratePlansService.updateRatePlan(planId, {
+        extraAdultPrice: rates.adult,
+        extraChildPrice: rates.child,
       });
 
-      await ratePlansService.updateRoomTypePrices(planId, updatedPrices);
-      toast.success('Room tariffs updated for this rate plan');
+      toast.success('Meal supplement rates saved and applied to all room categories!');
       await refetch();
       queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to update prices');
+      toast.error(err.response?.data?.message || 'Failed to save meal rates');
     } finally {
       setSavingPlanId(null);
     }
@@ -163,14 +146,15 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
           </div>
           <div>
             <h2 className="text-base font-black text-foreground flex items-center gap-2">
-              Property Rate Plans & Meal Packages
+              Property Meal Packages & Rate Plans
               <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-primary/15 text-primary rounded-md border border-primary/25">
-                Property Level
+                Global Property Level
               </span>
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed max-w-3xl">
-              Rate plans define the meal package and stay inclusions (EP Room Only, CP Breakfast, MAP Half Board, AP Full Board) available to guests across this property.
-              Each room type automatically receives a specific tariff for both its Non-AC and AC variants under each plan.
+              Set per-head meal supplements (Adult & Child) for each plan. The final guest price is automatically calculated as:
+              <strong className="text-foreground font-semibold"> Room Tariff (Non-AC or AC) + Meal Supplement</strong>.
+              No need to maintain tedious per-room price tables.
             </p>
           </div>
         </div>
@@ -178,16 +162,16 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             onClick={() => {
-              if (window.confirm('Consolidate duplicate legacy plans and reset this property to the canonical 4 meal tiers (Room Only EP, CP, MAP, AP)?')) {
+              if (window.confirm('Reset this property to standard 4 tiers (Room Only EP, Bed & Breakfast CP, Half Board MAP, Full Board AP)?')) {
                 resetMutation.mutate();
               }
             }}
             disabled={resetMutation.isPending}
             className="bg-muted hover:bg-muted/80 text-foreground text-xs font-bold px-3.5 py-2.5 rounded-xl border border-border flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-            title="Clean up legacy duplicate rate plans into the standard 4 meal tiers"
+            title="Consolidates duplicate plans into the canonical 4 Indian hospitality tiers"
           >
             {resetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
-            Reset to Standard 4 Tiers (EP/CP/MAP/AP)
+            Reset to Standard 4 Tiers
           </button>
 
           <button
@@ -205,27 +189,32 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
         {ratePlans?.map((plan) => {
           const badge = getMealBadge(plan.mealPlan);
           const isExpanded = expandedPlanId === plan.id;
-          const hasEdits = Object.keys(priceEdits).some(k => k.startsWith(`${plan.id}_`));
+          const currentRates = mealRateEdits[plan.id] || {
+            adult: Number(plan.extraAdultPrice || 0),
+            child: Number(plan.extraChildPrice || 0),
+          };
+          const isEp = plan.mealPlan === 'EP';
+
+          const hasUnsavedChanges =
+            currentRates.adult !== Number(plan.extraAdultPrice || 0) ||
+            currentRates.child !== Number(plan.extraChildPrice || 0);
 
           return (
             <div
               key={plan.id}
               className={`bg-card rounded-2xl border transition-all shadow-sm ${
                 plan.isPrimary
-                  ? 'border-primary/50 shadow-primary/5'
+                  ? 'border-primary/50 shadow-primary/5 ring-1 ring-primary/20'
                   : 'border-border hover:border-border/80'
               }`}
             >
               {/* Plan Card Header */}
-              <div
-                className="p-4 md:p-5 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none"
-                onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)}
-              >
+              <div className="p-4 md:p-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/50">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="text-xl">{badge.icon}</div>
+                  <div className="text-2xl p-2 bg-muted/50 rounded-xl">{badge.icon}</div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-black text-foreground">{plan.name}</h3>
+                      <h3 className="text-base font-black text-foreground">{plan.name}</h3>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${badge.color}`}>
                         {badge.label}
                       </span>
@@ -242,21 +231,21 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {plan.pricingType === 'ABSOLUTE'
-                        ? 'Custom fixed tariff per room category'
-                        : `Derived offer: ${plan.derivedAmount ? `+₹${plan.derivedAmount}` : `+${plan.derivedPercentage}%`}`}
+                      {isEp
+                        ? 'Pure room tariff (no meals included). Base prices are managed directly in Room Types.'
+                        : `Meal price: ₹${currentRates.adult}/adult and ₹${currentRates.child}/child per night.`}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2">
                   {!plan.isPrimary && (
                     <button
                       type="button"
                       onClick={() => setPrimaryMutation.mutate(plan.id)}
                       disabled={setPrimaryMutation.isPending}
                       className="px-2.5 py-1.5 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-xs font-bold rounded-lg border border-border transition-all flex items-center gap-1 cursor-pointer"
-                      title="Set as property default stay offer"
+                      title="Set as property default stay offer (preselected for guests)"
                     >
                       <Star className="h-3.5 w-3.5" />
                       Set as Primary
@@ -267,7 +256,7 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
                     type="button"
                     onClick={() => setEditingPlan(plan)}
                     className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                    title="Edit Plan Details"
+                    title="Edit Plan Name & Code"
                   >
                     <Edit2 className="h-4 w-4" />
                   </button>
@@ -286,214 +275,225 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
-
-                  <div className="p-1 text-muted-foreground">
-                    {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                  </div>
                 </div>
               </div>
 
-              {/* Collapsible Room Tariffs Table */}
-              {isExpanded && (
-                <div className="px-4 pb-4 md:px-5 md:pb-5 pt-2 border-t border-border/60">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-bold text-muted-foreground">
-                      Room Category Tariffs under <span className="text-foreground font-black">{plan.name}</span>
+              {/* Plan Body: Meal Supplement Inputs */}
+              <div className="p-4 md:p-5 bg-muted/10 space-y-4">
+                {isEp ? (
+                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3.5 flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div className="text-xs text-muted-foreground">
+                      <strong className="text-foreground">European Plan (Room Only):</strong> Meal supplement is ₹0.
+                      Guests paying for EP pay only the room tariff (Non-AC or AC) configured on each Room Type.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+                    {/* Adult Meal Price */}
+                    <div className="bg-card p-3 rounded-xl border border-border">
+                      <label className="block text-[11px] font-black uppercase tracking-wider text-muted-foreground mb-1">
+                        Adult Meal Price
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-bold text-muted-foreground">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="10"
+                          value={currentRates.adult}
+                          onChange={(e) => {
+                            const val = Math.max(0, Number(e.target.value) || 0);
+                            setMealRateEdits((prev) => ({
+                              ...prev,
+                              [plan.id]: { adult: val, child: currentRates.child },
+                            }));
+                          }}
+                          className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-sm font-black text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                        <span className="text-xs text-muted-foreground shrink-0 font-medium">/ adult / night</span>
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleSavePrices(plan.id)}
-                      disabled={savingPlanId === plan.id}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
-                        hasEdits
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
-                          : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                      }`}
-                    >
-                      {savingPlanId === plan.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Save className="h-3.5 w-3.5" />
-                      )}
-                      Save Rates for {plan.mealPlan}
-                    </button>
+                    {/* Child Meal Price */}
+                    <div className="bg-card p-3 rounded-xl border border-border">
+                      <label className="block text-[11px] font-black uppercase tracking-wider text-muted-foreground mb-1">
+                        Child Meal Price
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-bold text-muted-foreground">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="10"
+                          value={currentRates.child}
+                          onChange={(e) => {
+                            const val = Math.max(0, Number(e.target.value) || 0);
+                            setMealRateEdits((prev) => ({
+                              ...prev,
+                              [plan.id]: { adult: currentRates.adult, child: val },
+                            }));
+                          }}
+                          className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-sm font-black text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                        <span className="text-xs text-muted-foreground shrink-0 font-medium">/ child / night</span>
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMealRates(plan.id)}
+                        disabled={savingPlanId === plan.id}
+                        className={`w-full py-2.5 px-4 text-xs font-black rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer ${
+                          hasUnsavedChanges
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                            : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                        }`}
+                      >
+                        {savingPlanId === plan.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        {hasUnsavedChanges ? 'Save Meal Prices *' : 'Update Meal Prices'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Calculation Formula Banner */}
+                <div className="bg-card/80 border border-border/60 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-4 w-4 text-primary shrink-0" />
+                    <span>
+                      {isEp
+                        ? 'Formula: Final Price = Room Price (Non-AC / AC)'
+                        : `Formula: Final Price = Room Price + (Adults × ₹${currentRates.adult}) + (Children × ₹${currentRates.child}) per night`}
+                    </span>
                   </div>
 
-                  <div className="overflow-x-auto rounded-xl border border-border">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-muted/50 border-b border-border text-muted-foreground font-black uppercase text-[10px] tracking-wider">
-                          <th className="py-2.5 px-3">Room Category</th>
-                          <th className="py-2.5 px-3">Comfort Mode</th>
-                          <th className="py-2.5 px-3">Non-AC Base Price</th>
-                          <th className="py-2.5 px-3">AC Base Price</th>
-                          <th className="py-2.5 px-3">Extra Adult</th>
-                          <th className="py-2.5 px-3">Extra Child</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {roomTypes.map((rt) => {
-                          const existingPrice = plan.roomTypePrices?.find(p => p.roomTypeId === rt.id);
-                          const editKey = `${plan.id}_${rt.id}`;
-                          const currentEdit = priceEdits[editKey];
-
-                          const baseVal = currentEdit?.basePrice !== undefined
-                            ? currentEdit.basePrice
-                            : Number(existingPrice?.basePrice ?? rt.basePrice ?? 1000);
-
-                          const baseAcVal = currentEdit?.basePriceAc !== undefined
-                            ? currentEdit.basePriceAc
-                            : (existingPrice?.basePriceAc !== undefined ? existingPrice.basePriceAc : (rt.basePriceAc ?? null));
-
-                          const extraAdultVal = currentEdit?.extraAdultPrice !== undefined
-                            ? currentEdit.extraAdultPrice
-                            : Number(existingPrice?.extraAdultPrice ?? rt.extraAdultPrice ?? 500);
-
-                          const extraChildVal = currentEdit?.extraChildPrice !== undefined
-                            ? currentEdit.extraChildPrice
-                            : Number(existingPrice?.extraChildPrice ?? rt.extraChildPrice ?? 250);
-
-                          const isAcCapable = rt.acOption === 'AC_ONLY' || rt.acOption === 'BOTH';
-                          const isNonAcCapable = rt.acOption === 'NON_AC_ONLY' || rt.acOption === 'BOTH';
-
-                          return (
-                            <tr key={rt.id} className="hover:bg-muted/20 transition-colors">
-                              <td className="py-2 px-3 font-black text-foreground">
-                                {rt.name}
-                              </td>
-
-                              <td className="py-2 px-3">
-                                {rt.acOption === 'BOTH' ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
-                                    <Snowflake className="h-3 w-3 text-cyan-600" />
-                                    <Wind className="h-3 w-3 text-emerald-600" />
-                                    Dual (AC & Non-AC)
-                                  </span>
-                                ) : rt.acOption === 'AC_ONLY' ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                                    <Snowflake className="h-3 w-3 text-blue-600" />
-                                    AC Only
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                                    <Wind className="h-3 w-3 text-emerald-600" />
-                                    Non-AC Only
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* Non-AC Base Price */}
-                              <td className="py-2 px-3">
-                                {isNonAcCapable ? (
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-muted-foreground font-bold">₹</span>
-                                    <input
-                                      type="number"
-                                      value={baseVal}
-                                      onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setPriceEdits(prev => ({
-                                          ...prev,
-                                          [editKey]: {
-                                            basePrice: val,
-                                            basePriceAc: baseAcVal,
-                                            extraAdultPrice: extraAdultVal,
-                                            extraChildPrice: extraChildVal,
-                                          }
-                                        }));
-                                      }}
-                                      className="w-24 px-2 py-1 bg-background border border-border rounded-lg text-xs font-black text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
-                                    />
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground text-[11px] italic">N/A (AC Only)</span>
-                                )}
-                              </td>
-
-                              {/* AC Base Price */}
-                              <td className="py-2 px-3">
-                                {isAcCapable ? (
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-cyan-600 font-bold">₹</span>
-                                    <input
-                                      type="number"
-                                      value={baseAcVal ?? (baseVal + 500)}
-                                      onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setPriceEdits(prev => ({
-                                          ...prev,
-                                          [editKey]: {
-                                            basePrice: baseVal,
-                                            basePriceAc: val,
-                                            extraAdultPrice: extraAdultVal,
-                                            extraChildPrice: extraChildVal,
-                                          }
-                                        }));
-                                      }}
-                                      className="w-24 px-2 py-1 bg-cyan-500/5 border border-cyan-500/30 rounded-lg text-xs font-black text-cyan-800 dark:text-cyan-200 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-                                    />
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground text-[11px] italic">N/A (Non-AC Only)</span>
-                                )}
-                              </td>
-
-                              {/* Extra Adult */}
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-muted-foreground font-bold">₹</span>
-                                  <input
-                                    type="number"
-                                    value={extraAdultVal}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      setPriceEdits(prev => ({
-                                        ...prev,
-                                        [editKey]: {
-                                          basePrice: baseVal,
-                                          basePriceAc: baseAcVal,
-                                          extraAdultPrice: val,
-                                          extraChildPrice: extraChildVal,
-                                        }
-                                      }));
-                                    }}
-                                    className="w-20 px-2 py-1 bg-background border border-border rounded-lg text-xs font-bold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
-                                  />
-                                </div>
-                              </td>
-
-                              {/* Extra Child */}
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-muted-foreground font-bold">₹</span>
-                                  <input
-                                    type="number"
-                                    value={extraChildVal}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      setPriceEdits(prev => ({
-                                        ...prev,
-                                        [editKey]: {
-                                          basePrice: baseVal,
-                                          basePriceAc: baseAcVal,
-                                          extraAdultPrice: extraAdultVal,
-                                          extraChildPrice: val,
-                                        }
-                                      }));
-                                    }}
-                                    className="w-20 px-2 py-1 bg-background border border-border rounded-lg text-xs font-bold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)}
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer select-none"
+                  >
+                    {isExpanded ? (
+                      <>Hide Room Tariffs Preview <ChevronUp className="h-4 w-4" /></>
+                    ) : (
+                      <>View Resulting Tariffs for All Rooms <ChevronDown className="h-4 w-4" /></>
+                    )}
+                  </button>
                 </div>
-              )}
+
+                {/* Collapsible Auto-Calculated Room Tariffs Preview */}
+                {isExpanded && (
+                  <div className="pt-2">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-muted/50 border-b border-border text-muted-foreground font-black uppercase text-[10px] tracking-wider">
+                            <th className="py-2.5 px-3">Room Category</th>
+                            <th className="py-2.5 px-3">Comfort Mode</th>
+                            <th className="py-2.5 px-3">Non-AC Tariff</th>
+                            <th className="py-2.5 px-3">AC Tariff</th>
+                            <th className="py-2.5 px-3">Extra Adult</th>
+                            <th className="py-2.5 px-3">Extra Child</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {roomTypes.map((rt) => {
+                            const baseAdults = Number(rt.baseAdults) || 2;
+                            const adultMealTotal = currentRates.adult * baseAdults;
+
+                            const nonAcBase = Number(rt.basePrice || 0);
+                            const acBase = rt.basePriceAc !== null && rt.basePriceAc !== undefined ? Number(rt.basePriceAc) : null;
+
+                            const finalNonAc = nonAcBase + adultMealTotal;
+                            const finalAc = acBase !== null ? acBase + adultMealTotal : null;
+
+                            const extraAdultTotal = Number(rt.extraAdultPrice || 0) + currentRates.adult;
+                            const extraChildTotal = Number(rt.extraChildPrice || 0) + currentRates.child;
+
+                            const isAcCapable = rt.acOption === 'AC_ONLY' || rt.acOption === 'BOTH';
+                            const isNonAcCapable = rt.acOption === 'NON_AC_ONLY' || rt.acOption === 'BOTH';
+
+                            return (
+                              <tr key={rt.id} className="hover:bg-muted/20 transition-colors">
+                                <td className="py-2.5 px-3 font-black text-foreground">
+                                  {rt.name}
+                                  <span className="block text-[10px] font-normal text-muted-foreground">
+                                    Base: {baseAdults} Adults
+                                  </span>
+                                </td>
+
+                                <td className="py-2.5 px-3">
+                                  {rt.acOption === 'BOTH' ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
+                                      <Snowflake className="h-3 w-3 text-cyan-600" />
+                                      <Wind className="h-3 w-3 text-emerald-600" />
+                                      Dual (AC & Non-AC)
+                                    </span>
+                                  ) : rt.acOption === 'AC_ONLY' ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                      <Snowflake className="h-3 w-3 text-blue-600" />
+                                      AC Only
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                      <Wind className="h-3 w-3 text-emerald-600" />
+                                      Non-AC Only
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="py-2.5 px-3">
+                                  {isNonAcCapable ? (
+                                    <div>
+                                      <span className="font-black text-foreground text-sm">₹{finalNonAc.toLocaleString()}</span>
+                                      {!isEp && (
+                                        <span className="block text-[10px] text-muted-foreground">
+                                          (₹{nonAcBase} + ₹{adultMealTotal} meal)
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-[11px] italic">N/A</span>
+                                  )}
+                                </td>
+
+                                <td className="py-2.5 px-3">
+                                  {isAcCapable && finalAc !== null ? (
+                                    <div>
+                                      <span className="font-black text-cyan-700 dark:text-cyan-300 text-sm">₹{finalAc.toLocaleString()}</span>
+                                      {!isEp && (
+                                        <span className="block text-[10px] text-muted-foreground">
+                                          (₹{acBase} + ₹{adultMealTotal} meal)
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-[11px] italic">N/A</span>
+                                  )}
+                                </td>
+
+                                <td className="py-2.5 px-3 font-bold text-foreground">
+                                  ₹{extraAdultTotal.toLocaleString()}
+                                </td>
+
+                                <td className="py-2.5 px-3 font-bold text-foreground">
+                                  ₹{extraChildTotal.toLocaleString()}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -505,7 +505,6 @@ export const PropertyRatePlansManager: React.FC<PropertyRatePlansManagerProps> =
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           propertyId={propertyId}
-          roomTypes={roomTypes}
           onSuccess={() => {
             setIsCreateModalOpen(false);
             refetch();
@@ -536,47 +535,34 @@ interface CreateRatePlanModalProps {
   isOpen: boolean;
   onClose: () => void;
   propertyId: string;
-  roomTypes: RoomType[];
   onSuccess: () => void;
 }
 
 const CreateRatePlanModal: React.FC<CreateRatePlanModalProps> = ({
-  // isOpen,
   onClose,
   propertyId,
-  roomTypes,
   onSuccess,
 }) => {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [mealPlan, setMealPlan] = useState<MealPlan>('CP');
-  const [pricingType, setPricingType] = useState<RatePlanPricingType>('ABSOLUTE');
+  const [extraAdultPrice, setExtraAdultPrice] = useState(400);
+  const [extraChildPrice, setExtraChildPrice] = useState(200);
   const [isPrimary, setIsPrimary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Default meal plan offset recommendations
-  const getOffsetForMeal = (mp: MealPlan) => {
-    switch (mp) {
-      case 'EP': return 0;
-      case 'CP': return 400;
-      case 'MAP': return 1000;
-      case 'AP': return 1600;
-      default: return 0;
-    }
-  };
-
   const handleMealChange = (newMeal: MealPlan) => {
     setMealPlan(newMeal);
-    if (!name || name.includes('Plan') || name.includes('Package')) {
-      const suffixes: Record<MealPlan, string> = {
-        EP: 'Room Only (EP)',
-        CP: 'Bed & Breakfast (CP)',
-        MAP: 'Half Board (MAP)',
-        AP: 'Full Board (AP)',
-      };
-      setName(`Standard ${suffixes[newMeal]}`);
-      setCode(newMeal);
-    }
+    const defaults: Record<MealPlan, { name: string; adult: number; child: number }> = {
+      EP: { name: 'Room Only (EP)', adult: 0, child: 0 },
+      CP: { name: 'Bed & Breakfast (CP)', adult: 400, child: 200 },
+      MAP: { name: 'Half Board - Breakfast & Dinner (MAP)', adult: 1000, child: 500 },
+      AP: { name: 'Full Board - All Meals (AP)', adult: 1600, child: 800 },
+    };
+    setName(defaults[newMeal].name);
+    setCode(newMeal);
+    setExtraAdultPrice(defaults[newMeal].adult);
+    setExtraChildPrice(defaults[newMeal].child);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -588,30 +574,14 @@ const CreateRatePlanModal: React.FC<CreateRatePlanModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const offset = getOffsetForMeal(mealPlan);
-      const roomTypePrices = roomTypes.map((rt) => {
-        const baseNonAc = Number(rt.basePrice || 1000) + offset;
-        const baseAc = rt.basePriceAc !== null && rt.basePriceAc !== undefined
-          ? Number(rt.basePriceAc) + offset
-          : null;
-
-        return {
-          roomTypeId: rt.id,
-          basePrice: baseNonAc,
-          basePriceAc: rt.acOption === 'NON_AC_ONLY' ? null : baseAc,
-          extraAdultPrice: Number(rt.extraAdultPrice || 500),
-          extraChildPrice: Number(rt.extraChildPrice || 250),
-        };
-      });
-
       await ratePlansService.createRatePlan({
         propertyId,
         name: name.trim(),
         code: code.trim() || undefined,
         mealPlan,
+        extraAdultPrice: mealPlan === 'EP' ? 0 : extraAdultPrice,
+        extraChildPrice: mealPlan === 'EP' ? 0 : extraChildPrice,
         isPrimary,
-        pricingType,
-        roomTypePrices,
       });
 
       toast.success(`Created ${name} successfully`);
@@ -632,8 +602,8 @@ const CreateRatePlanModal: React.FC<CreateRatePlanModalProps> = ({
               <Utensils className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-foreground">Create Property Rate Plan</h3>
-              <p className="text-xs text-muted-foreground">Adds a global meal or stay package for this property</p>
+              <h3 className="text-base font-black text-foreground">Create Custom Rate Plan</h3>
+              <p className="text-xs text-muted-foreground">Add a meal or stay package for this property</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-sm font-bold">✕</button>
@@ -696,39 +666,54 @@ const CreateRatePlanModal: React.FC<CreateRatePlanModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-black text-foreground mb-1 uppercase tracking-wider">
-                Pricing Calculation
+            <div className="flex items-center gap-2 pt-6">
+              <input
+                type="checkbox"
+                id="isPrimaryCheck"
+                checked={isPrimary}
+                onChange={(e) => setIsPrimary(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-primary"
+              />
+              <label htmlFor="isPrimaryCheck" className="text-xs font-bold text-foreground cursor-pointer">
+                Set as Default Offer
               </label>
-              <select
-                value={pricingType}
-                onChange={(e) => setPricingType(e.target.value as RatePlanPricingType)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs font-bold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
-              >
-                <option value="ABSOLUTE">Fixed Rate per Category</option>
-                <option value="DERIVED">Derived from Primary</option>
-              </select>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
-            <input
-              type="checkbox"
-              id="isPrimaryCheck"
-              checked={isPrimary}
-              onChange={(e) => setIsPrimary(e.target.checked)}
-              className="rounded border-border text-primary focus:ring-primary"
-            />
-            <label htmlFor="isPrimaryCheck" className="text-xs font-bold text-foreground cursor-pointer">
-              Set as Property Default Stay Offer (Primary EP)
-            </label>
-          </div>
+          {mealPlan !== 'EP' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-muted/30 rounded-xl border border-border">
+              <div>
+                <label className="block text-[11px] font-black uppercase text-muted-foreground mb-1">
+                  Adult Meal Rate (₹/night)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={extraAdultPrice}
+                  onChange={(e) => setExtraAdultPrice(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs font-black text-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black uppercase text-muted-foreground mb-1">
+                  Child Meal Rate (₹/night)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={extraChildPrice}
+                  onChange={(e) => setExtraChildPrice(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs font-black text-foreground"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="bg-muted/40 p-3 rounded-xl border border-border text-[11px] text-muted-foreground flex items-start gap-2">
             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <span>
-              Initial tariffs will automatically be populated from your room categories with recommended meal offsets.
-              You can fine-tune every room's Non-AC and AC price right on the next screen.
+              All room categories will automatically calculate their final tariffs using this plan's per-head meal rates.
             </span>
           </div>
 
@@ -766,7 +751,6 @@ interface EditRatePlanModalProps {
 }
 
 const EditRatePlanModal: React.FC<EditRatePlanModalProps> = ({
-  // isOpen,
   plan,
   onClose,
   onSuccess,
@@ -839,7 +823,7 @@ const EditRatePlanModal: React.FC<EditRatePlanModalProps> = ({
             >
               <option value="EP">EP - Room Only</option>
               <option value="CP">CP - Bed & Breakfast</option>
-              <option value="MAP">MAP - Half Board (Breakfast + Lunch/Dinner)</option>
+              <option value="MAP">MAP - Half Board (Breakfast + Dinner)</option>
               <option value="AP">AP - Full Board (All Meals)</option>
             </select>
           </div>

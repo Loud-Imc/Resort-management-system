@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, Min, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, Min, ArrayMinSize, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -25,11 +25,23 @@ export class CreateRoomTypeDto {
     @IsString({ each: true })
     amenities: string[];
 
+    @ApiProperty({ example: 'AC_ONLY', enum: ['AC_ONLY', 'NON_AC_ONLY', 'BOTH'], required: false })
+    @IsEnum(['AC_ONLY', 'NON_AC_ONLY', 'BOTH'])
+    @IsOptional()
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+
     @ApiProperty({ example: 5000 })
     @IsNumber()
     @Min(1)
     @Type(() => Number)
     basePrice: number;
+
+    @ApiProperty({ example: 6000, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    basePriceAc?: number | null;
 
     @ApiProperty({ example: 6000, required: false })
     @IsNumber()
@@ -44,11 +56,25 @@ export class CreateRoomTypeDto {
     @Type(() => Number)
     extraAdultPrice: number;
 
+    @ApiProperty({ example: 1200, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    extraAdultPriceAc?: number | null;
+
     @ApiProperty({ example: 500 })
     @IsNumber()
     @Min(0)
     @Type(() => Number)
     extraChildPrice: number;
+
+    @ApiProperty({ example: 600, required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    @Type(() => Number)
+    extraChildPriceAc?: number | null;
 
     @ApiProperty({ example: 1 })
     @IsNumber()

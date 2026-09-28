@@ -38,6 +38,11 @@ describe('RatePlansService Unit Tests', () => {
       create: jest.fn(),
       delete: jest.fn(),
     },
+    rateRestrictionLog: {
+      create: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
 
   beforeEach(async () => {
@@ -170,4 +175,16 @@ describe('RatePlansService Unit Tests', () => {
     expect(result.id).toBe('event-1');
     expect(result.title).toBe('Diwali Festival Peak');
   });
+
+  it('should fetch rate restriction logs for a property', async () => {
+    mockPrismaService.rateRestrictionLog.findMany.mockResolvedValue([
+      { id: 'log-1', propertyId: 'prop-1', summary: 'Rate updated to 4500' },
+    ]);
+    mockPrismaService.rateRestrictionLog.count.mockResolvedValue(1);
+
+    const result = await service.getRateRestrictionLogs('prop-1', { page: 1, limit: 10 });
+    expect(result.logs.length).toBe(1);
+    expect(result.pagination.total).toBe(1);
+  });
 });
+
