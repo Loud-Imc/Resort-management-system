@@ -54,16 +54,16 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 basePrice: 5000,
                 totalBaseOccupancy: 3,
                 totalMaxOccupancy: 5,
-                maxPhysicalAdults: 4,
-                maxPhysicalChildren: 3,
+                maxPhysicalAdults: 3,
+                maxPhysicalChildren: 2,
                 maxPhysicalInfants: 1,
                 baseMaxAdults: 2,
                 baseMaxChildren: 1,
                 freeChildrenCount: 1,
                 baseAdults: 2,
                 baseChildren: 0,
-                maxAdults: 4,
-                maxChildren: 3,
+                maxAdults: 3,
+                maxChildren: 2,
                 extraAdultPrice: 1000,
                 extraChildPrice: 500,
                 isPubliclyVisible: true,
@@ -79,17 +79,17 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 data: expect.objectContaining({
                     totalBaseOccupancy: 3,
                     totalMaxOccupancy: 5,
-                    maxPhysicalAdults: 4,
-                    maxPhysicalChildren: 3,
+                    maxPhysicalAdults: 3,
+                    maxPhysicalChildren: 2,
                     maxPhysicalInfants: 1,
                     baseMaxAdults: 2,
                     baseMaxChildren: 1,
                     freeChildrenCount: 1,
-                    maxAdults: 4,
-                    maxChildren: 3,
+                    maxAdults: 3,
+                    maxChildren: 2,
                     baseAdults: 2,
                     baseChildren: 0,
-                    groupMaxOccupancy: 5, // Canonical V2: groupMaxOccupancy = totalMaxOccupancy (5), NEVER PA + PC (7)
+                    groupMaxOccupancy: 5, // Canonical V2: groupMaxOccupancy = totalMaxOccupancy (5)
                 }),
             });
         });
@@ -102,7 +102,7 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 basePrice: 20000,
                 totalBaseOccupancy: 4,
                 totalMaxOccupancy: 6,
-                maxPhysicalAdults: 6,
+                maxPhysicalAdults: 4,
                 maxPhysicalChildren: 2,
                 isPubliclyVisible: true,
                 images: ['img1.jpg'],
@@ -138,9 +138,9 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             const updateDto: any = {
                 totalBaseOccupancy: 3,
                 totalMaxOccupancy: 5,
-                maxPhysicalAdults: 4,
+                maxPhysicalAdults: 3,
                 maxPhysicalChildren: 2,
-                maxAdults: 4,
+                maxAdults: 3,
                 maxChildren: 2,
             };
 
@@ -150,7 +150,7 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 where: { id: 'rt-legacy' },
                 data: expect.objectContaining({
                     groupMaxOccupancy: 5, // Canonical V2: groupMaxOccupancy updated to totalMaxOccupancy (5)
-                    maxAdults: 4,
+                    maxAdults: 3,
                     maxChildren: 2,
                     totalBaseOccupancy: 3,
                     totalMaxOccupancy: 5,
@@ -194,12 +194,12 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             const updateDto: any = {
                 totalBaseOccupancy: 3,
                 totalMaxOccupancy: 5,
-                maxPhysicalAdults: 4,
-                maxPhysicalChildren: 3,
+                maxPhysicalAdults: 3,
+                maxPhysicalChildren: 2,
                 baseMaxAdults: 2,
                 baseMaxChildren: 1,
-                maxAdults: 4,
-                maxChildren: 3,
+                maxAdults: 3,
+                maxChildren: 2,
             };
 
             await service.update('rt-1', updateDto);
@@ -207,8 +207,8 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             expect(prisma.roomType.update).toHaveBeenCalledWith({
                 where: { id: 'rt-1' },
                 data: expect.objectContaining({
-                    maxAdults: 4, // Equals maxPhysicalAdults (4), NOT baseMaxAdults (2)
-                    maxChildren: 3, // Equals maxPhysicalChildren (3), NOT baseMaxChildren (1)
+                    maxAdults: 3, // Equals maxPhysicalAdults (3), NOT baseMaxAdults (2)
+                    maxChildren: 2, // Equals maxPhysicalChildren (2), NOT baseMaxChildren (1)
                     baseMaxAdults: 2,
                     baseMaxChildren: 1,
                 }),
@@ -619,18 +619,38 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             await expect(service.create(dto)).rejects.toThrow('Total Max Occupancy cannot be less than Total Base Occupancy (3).');
         });
 
-        it('6: allows BMA + BMC > B as valid demographic restrictions (B=3, BMA=2, BMC=2)', async () => {
+        it('6: rejects BMA + BMC > B when sum exceeds Total Base Occupancy (B=3, BMA=2, BMC=2)', async () => {
             const dto: any = {
                 propertyId: 'prop-1',
-                name: 'Valid Suite',
+                name: 'Invalid BMA+BMC Suite',
                 description: 'Description',
                 basePrice: 5000,
                 totalBaseOccupancy: 3,
                 totalMaxOccupancy: 4,
                 baseMaxAdults: 2,
-                baseMaxChildren: 2, // 2 + 2 = 4 > 3, but BMA <= 3 and BMC <= 3
-                maxPhysicalAdults: 4,
-                maxPhysicalChildren: 2,
+                baseMaxChildren: 2, // 2 + 2 = 4 > 3
+                maxPhysicalAdults: 3,
+                maxPhysicalChildren: 1,
+                isPubliclyVisible: true,
+                images: ['img.jpg'],
+                amenities: [],
+            };
+
+            await expect(service.create(dto)).rejects.toThrow('The sum of Base Max Adults (2) and Base Max Children (2) cannot exceed Total Base Occupancy (3).');
+        });
+
+        it('6b: allows BMA + BMC <= B (B=3, BMA=2, BMC=1)', async () => {
+            const dto: any = {
+                propertyId: 'prop-1',
+                name: 'Valid BMA+BMC Suite',
+                description: 'Description',
+                basePrice: 5000,
+                totalBaseOccupancy: 3,
+                totalMaxOccupancy: 4,
+                baseMaxAdults: 2,
+                baseMaxChildren: 1, // 2 + 1 = 3 <= 3
+                maxPhysicalAdults: 3,
+                maxPhysicalChildren: 1,
                 isPubliclyVisible: true,
                 images: ['img.jpg'],
                 amenities: [],
@@ -642,7 +662,7 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 data: expect.objectContaining({
                     totalBaseOccupancy: 3,
                     baseMaxAdults: 2,
-                    baseMaxChildren: 2,
+                    baseMaxChildren: 1,
                 }),
             }));
         });
@@ -690,8 +710,8 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 propertyId: 'prop-1',
                 name: 'Audit Suite',
                 basePrice: 5000,
-                maxPhysicalAdults: 4,
-                maxPhysicalChildren: 2,
+                maxPhysicalAdults: 3,
+                maxPhysicalChildren: 1,
                 maxPhysicalInfants: 0,
                 totalBaseOccupancy: 2,
                 totalMaxOccupancy: 4,
@@ -773,13 +793,13 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             });
 
             it('Section 23: M=5, PA=4 -> VALID', async () => {
-                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 4, maxPhysicalChildren: 2, totalBaseOccupancy: 2 };
+                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 4, maxPhysicalChildren: 1, totalBaseOccupancy: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
 
             it('Section 23: M=5, PA=5 -> VALID', async () => {
-                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 5, maxPhysicalChildren: 2, totalBaseOccupancy: 2 };
+                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 5, maxPhysicalChildren: 0, totalBaseOccupancy: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
@@ -800,20 +820,25 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 expect(res).toBeDefined();
             });
 
-            it('Section 23: M=5, PC=0 -> VALID', async () => {
+            it('Section 23: M=5, PA=4, PC=0 -> INVALID (PA+PC=4 < M=5)', async () => {
                 const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 4, maxPhysicalChildren: 0, totalBaseOccupancy: 2 };
+                await expect(service.create(dto as any)).rejects.toThrow('The sum of Max Physical Adults (4) and Max Physical Children (0) must equal Total Max Occupancy (5) (currently 4).');
+            });
+
+            it('Section 23: M=5, PA=5, PC=0 -> VALID (PA+PC=5 === M=5)', async () => {
+                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 5, maxPhysicalChildren: 0, totalBaseOccupancy: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
 
             it('Section 23: M=5, PC=3 -> VALID', async () => {
-                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 4, maxPhysicalChildren: 3, totalBaseOccupancy: 2 };
+                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 2, maxPhysicalChildren: 3, totalBaseOccupancy: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
 
             it('Section 23: M=5, PC=4 -> VALID (PC <= M-1)', async () => {
-                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 4, maxPhysicalChildren: 4, totalBaseOccupancy: 2 };
+                const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 1, maxPhysicalChildren: 4, totalBaseOccupancy: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
@@ -839,10 +864,9 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 await expect(service.create(dto as any)).rejects.toThrow('Max Physical Children cannot exceed Total Max Occupancy minus 1 (0), because at least one adult is required.');
             });
 
-            it('Section 23: M=5, PA=4, PC=3 -> VALID (PA+PC=7 is not restricted)', async () => {
+            it('Section 23: M=5, PA=4, PC=3 -> INVALID (PA+PC=7 > M=5)', async () => {
                 const dto = { ...baseValidDto, totalMaxOccupancy: 5, maxPhysicalAdults: 4, maxPhysicalChildren: 3, totalBaseOccupancy: 2 };
-                const res = await service.create(dto as any);
-                expect(res).toBeDefined();
+                await expect(service.create(dto as any)).rejects.toThrow('The sum of Max Physical Adults (4) and Max Physical Children (3) cannot exceed Total Max Occupancy (5).');
             });
 
             it('Section 23: M=2, PI=0 -> VALID', async () => {
@@ -900,23 +924,26 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
                 await expect(service.create(dto as any)).rejects.toThrow('Base Max Children cannot exceed Total Base Occupancy (5).');
             });
 
-            // CASE B6: B = 5, BMA = 5, BMC = 5 (valid)
-            it('Case B6: allows B = 5, BMA = 5, BMC = 5', async () => {
-                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 5, baseMaxChildren: 5, maxPhysicalAdults: 5, maxPhysicalChildren: 4 };
-                const res = await service.create(dto as any);
-                expect(res).toBeDefined();
+            // CASE B6: B = 5, BMA = 5, BMC = 5 (invalid sum)
+            it('Case B6: rejects B = 5, BMA = 5, BMC = 5 (sum exceeds B)', async () => {
+                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 5, baseMaxChildren: 5, maxPhysicalAdults: 3, maxPhysicalChildren: 2 };
+                await expect(service.create(dto as any)).rejects.toThrow('The sum of Base Max Adults (5) and Base Max Children (5) cannot exceed Total Base Occupancy (5).');
             });
 
-            // CASE B7: B = 5, BMA = 4, BMC = 5 (valid)
-            it('Case B7: allows B = 5, BMA = 4, BMC = 5', async () => {
-                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 4, baseMaxChildren: 5, maxPhysicalAdults: 5, maxPhysicalChildren: 4 };
-                const res = await service.create(dto as any);
-                expect(res).toBeDefined();
+            // CASE B7: B = 5, BMA = 4, BMC = 5 (invalid sum)
+            it('Case B7: rejects B = 5, BMA = 4, BMC = 5 (sum exceeds B)', async () => {
+                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 4, baseMaxChildren: 5, maxPhysicalAdults: 3, maxPhysicalChildren: 2 };
+                await expect(service.create(dto as any)).rejects.toThrow('The sum of Base Max Adults (4) and Base Max Children (5) cannot exceed Total Base Occupancy (5).');
             });
 
-            // CASE B8: B = 5, BMA = 2, BMC = 2 (valid)
-            it('Case B8: allows B = 5, BMA = 2, BMC = 2', async () => {
-                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 2, baseMaxChildren: 2, maxPhysicalAdults: 5, maxPhysicalChildren: 4 };
+            // CASE B8: B = 5, BMA = 2, BMC = 2 (sum 4 < 5 rejects with strict equality)
+            it('Case B8: rejects B = 5, BMA = 2, BMC = 2 (sum 4 < 5)', async () => {
+                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 2, baseMaxChildren: 2, maxPhysicalAdults: 3, maxPhysicalChildren: 2 };
+                await expect(service.create(dto as any)).rejects.toThrow('The sum of Base Max Adults (2) and Base Max Children (2) must equal Total Base Occupancy (5) (currently 4).');
+            });
+
+            it('Case B8: allows B = 5, BMA = 3, BMC = 2 (sum 5 === 5)', async () => {
+                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxAdults: 3, baseMaxChildren: 2, maxPhysicalAdults: 3, maxPhysicalChildren: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
@@ -929,7 +956,7 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
 
             // CASE B10: B = 5, BMC = 0 (valid)
             it('Case B10: allows B = 5, BMC = 0 (0 children included in base rate)', async () => {
-                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxChildren: 0, maxPhysicalAdults: 5, maxPhysicalChildren: 4 };
+                const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 5, baseMaxChildren: 0, maxPhysicalAdults: 3, maxPhysicalChildren: 2 };
                 const res = await service.create(dto as any);
                 expect(res).toBeDefined();
             });
@@ -938,6 +965,103 @@ describe('RoomTypesService — Legacy Compatibility & Canonical V2 Mapping', () 
             it('Case B11: rejects B = 5, M = 4', async () => {
                 const dto = { ...baseValidDto, totalBaseOccupancy: 5, totalMaxOccupancy: 4 };
                 await expect(service.create(dto as any)).rejects.toThrow('Total Max Occupancy cannot be less than Total Base Occupancy (5).');
+            });
+
+            // FREE CHILDREN COUNT VALIDATIONS
+            it('Free Children: rejects freeChildrenCount < 0', async () => {
+                const dto = { ...baseValidDto, freeChildrenCount: -1 };
+                await expect(service.create(dto as any)).rejects.toThrow('Free Children Count cannot be negative.');
+            });
+
+            it('Free Children: rejects freeChildrenCount > maxPhysicalChildren', async () => {
+                const dto = { ...baseValidDto, maxPhysicalAdults: 2, maxPhysicalChildren: 2, totalMaxOccupancy: 4, freeChildrenCount: 3 };
+                await expect(service.create(dto as any)).rejects.toThrow('Free Children Count (3) cannot exceed maximum physical children allowed (2).');
+            });
+
+            it('Free Children: allows freeChildrenCount <= maxPhysicalChildren', async () => {
+                const dto = { ...baseValidDto, maxPhysicalAdults: 2, maxPhysicalChildren: 2, totalMaxOccupancy: 4, freeChildrenCount: 2 };
+                const res = await service.create(dto as any);
+                expect(res).toBeDefined();
+            });
+
+            // EXTRA GUEST PRICING VALIDATIONS
+            it('Pricing: rejects negative extraAdultPrice', async () => {
+                const dto = { ...baseValidDto, extraAdultPrice: -100 };
+                await expect(service.create(dto as any)).rejects.toThrow('Extra Adult Price cannot be negative.');
+            });
+
+            it('Pricing: rejects negative extraChildPrice', async () => {
+                const dto = { ...baseValidDto, extraAdultPrice: 500, extraChildPrice: -50 };
+                await expect(service.create(dto as any)).rejects.toThrow('Extra Child Price cannot be negative.');
+            });
+
+            it('Pricing: rejects extraChildPrice > extraAdultPrice', async () => {
+                const dto = { ...baseValidDto, extraAdultPrice: 500, extraChildPrice: 800 };
+                await expect(service.create(dto as any)).rejects.toThrow('Extra Child Price (₹800) cannot exceed Extra Adult Price (₹500).');
+            });
+
+            it('Pricing: rejects extraAdultPrice > basePrice', async () => {
+                const dto = { ...baseValidDto, basePrice: 2000, extraAdultPrice: 2500, extraChildPrice: 500 };
+                await expect(service.create(dto as any)).rejects.toThrow('Extra Adult Price (₹2500) cannot exceed Room Base Price (₹2000).');
+            });
+
+            it('Pricing (AC BOTH): rejects AC extra adult price < Non-AC extra adult price', async () => {
+                const dto = {
+                    ...baseValidDto,
+                    acOption: 'BOTH',
+                    extraAdultPrice: 800,
+                    extraChildPrice: 400,
+                    extraAdultPriceAc: 600,
+                    extraChildPriceAc: 400,
+                };
+                await expect(service.create(dto as any)).rejects.toThrow('AC Extra Adult Price (₹600) cannot be less than Non-AC Extra Adult Price (₹800).');
+            });
+
+            it('Pricing (AC BOTH): rejects AC extra child price < Non-AC extra child price', async () => {
+                const dto = {
+                    ...baseValidDto,
+                    acOption: 'BOTH',
+                    extraAdultPrice: 800,
+                    extraChildPrice: 400,
+                    extraAdultPriceAc: 1000,
+                    extraChildPriceAc: 300,
+                };
+                await expect(service.create(dto as any)).rejects.toThrow('AC Extra Child Price (₹300) cannot be less than Non-AC Extra Child Price (₹400).');
+            });
+
+            it('Pricing (AC BOTH): rejects AC extra child price > AC extra adult price', async () => {
+                const dto = {
+                    ...baseValidDto,
+                    acOption: 'BOTH',
+                    extraAdultPrice: 800,
+                    extraChildPrice: 400,
+                    extraAdultPriceAc: 1000,
+                    extraChildPriceAc: 1200,
+                };
+                await expect(service.create(dto as any)).rejects.toThrow('AC Extra Child Price (₹1200) cannot exceed AC Extra Adult Price (₹1000).');
+            });
+
+            it('Pricing (AC BOTH): rejects originalPrice <= basePriceAc when basePriceAc > basePrice', async () => {
+                const dto = {
+                    ...baseValidDto,
+                    acOption: 'BOTH',
+                    basePrice: 2000,
+                    basePriceAc: 3000,
+                    originalPrice: 2500, // higher than basePrice (2000), but <= basePriceAc (3000)
+                };
+                await expect(service.create(dto as any)).rejects.toThrow('Original price (MRP) must be higher than the highest base price (₹3000)');
+            });
+
+            it('Pricing (AC BOTH): accepts originalPrice > basePriceAc', async () => {
+                const dto = {
+                    ...baseValidDto,
+                    acOption: 'BOTH',
+                    basePrice: 2000,
+                    basePriceAc: 3000,
+                    originalPrice: 4000,
+                };
+                const res = await service.create(dto as any);
+                expect(res).toBeDefined();
             });
 
             // SECTION 24 REGRESSION: M = 5, PA = 4, PC = 3 -> exactly 13 valid physical compositions

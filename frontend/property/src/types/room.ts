@@ -67,6 +67,8 @@ export interface RoomType {
     _count?: {
         rooms: number;
     };
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
 }
 
 export interface CreateRoomTypeDto {

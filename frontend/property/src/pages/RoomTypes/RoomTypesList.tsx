@@ -157,8 +157,12 @@ export default function RoomTypesList() {
                     onRefresh={() => queryClient.invalidateQueries({ queryKey: ['roomTypes'] })}
                 />
             ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {roomTypes?.map((type) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...(roomTypes || [])].sort((a, b) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateA - dateB;
+                }).map((type) => {
                     const roomCount = type.rooms?.length ?? type._count?.rooms ?? 0;
                     const isV2Ready = type.occupancyVersion === 'V2' || (type.totalBaseOccupancy !== undefined && type.totalMaxOccupancy !== undefined);
                     const isDual = type.acOption === 'BOTH';
