@@ -202,10 +202,71 @@ export class RoomTypesService {
         });
     }
 
-    private validatePricing(basePrice: number, originalPrice?: number | null) {
+    private validatePricing(
+        basePrice: number,
+        originalPrice?: number | null,
+        extraAdultPrice?: number | null,
+        extraChildPrice?: number | null,
+        acOption?: string | null,
+        extraAdultPriceAc?: number | null,
+        extraChildPriceAc?: number | null,
+        basePriceAc?: number | null,
+    ) {
+        const effectiveHighestBasePrice = (acOption === 'BOTH' && basePriceAc !== null && basePriceAc !== undefined)
+            ? Math.max(Number(basePrice), Number(basePriceAc))
+            : Number(basePrice);
+
         if (originalPrice !== undefined && originalPrice !== null) {
-            if (originalPrice <= basePrice) {
-                throw new BadRequestException('Original price (MRP) must be higher than the base price');
+            if (originalPrice <= effectiveHighestBasePrice) {
+                throw new BadRequestException(
+                    acOption === 'BOTH'
+                        ? `Original price (MRP) must be higher than the highest base price (₹${effectiveHighestBasePrice})`
+                        : `Original price (MRP) must be higher than the base price (₹${basePrice})`
+                );
+            }
+        }
+
+        const extraAdult = extraAdultPrice !== undefined && extraAdultPrice !== null ? Number(extraAdultPrice) : 0;
+        const extraChild = extraChildPrice !== undefined && extraChildPrice !== null ? Number(extraChildPrice) : 0;
+
+        if (extraAdult < 0) {
+            throw new BadRequestException('Extra Adult Price cannot be negative.');
+        }
+        if (extraChild < 0) {
+            throw new BadRequestException('Extra Child Price cannot be negative.');
+        }
+        if (extraChild > extraAdult) {
+            throw new BadRequestException(`Extra Child Price (₹${extraChild}) cannot exceed Extra Adult Price (₹${extraAdult}).`);
+        }
+        if (basePrice > 0 && extraAdult > basePrice) {
+            throw new BadRequestException(`Extra Adult Price (₹${extraAdult}) cannot exceed Room Base Price (₹${basePrice}).`);
+        }
+
+        if (acOption === 'BOTH') {
+            const extraAdultAc = extraAdultPriceAc !== null && extraAdultPriceAc !== undefined ? Number(extraAdultPriceAc) : null;
+            const extraChildAc = extraChildPriceAc !== null && extraChildPriceAc !== undefined ? Number(extraChildPriceAc) : null;
+
+            if (extraAdultAc !== null) {
+                if (extraAdultAc < 0) {
+                    throw new BadRequestException('AC Extra Adult Price cannot be negative.');
+                }
+                if (extraAdultAc < extraAdult) {
+                    throw new BadRequestException(`AC Extra Adult Price (₹${extraAdultAc}) cannot be less than Non-AC Extra Adult Price (₹${extraAdult}).`);
+                }
+            }
+            if (extraChildAc !== null) {
+                if (extraChildAc < 0) {
+                    throw new BadRequestException('AC Extra Child Price cannot be negative.');
+                }
+                if (extraChildAc < extraChild) {
+                    throw new BadRequestException(`AC Extra Child Price (₹${extraChildAc}) cannot be less than Non-AC Extra Child Price (₹${extraChild}).`);
+                }
+            }
+
+            const effectiveAcAdult = extraAdultAc !== null ? extraAdultAc : extraAdult;
+            const effectiveAcChild = extraChildAc !== null ? extraChildAc : extraChild;
+            if (effectiveAcChild > effectiveAcAdult) {
+                throw new BadRequestException(`AC Extra Child Price (₹${effectiveAcChild}) cannot exceed AC Extra Adult Price (₹${effectiveAcAdult}).`);
             }
         }
     }
@@ -214,6 +275,7 @@ export class RoomTypesService {
         maxPhysicalAdults?: number | null;
         maxPhysicalChildren?: number | null;
         maxPhysicalInfants?: number | null;
+        freeChildrenCount?: number | null;
         totalBaseOccupancy?: number | null;
         totalMaxOccupancy?: number | null;
         baseMaxAdults?: number | null;
@@ -281,6 +343,27 @@ export class RoomTypesService {
             }
         }
 
+        // Physical Adults + Children sum validation
+        if (physAdults !== undefined && physChildren !== undefined && maxOcc !== undefined) {
+            if (physAdults + physChildren > maxOcc) {
+                throw new BadRequestException(`The sum of Max Physical Adults (${physAdults}) and Max Physical Children (${physChildren}) cannot exceed Total Max Occupancy (${maxOcc}).`);
+            } else if (physAdults + physChildren < maxOcc) {
+                throw new BadRequestException(`The sum of Max Physical Adults (${physAdults}) and Max Physical Children (${physChildren}) must equal Total Max Occupancy (${maxOcc}) (currently ${physAdults + physChildren}).`);
+            }
+        }
+
+        // Free Children Count validation (0 <= Free Children Count <= max physical children allowed)
+        const effectiveMaxChildren = physChildren !== undefined ? physChildren : (maxOcc !== undefined ? Math.max(0, maxOcc - 1) : undefined);
+        if (data.freeChildrenCount !== undefined && data.freeChildrenCount !== null) {
+            const fcc = Number(data.freeChildrenCount);
+            if (fcc < 0) {
+                throw new BadRequestException('Free Children Count cannot be negative.');
+            }
+            if (effectiveMaxChildren !== undefined && fcc > effectiveMaxChildren) {
+                throw new BadRequestException(`Free Children Count (${fcc}) cannot exceed maximum physical children allowed (${effectiveMaxChildren}).`);
+            }
+        }
+
         // Physical Infants validation (OPTIONAL, independent of M)
         if (physInfants !== undefined && physInfants < 0) {
             throw new BadRequestException('Max Infants cannot be negative.');
@@ -313,6 +396,15 @@ export class RoomTypesService {
                     throw new BadRequestException(`Base Max Children cannot exceed Total Base Occupancy (${baseOcc}).`);
                 }
             }
+            if (data.baseMaxAdults !== undefined && data.baseMaxAdults !== null && data.baseMaxChildren !== undefined && data.baseMaxChildren !== null) {
+                const bma = Number(data.baseMaxAdults);
+                const bmc = Number(data.baseMaxChildren);
+                if (bma + bmc > baseOcc) {
+                    throw new BadRequestException(`The sum of Base Max Adults (${bma}) and Base Max Children (${bmc}) cannot exceed Total Base Occupancy (${baseOcc}).`);
+                } else if (bma + bmc < baseOcc) {
+                    throw new BadRequestException(`The sum of Base Max Adults (${bma}) and Base Max Children (${bmc}) must equal Total Base Occupancy (${baseOcc}) (currently ${bma + bmc}).`);
+                }
+            }
         }
     }
 
@@ -332,7 +424,16 @@ export class RoomTypesService {
             }
         }
 
-        this.validatePricing(createRoomTypeDto.basePrice, createRoomTypeDto.originalPrice);
+        this.validatePricing(
+            createRoomTypeDto.basePrice,
+            createRoomTypeDto.originalPrice,
+            createRoomTypeDto.extraAdultPrice,
+            createRoomTypeDto.extraChildPrice,
+            createRoomTypeDto.acOption,
+            createRoomTypeDto.extraAdultPriceAc,
+            createRoomTypeDto.extraChildPriceAc,
+            createRoomTypeDto.basePriceAc,
+        );
         this.validateOccupancyHierarchy(createRoomTypeDto, true);
 
         try {
@@ -450,6 +551,7 @@ export class RoomTypesService {
                 cancellationPolicy: true,
                 ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
+            orderBy: { createdAt: 'asc' },
         });
         return roomTypes.map((rt) => this.enrichRoomTypeWithOccupancy(rt));
     }
@@ -500,12 +602,42 @@ export class RoomTypesService {
                 ? (updateRoomTypeDto.originalPrice !== null ? Number(updateRoomTypeDto.originalPrice) : null)
                 : ((existing as any).originalPrice ? Number((existing as any).originalPrice) : null);
 
-            this.validatePricing(basePrice, originalPrice ?? undefined);
+            const extraAdultPrice = updateRoomTypeDto.extraAdultPrice !== undefined
+                ? (updateRoomTypeDto.extraAdultPrice !== null ? Number(updateRoomTypeDto.extraAdultPrice) : 0)
+                : ((existing as any).extraAdultPrice !== null && (existing as any).extraAdultPrice !== undefined ? Number((existing as any).extraAdultPrice) : 0);
+            const extraChildPrice = updateRoomTypeDto.extraChildPrice !== undefined
+                ? (updateRoomTypeDto.extraChildPrice !== null ? Number(updateRoomTypeDto.extraChildPrice) : 0)
+                : ((existing as any).extraChildPrice !== null && (existing as any).extraChildPrice !== undefined ? Number((existing as any).extraChildPrice) : 0);
+            const acOption = updateRoomTypeDto.acOption !== undefined
+                ? updateRoomTypeDto.acOption
+                : (existing as any).acOption;
+            const extraAdultPriceAc = updateRoomTypeDto.extraAdultPriceAc !== undefined
+                ? (updateRoomTypeDto.extraAdultPriceAc !== null ? Number(updateRoomTypeDto.extraAdultPriceAc) : null)
+                : ((existing as any).extraAdultPriceAc !== null && (existing as any).extraAdultPriceAc !== undefined ? Number((existing as any).extraAdultPriceAc) : null);
+            const extraChildPriceAc = updateRoomTypeDto.extraChildPriceAc !== undefined
+                ? (updateRoomTypeDto.extraChildPriceAc !== null ? Number(updateRoomTypeDto.extraChildPriceAc) : null)
+                : ((existing as any).extraChildPriceAc !== null && (existing as any).extraChildPriceAc !== undefined ? Number((existing as any).extraChildPriceAc) : null);
+
+            const basePriceAc = updateRoomTypeDto.basePriceAc !== undefined
+                ? (updateRoomTypeDto.basePriceAc !== null ? Number(updateRoomTypeDto.basePriceAc) : null)
+                : ((existing as any).basePriceAc !== null && (existing as any).basePriceAc !== undefined ? Number((existing as any).basePriceAc) : null);
+
+            this.validatePricing(
+                basePrice,
+                originalPrice ?? undefined,
+                extraAdultPrice,
+                extraChildPrice,
+                acOption,
+                extraAdultPriceAc,
+                extraChildPriceAc,
+                basePriceAc,
+            );
 
             const resolvedBaseOcc = updateRoomTypeDto.totalBaseOccupancy !== undefined ? updateRoomTypeDto.totalBaseOccupancy : existing.totalBaseOccupancy;
             const resolvedMaxOcc = updateRoomTypeDto.totalMaxOccupancy !== undefined ? updateRoomTypeDto.totalMaxOccupancy : existing.totalMaxOccupancy;
             const resolvedBMA = updateRoomTypeDto.baseMaxAdults !== undefined ? updateRoomTypeDto.baseMaxAdults : existing.baseMaxAdults;
             const resolvedBMC = updateRoomTypeDto.baseMaxChildren !== undefined ? updateRoomTypeDto.baseMaxChildren : existing.baseMaxChildren;
+            const resolvedFreeChildren = updateRoomTypeDto.freeChildrenCount !== undefined ? updateRoomTypeDto.freeChildrenCount : existing.freeChildrenCount;
 
             const physAdults = updateRoomTypeDto.maxPhysicalAdults !== undefined
                 ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : (resolvedMaxOcc ? Number(resolvedMaxOcc) : 2))
@@ -521,6 +653,7 @@ export class RoomTypesService {
                 maxPhysicalAdults: physAdults,
                 maxPhysicalChildren: physChildren,
                 maxPhysicalInfants: physInfants,
+                freeChildrenCount: resolvedFreeChildren,
                 totalBaseOccupancy: resolvedBaseOcc,
                 totalMaxOccupancy: resolvedMaxOcc,
                 baseMaxAdults: resolvedBMA,

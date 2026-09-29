@@ -300,7 +300,7 @@ export default function CreateBooking() {
         }
     }, [watchedCheckInDate, setValue, watchedIsHistorical]);
 
-    // Automatically set checkOutDate to checkInDate + 1 when checkInDate is changed by the user
+    // Automatically set checkOutDate to checkInDate + 1 ONLY if checkOutDate is missing, invalid, or <= checkInDate
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
@@ -308,11 +308,14 @@ export default function CreateBooking() {
         }
         if (!watchedCheckInDate) return;
         const checkIn = new Date(watchedCheckInDate);
-        if (!isNaN(checkIn.getTime())) {
+        if (isNaN(checkIn.getTime())) return;
+
+        const checkOut = watchedCheckOutDate ? new Date(watchedCheckOutDate) : null;
+        if (!checkOut || isNaN(checkOut.getTime()) || checkOut <= checkIn) {
             const nextDay = addDays(checkIn, 1);
             setValue('checkOutDate', format(nextDay, 'yyyy-MM-dd'));
         }
-    }, [watchedCheckInDate, setValue]);
+    }, [watchedCheckInDate, watchedCheckOutDate, setValue]);
 
     const isBookerAlsoGuest = watch('isBookerAlsoGuest');
     const guestFirstName = watch('guestFirstName');
