@@ -61,6 +61,7 @@ model User {
   roles                     UserRole[]
   createdBy                 User?                        @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers              User[]                       @relation("UserCreator")
+  rateRestrictionLogs       RateRestrictionLog[]
 
   @@map("users")
 }
@@ -172,6 +173,7 @@ model RoomType {
   ratePlanPrices             RoomTypeRatePlanPrice[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
   restrictionRules           RestrictionRule[]
+  rateRestrictionLogs        RateRestrictionLog[]
 
   @@unique([propertyId, name])
   @@map("room_types")
@@ -641,6 +643,7 @@ model Property {
   otaThreads                 OtaMessageThread[]
   otaRequests                OtaGuestRequest[]
   ratePlans                  RatePlan[]
+  rateRestrictionLogs        RateRestrictionLog[]
 
   @@map("properties")
 }
@@ -1938,5 +1941,45 @@ model CalendarEventMarker {
   property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@map("calendar_event_markers")
+}
+
+enum RateLogAction {
+  RATE_UPDATE
+  RESTRICTION_UPDATE
+  STOP_SELL_TOGGLE
+  INVENTORY_OVERRIDE
+}
+
+enum SyncStatus {
+  SUCCESS
+  PENDING
+  FAILED
+}
+
+model RateRestrictionLog {
+  id              String         @id @default(uuid())
+  propertyId      String
+  userId          String?
+  userName        String
+  userRole        String
+  actionType      RateLogAction
+  roomTypeId      String?
+  roomTypeName    String?
+  channelId       String?
+  channelName     String         @default("All Channels")
+  startDate       DateTime       @db.Date
+  endDate         DateTime       @db.Date
+  daysOfWeek      Int[]          @default([])
+  summary         String
+  details         Json?
+  syncStatus      SyncStatus     @default(SUCCESS)
+  createdAt       DateTime       @default(now())
+
+  property        Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user            User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  roomType        RoomType?      @relation(fields: [roomTypeId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId, createdAt])
+  @@map("rate_restriction_logs")
 }
 

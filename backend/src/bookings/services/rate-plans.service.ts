@@ -8,6 +8,7 @@ import {
   CreateCalendarEventMarkerDto,
   ApplyRestrictionsDto,
   SetInventoryOverrideDto,
+  QueryRateRestrictionLogsDto,
 } from '../dto/rate-plan.dto';
 import { MealPlan, RatePlanPricingType, PricingAdjustmentType } from '@prisma/client';
 
@@ -210,8 +211,11 @@ export class RatePlansService {
     if (!roomType) {
       throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
     }
-    const plans = await this.ensureDefaultPropertyRatePlans(roomType.propertyId);
-    return plans.find(p => p.isPrimary) || plans[0];
+    const plans = await this.prisma.ratePlan.findMany({
+      where: { propertyId: roomType.propertyId, isActive: true },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+    return plans.find(p => p.isPrimary) || plans[0] || null;
   }
 
   async getRatePlansForRoomType(roomTypeId: string) {
@@ -221,7 +225,6 @@ export class RatePlansService {
     if (!roomType) {
       throw new NotFoundException(`RoomType with ID ${roomTypeId} not found.`);
     }
-    await this.ensureDefaultPropertyRatePlans(roomType.propertyId);
     return this.prisma.ratePlan.findMany({
       where: { propertyId: roomType.propertyId, isActive: true },
       include: {
@@ -238,8 +241,6 @@ export class RatePlansService {
   }
 
   async getRatePlansForProperty(propertyId: string) {
-    await this.ensureDefaultPropertyRatePlans(propertyId);
-
     return this.prisma.ratePlan.findMany({
       where: {
         propertyId,
@@ -328,27 +329,13 @@ export class RatePlansService {
         });
       }
     } else {
-      const roomTypes = await this.prisma.roomType.findMany({ where: { propertyId } });
-      for (const rt of roomTypes) {
-        await this.prisma.roomTypeRatePlanPrice.create({
-          data: {
-            ratePlanId: createdPlan.id,
-            roomTypeId: rt.id,
-            basePrice: dto.basePrice !== undefined ? dto.basePrice : rt.basePrice,
-            extraAdultPrice: dto.extraAdultPrice !== undefined ? dto.extraAdultPrice : rt.extraAdultPrice,
-            extraChildPrice: dto.extraChildPrice !== undefined ? dto.extraChildPrice : rt.extraChildPrice,
-            basePriceAc: rt.basePriceAc,
-            extraAdultPriceAc: rt.extraAdultPriceAc,
-            extraChildPriceAc: rt.extraChildPriceAc,
-          },
-        });
-      }
+      await this.syncRoomTypePricesForPlan(createdPlan.id);
     }
 
     return createdPlan;
   }
 
-  async updateRatePlan(id: string, dto: UpdateRatePlanDto) {
+  async updateRatePlan(id: string, dto: UpdateRatePlanDto, user?: any) {
     const ratePlan = await this.prisma.ratePlan.findUnique({ where: { id } });
     if (!ratePlan) {
       throw new NotFoundException(`RatePlan with ID ${id} not found.`);
@@ -384,6 +371,23 @@ export class RatePlansService {
 
     if (dto.roomTypePrices && dto.roomTypePrices.length > 0) {
       await this.updateRoomTypePrices(id, dto.roomTypePrices);
+    } else if (dto.extraAdultPrice !== undefined || dto.extraChildPrice !== undefined) {
+      await this.syncRoomTypePricesForPlan(id);
+
+      await this.recordRateRestrictionLog({
+        propertyId: ratePlan.propertyId,
+        user,
+        actionType: 'RATE_UPDATE',
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 365 * 86400000),
+        summary: `Updated meal prices for ${ratePlan.name}: Adult ₹${dto.extraAdultPrice ?? ratePlan.extraAdultPrice}, Child ₹${dto.extraChildPrice ?? ratePlan.extraChildPrice}`,
+        details: {
+          ratePlanId: ratePlan.id,
+          ratePlanName: ratePlan.name,
+          adultPrice: dto.extraAdultPrice,
+          childPrice: dto.extraChildPrice,
+        },
+      });
     }
 
     if (this.channelsService) {
@@ -393,6 +397,56 @@ export class RatePlansService {
     }
 
     return updatedPlan;
+  }
+
+  async syncRoomTypePricesForPlan(ratePlanId: string) {
+    const plan = await this.prisma.ratePlan.findUnique({
+      where: { id: ratePlanId },
+      include: { property: { include: { roomTypes: true } } },
+    });
+    if (!plan || !plan.property) return;
+
+    const adultOffset = Number(plan.extraAdultPrice || 0);
+    const childOffset = Number(plan.extraChildPrice || 0);
+
+    for (const rt of plan.property.roomTypes) {
+      const base = Number(rt.basePrice) + adultOffset * (Number(rt.baseAdults) || 2);
+      const baseAc =
+        rt.basePriceAc !== null
+          ? Number(rt.basePriceAc) + adultOffset * (Number(rt.baseAdults) || 2)
+          : null;
+
+      await this.prisma.roomTypeRatePlanPrice.upsert({
+        where: {
+          ratePlanId_roomTypeId: {
+            ratePlanId: plan.id,
+            roomTypeId: rt.id,
+          },
+        },
+        create: {
+          ratePlanId: plan.id,
+          roomTypeId: rt.id,
+          basePrice: base,
+          extraAdultPrice: Number(rt.extraAdultPrice) + adultOffset,
+          extraChildPrice: Number(rt.extraChildPrice) + childOffset,
+          basePriceAc: baseAc,
+          extraAdultPriceAc:
+            rt.extraAdultPriceAc !== null ? Number(rt.extraAdultPriceAc) + adultOffset : null,
+          extraChildPriceAc:
+            rt.extraChildPriceAc !== null ? Number(rt.extraChildPriceAc) + childOffset : null,
+        },
+        update: {
+          basePrice: base,
+          extraAdultPrice: Number(rt.extraAdultPrice) + adultOffset,
+          extraChildPrice: Number(rt.extraChildPrice) + childOffset,
+          basePriceAc: baseAc,
+          extraAdultPriceAc:
+            rt.extraAdultPriceAc !== null ? Number(rt.extraAdultPriceAc) + adultOffset : null,
+          extraChildPriceAc:
+            rt.extraChildPriceAc !== null ? Number(rt.extraChildPriceAc) + childOffset : null,
+        },
+      });
+    }
   }
 
   async updateRoomTypePrices(ratePlanId: string, prices: any[]) {
@@ -463,9 +517,6 @@ export class RatePlansService {
       },
       orderBy: { createdAt: 'asc' },
     });
-
-    // Ensure default rate plans exist
-    await this.ensureDefaultPropertyRatePlans(propertyId);
 
     // 2. Fetch Rate Plans with pricing rules and roomTypePrices
     const ratePlans = await this.prisma.ratePlan.findMany({
@@ -649,7 +700,7 @@ export class RatePlansService {
   /**
    * Bulk Pricing & Restriction Rule Application (Weekdays vs Weekends, Festivals, Restrictions)
    */
-  async applyBulkPricingRule(dto: BulkPricingRuleDto) {
+  async applyBulkPricingRule(dto: BulkPricingRuleDto, user?: any) {
     const start = new Date(dto.startDate);
     const end = new Date(dto.endDate);
 
@@ -756,6 +807,53 @@ export class RatePlansService {
       }
     }
 
+    // 4. Record Audit Log for this bulk operation
+    if (propertyId) {
+      if (dto.price !== undefined && dto.price !== null) {
+        await this.recordRateRestrictionLog({
+          propertyId,
+          user,
+          actionType: 'RATE_UPDATE',
+          roomTypeId: targetRoomTypeId || null,
+          channelId: dto.channelId || null,
+          channelName: dto.channelId === 'PMS_ONLY' ? 'Direct PMS Only' : (dto.channelId && dto.channelId !== 'ALL' ? `Channel ${dto.channelId}` : 'All Channels'),
+          startDate: start,
+          endDate: end,
+          daysOfWeek: dto.daysOfWeek || [],
+          summary: `Set nightly base rate to ₹${dto.price} (${dto.startDate} to ${dto.endDate})`,
+          details: { price: dto.price, daysOfWeek: dto.daysOfWeek, isFestivalRule: dto.isFestivalRule, festivalName: dto.festivalName },
+        });
+      }
+
+      if (dto.minStayArrival || dto.minStayThrough || dto.closedToArrival || dto.closedToDeparture) {
+        await this.recordRateRestrictionLog({
+          propertyId,
+          user,
+          actionType: 'RESTRICTION_UPDATE',
+          roomTypeId: targetRoomTypeId || null,
+          startDate: start,
+          endDate: end,
+          summary: `Stay restrictions updated (${dto.startDate} to ${dto.endDate}): ${dto.minStayArrival ? `Min Stay ${dto.minStayArrival}N, ` : ''}${dto.closedToArrival ? 'CTA, ' : ''}${dto.closedToDeparture ? 'CTD' : ''}`.trim(),
+          details: { minStayArrival: dto.minStayArrival, minStayThrough: dto.minStayThrough, closedToArrival: dto.closedToArrival, closedToDeparture: dto.closedToDeparture },
+        });
+      }
+
+      if (dto.stopSell !== undefined) {
+        await this.recordRateRestrictionLog({
+          propertyId,
+          user,
+          actionType: 'STOP_SELL_TOGGLE',
+          roomTypeId: targetRoomTypeId || null,
+          channelId: dto.channelId || null,
+          channelName: dto.channelId === 'PMS_ONLY' ? 'Direct PMS Only' : (dto.channelId && dto.channelId !== 'ALL' ? `Channel ${dto.channelId}` : 'All Channels'),
+          startDate: start,
+          endDate: end,
+          summary: `Stop sell ${dto.stopSell ? 'ACTIVATED' : 'DEACTIVATED'} (${dto.startDate} to ${dto.endDate})`,
+          details: { stopSell: dto.stopSell },
+        });
+      }
+    }
+
     if (propertyId && this.channelsService) {
       const channelsService = this.channelsService;
       if (dto.channelId === 'PMS_ONLY') {
@@ -798,7 +896,7 @@ export class RatePlansService {
   /**
    * Set Manual Sellable Room Quantity Override
    */
-  async setInventoryOverride(dto: SetInventoryOverrideDto) {
+  async setInventoryOverride(dto: SetInventoryOverrideDto, user?: any) {
     const targetDate = new Date(`${dto.date}T00:00:00.000Z`);
 
     const physicalRoomsCount = await this.prisma.room.count({
@@ -838,6 +936,21 @@ export class RatePlansService {
       },
     });
 
+    if (dto.propertyId) {
+      await this.recordRateRestrictionLog({
+        propertyId: dto.propertyId,
+        user,
+        actionType: 'INVENTORY_OVERRIDE',
+        roomTypeId: dto.roomTypeId,
+        channelId: dto.channelId || null,
+        channelName: dto.channelId === 'PMS_ONLY' ? 'Direct PMS Only' : 'All Channels',
+        startDate: targetDate,
+        endDate: targetDate,
+        summary: `Inventory override: ${dto.allocatedQuantity} rooms on ${dto.date}`,
+        details: { allocatedQuantity: dto.allocatedQuantity, date: dto.date },
+      });
+    }
+
     if (dto.propertyId && this.channelsService) {
       if (dto.channelId === 'PMS_ONLY') {
         this.logger.log(`[Inventory Override] channelId is PMS_ONLY, skipping external OTA sync.`);
@@ -854,7 +967,7 @@ export class RatePlansService {
   /**
    * Apply Direct Restrictions
    */
-  async applyRestrictions(dto: ApplyRestrictionsDto) {
+  async applyRestrictions(dto: ApplyRestrictionsDto, user?: any) {
     const start = new Date(dto.startDate);
     const end = new Date(dto.endDate);
 
@@ -895,6 +1008,34 @@ export class RatePlansService {
       },
     });
 
+    if (dto.propertyId) {
+      if (dto.stopSell !== undefined) {
+        await this.recordRateRestrictionLog({
+          propertyId: dto.propertyId,
+          user,
+          actionType: 'STOP_SELL_TOGGLE',
+          roomTypeId: dto.roomTypeId || null,
+          startDate: start,
+          endDate: end,
+          summary: `Stop sell ${dto.stopSell ? 'ACTIVATED' : 'DEACTIVATED'} (${dto.startDate} to ${dto.endDate})`,
+          details: { stopSell: dto.stopSell },
+        });
+      }
+
+      if (dto.minStayArrival || dto.minStayThrough || dto.closedToArrival || dto.closedToDeparture) {
+        await this.recordRateRestrictionLog({
+          propertyId: dto.propertyId,
+          user,
+          actionType: 'RESTRICTION_UPDATE',
+          roomTypeId: dto.roomTypeId || null,
+          startDate: start,
+          endDate: end,
+          summary: `Stay restrictions applied (${dto.startDate} to ${dto.endDate})`,
+          details: { minStayArrival: dto.minStayArrival, minStayThrough: dto.minStayThrough, closedToArrival: dto.closedToArrival, closedToDeparture: dto.closedToDeparture },
+        });
+      }
+    }
+
     if (dto.propertyId && this.channelsService) {
       this.channelsService.pushAriForProperty(dto.propertyId, 60).catch((err) => {
         this.logger.warn(`Failed to auto-sync Channex after restriction update: ${err.message}`);
@@ -902,6 +1043,107 @@ export class RatePlansService {
     }
 
     return result;
+  }
+
+  async recordRateRestrictionLog(data: {
+    propertyId: string;
+    user?: any;
+    actionType: any;
+    roomTypeId?: string | null;
+    channelId?: string | null;
+    channelName?: string;
+    startDate: Date | string;
+    endDate: Date | string;
+    daysOfWeek?: number[];
+    summary: string;
+    details?: any;
+    syncStatus?: any;
+  }) {
+    try {
+      let roomTypeName: string | null = null;
+      if (data.roomTypeId) {
+        const rt = await this.prisma.roomType.findUnique({
+          where: { id: data.roomTypeId },
+          select: { name: true },
+        });
+        roomTypeName = rt ? rt.name : data.roomTypeId;
+      } else {
+        roomTypeName = 'All Room Types';
+      }
+
+      const userId = data.user?.id || null;
+      const userName = data.user?.name || data.user?.email || 'PMS Staff';
+      const userRole = (data.user?.roles?.[0] as string) || (data.user?.role as string) || 'STAFF';
+
+      const start = typeof data.startDate === 'string' ? new Date(data.startDate) : data.startDate;
+      const end = typeof data.endDate === 'string' ? new Date(data.endDate) : data.endDate;
+
+      await (this.prisma as any).rateRestrictionLog.create({
+        data: {
+          propertyId: data.propertyId,
+          userId,
+          userName,
+          userRole,
+          actionType: data.actionType,
+          roomTypeId: data.roomTypeId || null,
+          roomTypeName,
+          channelId: data.channelId || null,
+          channelName: data.channelName || (data.channelId ? `Channel ${data.channelId}` : 'All Channels'),
+          startDate: start,
+          endDate: end,
+          daysOfWeek: data.daysOfWeek || [],
+          summary: data.summary,
+          details: data.details || null,
+          syncStatus: data.syncStatus || 'SUCCESS',
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to record rate/restriction audit log: ${err.message}`);
+    }
+  }
+
+  async getRateRestrictionLogs(propertyId: string, query: QueryRateRestrictionLogsDto) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 25));
+    const skip = (page - 1) * limit;
+
+    const where: any = { propertyId };
+
+    if (query.roomTypeId && query.roomTypeId !== 'ALL') {
+      where.roomTypeId = query.roomTypeId;
+    }
+
+    if (query.actionType && query.actionType !== 'ALL') {
+      where.actionType = query.actionType;
+    }
+
+    if (query.startDate) {
+      where.endDate = { gte: new Date(query.startDate) };
+    }
+
+    if (query.endDate) {
+      where.startDate = { lte: new Date(query.endDate) };
+    }
+
+    const [total, logs] = await Promise.all([
+      (this.prisma as any).rateRestrictionLog.count({ where }),
+      (this.prisma as any).rateRestrictionLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

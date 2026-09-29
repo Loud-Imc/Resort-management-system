@@ -2,19 +2,24 @@ import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Sliders,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
   RefreshCw,
-  Layers,
-  Star,
   Globe,
   ShieldAlert,
-  Edit2,
-  CheckCircle,
   Plus,
-  BedDouble,
   X,
+  DollarSign,
+  Utensils,
+  Ban,
+  History,
+  Edit2,
+  BedDouble,
+  CheckCircle,
+  MoreVertical,
+  Calendar,
+  Layers,
+  Star,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import AddRoomModal from '../../components/Rooms/AddRoomModal';
@@ -27,7 +32,10 @@ import {
 } from '../../services/ratePlans';
 import { channelsService } from '../../services/channels';
 import type { RoomType } from '../../types/room';
-import { BulkPricingRuleModal } from '../../components/BulkPricingRuleModal';
+import { BulkRatesModal } from '../../components/BulkRatesModal';
+import { StayRestrictionsModal } from '../../components/StayRestrictionsModal';
+import { QuickStopSellModal } from '../../components/QuickStopSellModal';
+import { RateChangeLogDrawer } from '../../components/RateChangeLogDrawer';
 import { 
   UpdateConfirmationModal, 
   type UpdateConfirmationDetails 
@@ -80,11 +88,14 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
   // Filter state & 10-Day Date Segment Switcher
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>('ALL');
-  const [selectedMealPlan, setSelectedMealPlan] = useState<string>('ALL');
+  const [showRatePlans, setShowRatePlans] = useState<boolean>(false);
   const [dateChunk, setDateChunk] = useState<'PART1' | 'PART2' | 'PART3'>(() => getInitialDateChunk(new Date()));
 
-  // Modal State
-  const [isBulkModalOpen, setIsBulkModalOpen] = useState<boolean>(false);
+  // Focused Modal States
+  const [isBulkRatesModalOpen, setIsBulkRatesModalOpen] = useState<boolean>(false);
+  const [isRestrictionsModalOpen, setIsRestrictionsModalOpen] = useState<boolean>(false);
+  const [isStopSellModalOpen, setIsStopSellModalOpen] = useState<boolean>(false);
+  const [isChangeLogOpen, setIsChangeLogOpen] = useState<boolean>(false);
   const [selectedRoomForBulk, setSelectedRoomForBulk] = useState<RoomType | undefined>(undefined);
 
   // Inline Price Editing
@@ -107,6 +118,35 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     isStopSell: boolean;
   } | null>(null);
   const [invOverrideInput, setInvOverrideInput] = useState<string>('');
+
+  // Quick Date Restriction Action Chooser State
+  const [restrictionChooser, setRestrictionChooser] = useState<{
+    roomTypeId: string;
+    roomTypeName: string;
+    dateStr: string;
+    currentMinStay?: number | null;
+    currentStopSell?: boolean;
+    currentCta?: boolean;
+    currentCtd?: boolean;
+  } | null>(null);
+
+  const [chosenRestrictionAction, setChosenRestrictionAction] = useState<
+    'STOP_SELL' | 'CTA' | 'CTD' | 'MIN_STAY' | 'MAX_STAY'
+  >('STOP_SELL');
+
+  const [restrictionTargetConfig, setRestrictionTargetConfig] = useState<{
+    startDate: string;
+    endDate: string;
+    action?: 'min_stay' | 'max_stay' | 'cta' | 'ctd';
+  } | null>(null);
+
+  const [stopSellTargetConfig, setStopSellTargetConfig] = useState<{
+    startDate: string;
+    endDate: string;
+  } | null>(null);
+
+  // 3-Dot Action Menu state
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Today's date string for highlight matching (YYYY-MM-DD)
   const today = new Date();
@@ -170,10 +210,10 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       setRestrictionsMap(matrixData.restrictions || {});
       setEventMarkers(matrixData.eventMarkers || []);
 
-      // Expand all room types by default
+      // Expand only the first room type by default; keep others closed
       const expanded: Record<string, boolean> = {};
-      roomTypes.forEach((rt) => {
-        expanded[rt.id] = true;
+      roomTypes.forEach((rt, idx) => {
+        expanded[rt.id] = (idx === 0);
       });
       setExpandedRoomTypes(expanded);
     } catch (err) {
@@ -183,6 +223,20 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       setLoading(false);
     }
   };
+
+  // Ensure default expansion is only first room type upon roomTypes load
+  useEffect(() => {
+    if (roomTypes.length > 0) {
+      setExpandedRoomTypes((prev) => {
+        if (Object.keys(prev).length > 0) return prev;
+        const initial: Record<string, boolean> = {};
+        roomTypes.forEach((rt, idx) => {
+          initial[rt.id] = (idx === 0);
+        });
+        return initial;
+      });
+    }
+  }, [roomTypes]);
 
   const handlePrevMonth = () => {
     const newDate = new Date(year, month - 1, 1);
@@ -197,10 +251,15 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   };
 
   const toggleExpandRoomType = (roomTypeId: string) => {
-    setExpandedRoomTypes((prev) => ({
-      ...prev,
-      [roomTypeId]: !prev[roomTypeId],
-    }));
+    setExpandedRoomTypes((prev) => {
+      const current = prev[roomTypeId] !== undefined 
+        ? prev[roomTypeId] 
+        : (filteredRoomTypes[0]?.id === roomTypeId);
+      return {
+        ...prev,
+        [roomTypeId]: !current,
+      };
+    });
   };
 
   // Helper to find festival marker for a date
@@ -297,20 +356,30 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     });
   };
 
-  const handleQuickToggleStopSell = async (roomTypeId: string, dateStr: string, currentStopSell: boolean) => {
-    try {
-      await ratePlansService.applyRestrictions({
-        propertyId,
-        roomTypeId,
+  const handleContinueFromChooser = () => {
+    if (!restrictionChooser) return;
+    const targetRoom = roomTypes.find((r) => r.id === restrictionChooser.roomTypeId);
+    setSelectedRoomForBulk(targetRoom || undefined);
+
+    const dateStr = restrictionChooser.dateStr;
+    setRestrictionChooser(null);
+
+    if (chosenRestrictionAction === 'STOP_SELL') {
+      setStopSellTargetConfig({ startDate: dateStr, endDate: dateStr });
+      setIsStopSellModalOpen(true);
+    } else {
+      const actionMap: Record<string, 'min_stay' | 'max_stay' | 'cta' | 'ctd'> = {
+        MIN_STAY: 'min_stay',
+        MAX_STAY: 'max_stay',
+        CTA: 'cta',
+        CTD: 'ctd',
+      };
+      setRestrictionTargetConfig({
         startDate: dateStr,
         endDate: dateStr,
-        stopSell: !currentStopSell,
+        action: actionMap[chosenRestrictionAction],
       });
-
-      toast.success(!currentStopSell ? '🛑 Stop Sell applied' : '✅ Stop Sell removed');
-      fetchMatrixData();
-    } catch (err: any) {
-      toast.error('Failed to update stop sell restriction');
+      setIsRestrictionsModalOpen(true);
     }
   };
 
@@ -423,80 +492,40 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     return rt.id === selectedRoomTypeId;
   });
 
-  const filteredRatePlans = ratePlans.filter((plan) => {
-    if (selectedMealPlan === 'ALL') return true;
-    return plan.mealPlan === selectedMealPlan;
-  });
+  const filteredRatePlans = ratePlans;
 
   return (
     <div className="space-y-4">
-      {/* Rate Matrix Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-2xl p-2.5 shadow-sm">
-        {/* Month Navigator */}
-        <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border">
-          <button
-            onClick={handlePrevMonth}
-            className="p-1.5 hover:bg-background rounded-lg transition-all text-muted-foreground hover:text-foreground cursor-pointer"
-            title="Previous Month"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="px-3 text-xs font-black text-foreground min-w-[125px] text-center font-mono">
-            {monthLabel}
-          </span>
-          <button
-            onClick={handleNextMonth}
-            className="p-1.5 hover:bg-background rounded-lg transition-all text-muted-foreground hover:text-foreground cursor-pointer"
-            title="Next Month"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+      {/* Rate Matrix Controls Bar - Unified Single Line */}
+      <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-3 bg-card border border-border rounded-2xl p-2.5 shadow-sm">
+        {/* Left Side: Month Navigator & Room Type Selector */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          {/* Month Navigator */}
+          <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border">
+            <button
+              onClick={handlePrevMonth}
+              className="p-1.5 hover:bg-background rounded-lg transition-all text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Previous Month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="px-2.5 text-xs font-black text-foreground min-w-[115px] text-center font-mono">
+              {monthLabel}
+            </span>
+            <button
+              onClick={handleNextMonth}
+              className="p-1.5 hover:bg-background rounded-lg transition-all text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Next Month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
 
-        {/* 10-Day Date Segment Switcher (Decades) */}
-        <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border shadow-inner">
-          <button
-            type="button"
-            onClick={() => setDateChunk('PART1')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateChunk === 'PART1'
-                ? 'bg-primary text-primary-foreground shadow-sm font-black'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          >
-            📅 Days 1 – 10
-          </button>
-          <button
-            type="button"
-            onClick={() => setDateChunk('PART2')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateChunk === 'PART2'
-                ? 'bg-primary text-primary-foreground shadow-sm font-black'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          >
-            📅 Days 11 – 20
-          </button>
-          <button
-            type="button"
-            onClick={() => setDateChunk('PART3')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateChunk === 'PART3'
-                ? 'bg-primary text-primary-foreground shadow-sm font-black'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          >
-            📅 Days 21 – {daysInMonth}
-          </button>
-        </div>
-
-        {/* Filters & Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Room Type Filter */}
+          {/* Room Type Selector */}
           <select
             value={selectedRoomTypeId}
             onChange={(e) => setSelectedRoomTypeId(e.target.value)}
-            className="px-3 py-1.5 rounded-xl border border-border bg-background text-xs font-bold focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer max-w-[180px] truncate"
+            className="px-3 py-2 rounded-xl border border-border bg-background text-xs font-bold focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer max-w-[190px] sm:max-w-[220px] truncate shadow-2xs"
           >
             <option value="ALL">🏨 All Room Types ({roomTypes.length})</option>
             {roomTypes.map((rt) => (
@@ -506,38 +535,57 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
             ))}
           </select>
 
-          {/* Meal Plan Filter */}
-          <select
-            value={selectedMealPlan}
-            onChange={(e) => setSelectedMealPlan(e.target.value)}
-            className="px-3 py-1.5 rounded-xl border border-border bg-background text-xs font-bold focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
-          >
-            <option value="ALL">🍽️ All Meal Plans</option>
-            <option value="EP">EP (Room Only)</option>
-            <option value="CP">CP (With Breakfast)</option>
-            <option value="MAP">MAP (Half Board)</option>
-            <option value="AP">AP (Full Board)</option>
-          </select>
-
-          {/* Bulk Update All Rooms Button */}
-          {roomTypes.length > 0 && (
-            <button
-              onClick={() => {
-                setSelectedRoomForBulk(undefined);
-                setIsBulkModalOpen(true);
-              }}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            >
-              <Sliders className="h-3.5 w-3.5" />
-              ⚡ Bulk Rates & Rules
-            </button>
+          {showRatePlans && (
+            <span className="hidden xl:flex px-2 py-1 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 items-center gap-1 shrink-0">
+              <Utensils className="h-3 w-3" /> Meals ON
+            </span>
           )}
+        </div>
+
+        {/* Right Side: Day Set Selector, Sync Button, Refresh & 3-Dot More Actions Menu */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          {/* 10-Day Date Segment Switcher (Decades) */}
+          <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border shadow-inner">
+            <button
+              type="button"
+              onClick={() => setDateChunk('PART1')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                dateChunk === 'PART1'
+                  ? 'bg-primary text-primary-foreground shadow-sm font-black'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              📅 Days 1 – 10
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateChunk('PART2')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                dateChunk === 'PART2'
+                  ? 'bg-primary text-primary-foreground shadow-sm font-black'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              📅 Days 11 – 20
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateChunk('PART3')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                dateChunk === 'PART3'
+                  ? 'bg-primary text-primary-foreground shadow-sm font-black'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              📅 Days 21 – {daysInMonth}
+            </button>
+          </div>
 
           {/* Full Sync to OTAs Button */}
           <button
             onClick={handleFullSyncToOtas}
             disabled={syncingOtas}
-            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
             title="Push 365-day full ARI update to Channex and all connected OTAs"
           >
             <Globe className={`h-3.5 w-3.5 ${syncingOtas ? 'animate-spin' : ''}`} />
@@ -547,13 +595,116 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
           {/* Refresh Button */}
           <button
             onClick={fetchMatrixData}
-            className="p-1.5 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-colors border border-border cursor-pointer"
+            className="p-2 bg-card hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-colors border border-border cursor-pointer shadow-2xs shrink-0"
             title="Refresh Matrix"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+
+            {/* 3-Dot Actions Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen((prev) => !prev)}
+                className={`p-2 rounded-xl border transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 ${
+                  isMenuOpen
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'bg-card hover:bg-muted text-foreground border-border'
+                }`}
+                title="More Matrix Actions"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+
+              {isMenuOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+
+                  {/* Dropdown Menu */}
+                  <div className="absolute right-0 mt-2 w-60 bg-card border border-border rounded-2xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/60">
+                      Matrix Actions
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRatePlans((prev) => !prev);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Utensils className="h-4 w-4 text-primary" />
+                        <span>Show Meal Packages</span>
+                      </div>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${showRatePlans ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                        {showRatePlans ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomForBulk(undefined);
+                        setIsBulkRatesModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <DollarSign className="h-4 w-4 text-emerald-600" />
+                      <span>💰 Bulk Rates</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomForBulk(undefined);
+                        setIsRestrictionsModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <ShieldAlert className="h-4 w-4 text-amber-600" />
+                      <span>🛡️ Restrictions</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomForBulk(undefined);
+                        setIsStopSellModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Ban className="h-4 w-4 text-rose-600" />
+                      <span>🛑 Stop Sell</span>
+                    </button>
+
+                    <div className="my-1 border-t border-border/60" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsChangeLogOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <History className="h-4 w-4 text-indigo-600" />
+                      <span>📜 Change Log</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
       {/* Main Rate Matrix Data Grid Table (Fit to Screen) */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -628,15 +779,15 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
               {/* Table Body (Room Types, Inventory, Restrictions & Rate Plans) */}
               <tbody className="divide-y divide-border text-xs">
-                {filteredRoomTypes.map((rt) => {
+                {filteredRoomTypes.map((rt, idx) => {
                   const plans = filteredRatePlans;
-                  const isExpanded = expandedRoomTypes[rt.id] !== false;
+                  const isExpanded = expandedRoomTypes[rt.id] !== undefined ? expandedRoomTypes[rt.id] : (idx === 0);
                   const roomInv = inventoryMap[rt.id] || {};
                   const roomRestr = restrictionsMap[rt.id] || {};
 
                   return (
                     <React.Fragment key={rt.id}>
-                      {/* Themed Master Room Type Category Header Row */}
+                      {/* Master Room Type Row with 1-Click Interactive Price Editing */}
                       <tr className="bg-primary/10 dark:bg-primary/20 hover:bg-primary/15 transition-colors font-bold text-foreground border-y-2 border-primary/20">
                         <td className="p-2.5 sticky left-0 z-10 bg-primary/10 dark:bg-primary/20 backdrop-blur-md border-r border-border">
                           <div className="flex items-center justify-between gap-2">
@@ -653,27 +804,32 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               {rt.acOption === 'BOTH' ? (
-                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
                                   ❄️/🍃 Dual
                                 </span>
                               ) : rt.acOption === 'NON_AC_ONLY' ? (
-                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                                   🍃 Non-AC
                                 </span>
                               ) : (
-                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                                   ❄️ AC
                                 </span>
                               )}
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-primary/20 text-primary border border-primary/30">
-                                {plans.length} {plans.length === 1 ? 'plan' : 'plans'}
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-muted text-muted-foreground border border-border font-mono">
+                                {rt.rooms?.length ?? 0} {(rt.rooms?.length ?? 0) === 1 ? 'room' : 'rooms'}
                               </span>
                             </div>
                           </div>
                         </td>
 
-                        {/* Master rack price reference cells across days */}
+                        {/* Interactive Price Cells across days */}
                         {visibleDaysArray.map((d) => {
+                          const primaryPlan = ratePlans.find((p) => p.isPrimary) || ratePlans[0];
+                          const nonAcRate = primaryPlan ? getRateForPlanAndDate(primaryPlan, d.dateStr, rt, false) : Number(rt.basePrice);
+                          const acRate = rt.acOption !== 'NON_AC_ONLY' 
+                            ? (primaryPlan ? getRateForPlanAndDate(primaryPlan, d.dateStr, rt, true) : Number(rt.basePriceAc || rt.basePrice))
+                            : null;
                           const isToday = d.dateStr === todayStr;
 
                           return (
@@ -688,17 +844,73 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                               }`}
                             >
                               {rt.acOption === 'BOTH' ? (
-                                <div className="flex flex-col items-center leading-tight">
-                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold font-mono">
-                                    🍃 ₹{Number(rt.basePrice).toLocaleString()}
+                                <div className="flex flex-col items-center gap-1">
+                                  <span
+                                    onClick={() => {
+                                      setEditingCell({
+                                        ratePlanId: primaryPlan?.id || '',
+                                        roomTypeId: rt.id,
+                                        dateStr: d.dateStr,
+                                        currentPrice: nonAcRate,
+                                        isAc: false,
+                                      });
+                                      setInlinePriceInput(String(nonAcRate));
+                                    }}
+                                    className="px-2 py-0.5 rounded-md text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 cursor-pointer font-mono transition-colors shadow-2xs"
+                                    title="Click to edit Non-AC tariff for this date"
+                                  >
+                                    🍃 ₹{nonAcRate.toLocaleString()}
                                   </span>
-                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold font-mono">
-                                    ❄️ ₹{Number(rt.basePriceAc || rt.basePrice).toLocaleString()}
+                                  <span
+                                    onClick={() => {
+                                      setEditingCell({
+                                        ratePlanId: primaryPlan?.id || '',
+                                        roomTypeId: rt.id,
+                                        dateStr: d.dateStr,
+                                        currentPrice: acRate!,
+                                        isAc: true,
+                                      });
+                                      setInlinePriceInput(String(acRate));
+                                    }}
+                                    className="px-2 py-0.5 rounded-md text-xs font-black text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 cursor-pointer font-mono transition-colors shadow-2xs"
+                                    title="Click to edit AC tariff for this date"
+                                  >
+                                    ❄️ ₹{acRate?.toLocaleString()}
                                   </span>
                                 </div>
+                              ) : rt.acOption === 'NON_AC_ONLY' ? (
+                                <span
+                                  onClick={() => {
+                                    setEditingCell({
+                                      ratePlanId: primaryPlan?.id || '',
+                                      roomTypeId: rt.id,
+                                      dateStr: d.dateStr,
+                                      currentPrice: nonAcRate,
+                                      isAc: false,
+                                    });
+                                    setInlinePriceInput(String(nonAcRate));
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-sm font-black text-foreground hover:bg-muted/80 hover:text-primary border border-transparent hover:border-border cursor-pointer font-mono transition-all shadow-2xs inline-block"
+                                  title="Click to edit Non-AC tariff for this date"
+                                >
+                                  🍃 ₹{nonAcRate.toLocaleString()}
+                                </span>
                               ) : (
-                                <span className="text-xs sm:text-sm text-muted-foreground font-black font-mono">
-                                  ₹{Number(rt.acOption === 'NON_AC_ONLY' ? rt.basePrice : (rt.basePriceAc || rt.basePrice)).toLocaleString()}
+                                <span
+                                  onClick={() => {
+                                    setEditingCell({
+                                      ratePlanId: primaryPlan?.id || '',
+                                      roomTypeId: rt.id,
+                                      dateStr: d.dateStr,
+                                      currentPrice: acRate!,
+                                      isAc: true,
+                                    });
+                                    setInlinePriceInput(String(acRate));
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-sm font-black text-foreground hover:bg-muted/80 hover:text-primary border border-transparent hover:border-border cursor-pointer font-mono transition-all shadow-2xs inline-block"
+                                  title="Click to edit AC tariff for this date"
+                                >
+                                  ❄️ ₹{acRate?.toLocaleString()}
                                 </span>
                               )}
                             </td>
@@ -760,27 +972,27 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                 title="Click to override room allotment or stop sell"
                               >
                                 {isStop ? (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                  <span className="px-2 py-0.5 rounded-md text-xs font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
                                     🛑 Closed
                                   </span>
                                 ) : total === 0 ? (
                                   <span
-                                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors inline-flex items-center gap-0.5"
+                                    className="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors inline-flex items-center gap-1 font-mono"
                                     title="This room type has 0 physical rooms. Click to create a room."
                                   >
-                                    <Plus className="h-2.5 w-2.5 inline" /> 0 Rooms
+                                    <Plus className="h-3 w-3 inline" /> 0 Rooms
                                   </span>
                                 ) : available === 0 ? (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                  <span className="px-2 py-0.5 rounded-md text-xs font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 font-mono">
                                     0 Sold Out
                                   </span>
                                 ) : available <= 1 ? (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                                    {available} left
+                                  <span className="px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 font-mono">
+                                    {available}
                                   </span>
                                 ) : (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
-                                    {available} left
+                                  <span className="px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 font-mono">
+                                    {available}
                                   </span>
                                 )}
                               </td>
@@ -793,11 +1005,24 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                       {isExpanded && (
                         <tr className="bg-amber-50/30 dark:bg-amber-950/10 border-b border-border/40 text-[10px]">
                           <td className="p-2 pl-6 sticky left-0 z-10 bg-amber-50/90 dark:bg-slate-900/90 backdrop-blur-md border-r border-border">
-                            <div className="flex items-center gap-1.5">
-                              <ShieldAlert className="h-3 w-3 text-amber-600" />
-                              <span className="font-extrabold text-amber-800 dark:text-amber-300">
-                                Restrictions (Min Stay / CTA / CTD)
-                              </span>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <ShieldAlert className="h-3 w-3 text-amber-600" />
+                                <span className="font-extrabold text-amber-800 dark:text-amber-300">
+                                  Restrictions (Min Stay / CTA / CTD)
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedRoomForBulk(rt);
+                                  setIsRestrictionsModalOpen(true);
+                                }}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                                title="View & configure all stay restrictions across dates"
+                              >
+                                🛡️ Manage All
+                              </button>
                             </div>
                           </td>
 
@@ -805,27 +1030,69 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                             const rData = roomRestr[d.dateStr];
                             const minStay = rData?.minStayArrival;
                             const isStop = rData?.stopSell;
+                            const cta = rData?.closedToArrival;
+                            const ctd = rData?.closedToDeparture;
                             const isToday = d.dateStr === todayStr;
 
                             return (
                               <td
                                 key={d.dateStr}
-                                onClick={() => handleQuickToggleStopSell(rt.id, d.dateStr, Boolean(isStop))}
+                                onClick={() => {
+                                  setRestrictionChooser({
+                                    roomTypeId: rt.id,
+                                    roomTypeName: rt.name,
+                                    dateStr: d.dateStr,
+                                    currentMinStay: minStay,
+                                    currentStopSell: Boolean(isStop),
+                                    currentCta: Boolean(cta),
+                                    currentCtd: Boolean(ctd),
+                                  });
+                                  if (isStop) {
+                                    setChosenRestrictionAction('STOP_SELL');
+                                  } else if (cta) {
+                                    setChosenRestrictionAction('CTA');
+                                  } else if (ctd) {
+                                    setChosenRestrictionAction('CTD');
+                                  } else if (minStay && minStay > 1) {
+                                    setChosenRestrictionAction('MIN_STAY');
+                                  } else {
+                                    setChosenRestrictionAction('STOP_SELL');
+                                  }
+                                }}
                                 className={`p-1.5 text-center border-r border-border/40 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/40 transition-colors ${
                                   isToday ? 'bg-primary/[0.08]' : ''
                                 }`}
-                                title="Click to toggle Stop Sell or edit restriction"
+                                title="Click to view and configure restrictions for this date"
                               >
                                 <div className="flex flex-col items-center gap-0.5">
-                                  {minStay && minStay > 1 ? (
-                                    <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border border-indigo-300">
-                                      {minStay}N Min
+                                  {isStop ? (
+                                    <span className="px-1.5 py-0.5 rounded text-xs font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                      🛑 Stop
                                     </span>
                                   ) : (
-                                    <span className="text-[9px] text-muted-foreground font-mono">1N</span>
-                                  )}
-                                  {rData?.closedToArrival && (
-                                    <span className="text-[8px] font-bold text-amber-600">CTA</span>
+                                    <>
+                                      {minStay && minStay > 1 ? (
+                                        <span className="px-1.5 py-0.5 rounded text-xs font-black bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border border-indigo-300 font-mono">
+                                          {minStay}N Min
+                                        </span>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground font-black font-mono">1N</span>
+                                      )}
+                                      {(cta || ctd) && (
+                                        <div className="flex items-center gap-0.5 mt-0.5">
+                                          {cta && (
+                                            <span className="px-1 py-0.2 rounded text-[8px] font-black bg-amber-500/20 text-amber-700 border border-amber-500/30">
+                                              CTA
+                                            </span>
+                                          )}
+                                          {ctd && (
+                                            <span className="px-1 py-0.2 rounded text-[8px] font-black bg-purple-500/20 text-purple-700 border border-purple-500/30">
+                                              CTD
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </td>
@@ -834,8 +1101,8 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                         </tr>
                       )}
 
-                      {/* Rate Plan Sub-Rows */}
-                      {isExpanded &&
+                      {/* Optional Rate Plan Sub-Rows (Shown only when toggled ON) */}
+                      {showRatePlans && isExpanded &&
                         plans.flatMap((plan) => {
                           const isPrimaryPlan = Boolean(plan.isPrimary);
                           const variants: Array<{ isAc: boolean; label: string; key: string }> =
@@ -1113,6 +1380,327 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         );
       })()}
 
+      {/* Quick Daily Room Tariff Edit Modal */}
+      {editingCell && (() => {
+        const targetRoom = roomTypes.find((r) => r.id === editingCell.roomTypeId);
+        const inputNum = Number(inlinePriceInput);
+        const isInvalid = inlinePriceInput === '' || isNaN(inputNum) || inputNum < 0;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                  <DollarSign className="h-4 w-4 text-emerald-500" />
+                  Edit Room Tariff ({editingCell.dateStr})
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setEditingCell(null)}
+                  className="p-1 rounded-lg text-muted-foreground hover:bg-muted cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-foreground">
+                    {targetRoom?.name || 'Selected Room'}
+                  </span>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    editingCell.isAc 
+                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300' 
+                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  }`}>
+                    {editingCell.isAc ? '❄️ AC Tariff' : '🍃 Non-AC Tariff'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                    New Rate for {editingCell.dateStr} (₹)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs font-bold text-muted-foreground">₹</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={inlinePriceInput}
+                      onChange={(e) => setInlinePriceInput(e.target.value)}
+                      className="w-full pl-7 pr-3 py-2 rounded-xl border border-border bg-background text-sm font-black font-mono focus:ring-2 focus:ring-primary focus:outline-none"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setEditingCell(null)}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:bg-muted cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequestPriceChange}
+                  disabled={isInvalid}
+                  className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+                >
+                  Next: Confirm & Sync →
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Quick Date Restriction Action Chooser Modal */}
+      {restrictionChooser && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl">
+                  <ShieldAlert className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-base text-foreground flex items-center gap-2">
+                    Manage Restriction
+                  </h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-muted text-foreground">
+                      {restrictionChooser.roomTypeName}
+                    </span>
+                    <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {restrictionChooser.dateStr}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRestrictionChooser(null)}
+                className="p-1.5 rounded-xl text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Prompt */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground">
+                Select the restriction action you want to configure for this date:
+              </p>
+            </div>
+
+            {/* Radio Selection Options */}
+            <div className="space-y-2.5">
+              {/* Option 1: Stop Sell */}
+              <div
+                onClick={() => setChosenRestrictionAction('STOP_SELL')}
+                className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                  chosenRestrictionAction === 'STOP_SELL'
+                    ? 'border-rose-500 bg-rose-500/10 shadow-xs'
+                    : 'border-border/60 hover:border-border hover:bg-muted/40'
+                }`}
+              >
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    name="restriction_action"
+                    checked={chosenRestrictionAction === 'STOP_SELL'}
+                    onChange={() => setChosenRestrictionAction('STOP_SELL')}
+                    className="h-4 w-4 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                      🛑 Stop Sell (Close Sales)
+                    </span>
+                    {restrictionChooser.currentStopSell ? (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-700 dark:text-rose-300">
+                        Active: Closed
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                        Open
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    Completely close bookings for this date or re-open closed inventory.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Closed to Arrival (CTA) */}
+              <div
+                onClick={() => setChosenRestrictionAction('CTA')}
+                className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                  chosenRestrictionAction === 'CTA'
+                    ? 'border-amber-500 bg-amber-500/10 shadow-xs'
+                    : 'border-border/60 hover:border-border hover:bg-muted/40'
+                }`}
+              >
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    name="restriction_action"
+                    checked={chosenRestrictionAction === 'CTA'}
+                    onChange={() => setChosenRestrictionAction('CTA')}
+                    className="h-4 w-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                      🚫 Closed to Arrival (CTA)
+                    </span>
+                    {restrictionChooser.currentCta && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    Disallow guest check-ins starting on this date (stay-throughs allowed).
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 3: Closed to Departure (CTD) */}
+              <div
+                onClick={() => setChosenRestrictionAction('CTD')}
+                className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                  chosenRestrictionAction === 'CTD'
+                    ? 'border-amber-500 bg-amber-500/10 shadow-xs'
+                    : 'border-border/60 hover:border-border hover:bg-muted/40'
+                }`}
+              >
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    name="restriction_action"
+                    checked={chosenRestrictionAction === 'CTD'}
+                    onChange={() => setChosenRestrictionAction('CTD')}
+                    className="h-4 w-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                      🛫 Closed to Departure (CTD)
+                    </span>
+                    {restrictionChooser.currentCtd && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    Disallow guest check-outs on this date.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 4: Minimum Stay */}
+              <div
+                onClick={() => setChosenRestrictionAction('MIN_STAY')}
+                className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                  chosenRestrictionAction === 'MIN_STAY'
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-xs'
+                    : 'border-border/60 hover:border-border hover:bg-muted/40'
+                }`}
+              >
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    name="restriction_action"
+                    checked={chosenRestrictionAction === 'MIN_STAY'}
+                    onChange={() => setChosenRestrictionAction('MIN_STAY')}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                      ⏳ Minimum Stay Length
+                    </span>
+                    {restrictionChooser.currentMinStay && restrictionChooser.currentMinStay > 1 ? (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+                        {restrictionChooser.currentMinStay}N Min
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        Default: 1N
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    Require guests to stay at least a minimum number of nights.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 5: Maximum Stay */}
+              <div
+                onClick={() => setChosenRestrictionAction('MAX_STAY')}
+                className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                  chosenRestrictionAction === 'MAX_STAY'
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-xs'
+                    : 'border-border/60 hover:border-border hover:bg-muted/40'
+                }`}
+              >
+                <div className="mt-0.5">
+                  <input
+                    type="radio"
+                    name="restriction_action"
+                    checked={chosenRestrictionAction === 'MAX_STAY'}
+                    onChange={() => setChosenRestrictionAction('MAX_STAY')}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                      ⌛ Maximum Stay Length
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    Set a maximum limit on consecutive nights for bookings across this date.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setRestrictionChooser(null)}
+                className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueFromChooser}
+                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-black hover:bg-primary/90 flex items-center gap-1.5 shadow-md shadow-primary/20 cursor-pointer transition-all"
+              >
+                Continue to Configure →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Update Confirmation & OTA Target Selection Modal */}
       <UpdateConfirmationModal
         isOpen={Boolean(confirmModalDetails)}
@@ -1122,10 +1710,10 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         onConfirm={handleConfirmUpdate}
       />
 
-      {/* Bulk Pricing & Restrictions Modal */}
-      <BulkPricingRuleModal
-        isOpen={isBulkModalOpen}
-        onClose={() => setIsBulkModalOpen(false)}
+      {/* 3 Focused Modals */}
+      <BulkRatesModal
+        isOpen={isBulkRatesModalOpen}
+        onClose={() => setIsBulkRatesModalOpen(false)}
         propertyId={propertyId}
         roomTypeId={selectedRoomForBulk?.id}
         roomTypeName={selectedRoomForBulk?.name || 'All Rooms'}
@@ -1135,6 +1723,51 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
           fetchMatrixData();
           if (onRefresh) onRefresh();
         }}
+      />
+
+      <StayRestrictionsModal
+        isOpen={isRestrictionsModalOpen}
+        onClose={() => {
+          setIsRestrictionsModalOpen(false);
+          setRestrictionTargetConfig(null);
+        }}
+        propertyId={propertyId}
+        roomTypeId={selectedRoomForBulk?.id}
+        roomTypeName={selectedRoomForBulk?.name || 'All Rooms'}
+        roomTypes={roomTypes}
+        initialStartDate={restrictionTargetConfig?.startDate}
+        initialEndDate={restrictionTargetConfig?.endDate}
+        initialAction={restrictionTargetConfig?.action}
+        onSuccess={() => {
+          fetchMatrixData();
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      <QuickStopSellModal
+        isOpen={isStopSellModalOpen}
+        onClose={() => {
+          setIsStopSellModalOpen(false);
+          setStopSellTargetConfig(null);
+        }}
+        propertyId={propertyId}
+        roomTypeId={selectedRoomForBulk?.id}
+        roomTypeName={selectedRoomForBulk?.name || 'All Rooms'}
+        roomTypes={roomTypes}
+        initialStartDate={stopSellTargetConfig?.startDate}
+        initialEndDate={stopSellTargetConfig?.endDate}
+        onSuccess={() => {
+          fetchMatrixData();
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      {/* Rate & Restriction Change Log Drawer */}
+      <RateChangeLogDrawer
+        isOpen={isChangeLogOpen}
+        onClose={() => setIsChangeLogOpen(false)}
+        propertyId={propertyId}
+        roomTypes={roomTypes}
       />
 
       {/* Add Physical Room Modal */}

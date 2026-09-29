@@ -12,7 +12,7 @@ export type RoomStatus = typeof RoomStatus[keyof typeof RoomStatus];
 export interface RoomType {
     id: string;
     name: string;
-    description?: string;
+    description?: string | null;
     size?: number | null;
     basePrice: number;
     originalPrice?: number | null;
@@ -34,11 +34,11 @@ export interface RoomType {
     amenities: string[];
     highlights: string[];
     inclusions: string[];
-    cancellationPolicy?: string;
-    cancellationPolicyText?: string;
-    cancellationPolicyId?: string;
-    marketingBadgeText?: string;
-    marketingBadgeType?: string;
+    cancellationPolicy?: string | null;
+    cancellationPolicyText?: string | null;
+    cancellationPolicyId?: string | null;
+    marketingBadgeText?: string | null;
+    marketingBadgeType?: string | null;
     images: string[];
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
@@ -48,7 +48,7 @@ export interface RoomType {
     extraAdultPriceAc?: number | null;
     extraChildPriceAc?: number | null;
     isAvailableForGroupBooking: boolean;
-    groupMaxOccupancy?: number;
+    groupMaxOccupancy?: number | null;
     isGstInclusive: boolean;
     allowPayAtProperty: boolean;
     propertyId: string;
@@ -71,7 +71,7 @@ export interface RoomType {
 
 export interface CreateRoomTypeDto {
     name: string;
-    description?: string;
+    description?: string | null;
     size?: number | null;
     basePrice: number;
     originalPrice?: number | null;
@@ -93,10 +93,10 @@ export interface CreateRoomTypeDto {
     amenities: string[];
     highlights: string[];
     inclusions: string[];
-    cancellationPolicy?: string;
-    cancellationPolicyId?: string;
-    marketingBadgeText?: string;
-    marketingBadgeType?: string;
+    cancellationPolicy?: string | null;
+    cancellationPolicyId?: string | null;
+    marketingBadgeText?: string | null;
+    marketingBadgeType?: string | null;
     images: string[];
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
@@ -106,7 +106,7 @@ export interface CreateRoomTypeDto {
     extraAdultPriceAc?: number | null;
     extraChildPriceAc?: number | null;
     isAvailableForGroupBooking: boolean;
-    groupMaxOccupancy?: number;
+    groupMaxOccupancy?: number | null;
     isGstInclusive?: boolean;
     allowPayAtProperty?: boolean;
     propertyId?: string;

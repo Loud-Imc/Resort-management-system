@@ -1,6 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, Min, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, Min, ArrayMinSize, IsEnum, ValidateIf } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateRoomTypeDto {
     @ApiProperty({ example: 'Deluxe Room' })
@@ -8,22 +8,30 @@ export class CreateRoomTypeDto {
     @IsNotEmpty()
     name: string;
 
-    @ApiProperty({ example: 'Spacious room with ocean view' })
+    @ApiProperty({ example: 'Spacious room with ocean view', required: false })
+    @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined)
+    @Transform(({ value }) => (value === '' ? null : value))
     @IsString()
-    @IsNotEmpty()
-    description: string;
+    description?: string | null;
     
     @ApiProperty({ example: 280, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(1)
-    @Type(() => Number)
     size?: number | null;
 
     @ApiProperty({ example: ['WiFi', 'AC', 'TV', 'Mini Bar'], type: [String] })
     @IsArray()
     @IsString({ each: true })
     amenities: string[];
+
+    @ApiProperty({ example: 'AC_ONLY', enum: ['AC_ONLY', 'NON_AC_ONLY', 'BOTH'], required: false })
+    @IsEnum(['AC_ONLY', 'NON_AC_ONLY', 'BOTH'])
+    @IsOptional()
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
 
     @ApiProperty({ example: 5000 })
     @IsNumber()
@@ -32,11 +40,20 @@ export class CreateRoomTypeDto {
     basePrice: number;
 
     @ApiProperty({ example: 6000, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(0)
-    @Type(() => Number)
-    originalPrice?: number;
+    basePriceAc?: number | null;
+
+    @ApiProperty({ example: 6000, required: false })
+    @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
+    @Min(0)
+    originalPrice?: number | null;
 
     @ApiProperty({ example: 1000 })
     @IsNumber()
@@ -44,11 +61,27 @@ export class CreateRoomTypeDto {
     @Type(() => Number)
     extraAdultPrice: number;
 
+    @ApiProperty({ example: 1200, required: false })
+    @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
+    @Min(0)
+    extraAdultPriceAc?: number | null;
+
     @ApiProperty({ example: 500 })
     @IsNumber()
     @Min(0)
     @Type(() => Number)
     extraChildPrice: number;
+
+    @ApiProperty({ example: 600, required: false })
+    @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
+    @Min(0)
+    extraChildPriceAc?: number | null;
 
     @ApiProperty({ example: 1 })
     @IsNumber()
@@ -69,39 +102,44 @@ export class CreateRoomTypeDto {
     maxChildren: number;
 
     @ApiProperty({ example: 2, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(1)
-    @Type(() => Number)
-    baseAdults?: number;
+    baseAdults?: number | null;
 
     @ApiProperty({ example: 1, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(0)
-    @Type(() => Number)
-    baseChildren?: number;
+    baseChildren?: number | null;
 
     @ApiProperty({ example: 4, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(1)
-    @Type(() => Number)
-    maxPhysicalAdults?: number;
+    maxPhysicalAdults?: number | null;
 
     @ApiProperty({ example: 2, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(0)
-    @Type(() => Number)
-    maxPhysicalChildren?: number;
+    maxPhysicalChildren?: number | null;
 
     @ApiProperty({ example: 1, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(0)
-    @Type(() => Number)
-    maxPhysicalInfants?: number;
+    maxPhysicalInfants?: number | null;
 
     @ApiProperty({ example: 'V1', enum: ['V1', 'V2'], required: false })
     @IsString()
@@ -109,31 +147,35 @@ export class CreateRoomTypeDto {
     occupancyVersion?: string;
 
     @ApiProperty({ example: 3, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(1)
-    @Type(() => Number)
-    totalBaseOccupancy?: number;
+    totalBaseOccupancy?: number | null;
 
     @ApiProperty({ example: 4, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(1)
-    @Type(() => Number)
-    totalMaxOccupancy?: number;
+    totalMaxOccupancy?: number | null;
 
     @ApiProperty({ example: 2, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(1)
-    @Type(() => Number)
     baseMaxAdults?: number | null;
 
     @ApiProperty({ example: 1, required: false })
-    @IsNumber()
     @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
     @Min(0)
-    @Type(() => Number)
     baseMaxChildren?: number | null;
 
     @ApiProperty({ example: true })
@@ -159,24 +201,32 @@ export class CreateRoomTypeDto {
     inclusions?: string[];
 
     @ApiProperty({ example: 'Free cancellation until 24h before check-in', required: false })
-    @IsString()
     @IsOptional()
-    cancellationPolicy?: string;
+    @ValidateIf((o, v) => v !== null && v !== undefined)
+    @Transform(({ value }) => (value === '' ? null : value))
+    @IsString()
+    cancellationPolicy?: string | null;
 
     @ApiProperty({ example: 'uuid-of-policy', required: false })
-    @IsString()
     @IsOptional()
-    cancellationPolicyId?: string;
+    @ValidateIf((o, v) => v !== null && v !== undefined)
+    @Transform(({ value }) => (value === '' ? null : value))
+    @IsString()
+    cancellationPolicyId?: string | null;
 
     @ApiProperty({ example: 'Selling Fast', required: false })
-    @IsString()
     @IsOptional()
-    marketingBadgeText?: string;
+    @ValidateIf((o, v) => v !== null && v !== undefined)
+    @Transform(({ value }) => (value === '' ? null : value))
+    @IsString()
+    marketingBadgeText?: string | null;
 
     @ApiProperty({ example: 'URGENT', enum: ['URGENT', 'POSITIVE', 'NEUTRAL'], required: false })
-    @IsString()
     @IsOptional()
-    marketingBadgeType?: string;
+    @ValidateIf((o, v) => v !== null && v !== undefined)
+    @Transform(({ value }) => (value === '' ? null : value))
+    @IsString()
+    marketingBadgeType?: string | null;
 
     @ApiProperty({ example: 'uuid-of-property' })
     @IsString()
@@ -189,10 +239,11 @@ export class CreateRoomTypeDto {
     isAvailableForGroupBooking?: boolean;
 
     @ApiProperty({ example: 6, required: false })
-    @IsNumber()
     @IsOptional()
-    @Type(() => Number)
-    groupMaxOccupancy?: number;
+    @ValidateIf((o, v) => v !== null && v !== undefined && v !== '')
+    @Transform(({ value }) => (value === null || value === '' || value === undefined ? null : Number(value)))
+    @IsNumber()
+    groupMaxOccupancy?: number | null;
 
     @ApiProperty({ example: false, required: false })
     @IsBoolean()

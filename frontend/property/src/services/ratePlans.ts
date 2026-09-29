@@ -230,4 +230,36 @@ export const ratePlansService = {
   deleteCalendarEventMarker: async (id: string): Promise<void> => {
     await api.delete(`/rate-plans/events/${id}`);
   },
+
+  getRateRestrictionLogs: async (
+    propertyId: string,
+    params?: { roomTypeId?: string; actionType?: string; startDate?: string; endDate?: string; page?: number; limit?: number }
+  ): Promise<{
+    logs: RateRestrictionLog[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }> => {
+    const res = await api.get(`/rate-plans/logs/${propertyId}`, { params });
+    return res.data;
+  },
 };
+
+export interface RateRestrictionLog {
+  id: string;
+  propertyId: string;
+  userId?: string | null;
+  userName: string;
+  userRole: string;
+  actionType: 'RATE_UPDATE' | 'RESTRICTION_UPDATE' | 'STOP_SELL_TOGGLE' | 'INVENTORY_OVERRIDE';
+  roomTypeId?: string | null;
+  roomTypeName?: string | null;
+  channelId?: string | null;
+  channelName: string;
+  startDate: string;
+  endDate: string;
+  daysOfWeek: number[];
+  summary: string;
+  details?: any;
+  syncStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
+  createdAt: string;
+}
+

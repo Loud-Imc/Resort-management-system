@@ -224,20 +224,42 @@ export class PricingService {
                 where: { id: ratePlanId },
                 include: { roomTypePrices: { where: { roomTypeId } } },
             });
+            if (!targetRatePlan || !targetRatePlan.isActive) {
+                throw new BadRequestException('The requested rate plan is invalid or no longer active for this property.');
+            }
             roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
-        } else if (mealPlan) {
+        } else if (mealPlan && mealPlan !== 'EP') {
             targetRatePlan = await this.prisma.ratePlan.findFirst({
                 where: { propertyId: roomType.propertyId, mealPlan, isActive: true },
+                include: { roomTypePrices: { where: { roomTypeId } } },
+            });
+            if (!targetRatePlan) {
+                throw new BadRequestException(`The meal plan '${mealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
+            }
+            roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
+        } else if (mealPlan === 'EP') {
+            targetRatePlan = await this.prisma.ratePlan.findFirst({
+                where: { propertyId: roomType.propertyId, mealPlan: 'EP', isActive: true },
                 include: { roomTypePrices: { where: { roomTypeId } } },
             });
             roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
         }
 
-        let rawBasePrice = Number(roomType.basePrice);
-        let rawExtraAdultPrice = Number(roomType.extraAdultPrice);
-        let rawExtraChildPrice = Number(roomType.extraChildPrice);
+        let rawBasePrice = (authoritativeIsAc && roomType.basePriceAc !== null && roomType.basePriceAc !== undefined)
+            ? Number(roomType.basePriceAc)
+            : Number(roomType.basePrice);
 
-        if (roomTypeRatePrice) {
+        let rawExtraAdultPrice = (authoritativeIsAc && roomType.extraAdultPriceAc !== null && roomType.extraAdultPriceAc !== undefined)
+            ? Number(roomType.extraAdultPriceAc)
+            : Number(roomType.extraAdultPrice);
+
+        let rawExtraChildPrice = (authoritativeIsAc && roomType.extraChildPriceAc !== null && roomType.extraChildPriceAc !== undefined)
+            ? Number(roomType.extraChildPriceAc)
+            : Number(roomType.extraChildPrice);
+
+        let mealSupplementPerNight = 0;
+
+        if (roomTypeRatePrice && Number(roomTypeRatePrice.basePrice) > 0) {
             if (authoritativeIsAc && roomTypeRatePrice.basePriceAc !== null && roomTypeRatePrice.basePriceAc !== undefined) {
                 rawBasePrice = Number(roomTypeRatePrice.basePriceAc);
                 rawExtraAdultPrice = roomTypeRatePrice.extraAdultPriceAc !== null ? Number(roomTypeRatePrice.extraAdultPriceAc) : Number(roomTypeRatePrice.extraAdultPrice);
@@ -247,16 +269,10 @@ export class PricingService {
                 rawExtraAdultPrice = Number(roomTypeRatePrice.extraAdultPrice);
                 rawExtraChildPrice = Number(roomTypeRatePrice.extraChildPrice);
             }
-        } else {
-            if (authoritativeIsAc && roomType.basePriceAc !== null && roomType.basePriceAc !== undefined) {
-                rawBasePrice = Number(roomType.basePriceAc);
-                rawExtraAdultPrice = roomType.extraAdultPriceAc !== null ? Number(roomType.extraAdultPriceAc) : Number(roomType.extraAdultPrice);
-                rawExtraChildPrice = roomType.extraChildPriceAc !== null ? Number(roomType.extraChildPriceAc) : Number(roomType.extraChildPrice);
-            } else {
-                rawBasePrice = Number(roomType.basePrice);
-                rawExtraAdultPrice = Number(roomType.extraAdultPrice);
-                rawExtraChildPrice = Number(roomType.extraChildPrice);
-            }
+        } else if (targetRatePlan && targetRatePlan.mealPlan !== 'EP') {
+            const adultMealRate = Number(targetRatePlan.extraAdultPrice || 0);
+            const childMealRate = Number(targetRatePlan.extraChildPrice || 0);
+            mealSupplementPerNight = (adultsCount * adultMealRate) + (childrenCount * childMealRate);
         }
 
         // 4. Normalize prices if room type is GST inclusive (Only if property is GST registered)
@@ -329,15 +345,16 @@ export class PricingService {
                 totalInclusivePerNight = (adultRate * adultsCount) + (childRate * childrenCount);
             }
 
-            // Task 2.4: Group Booking Per-Head Meal Plan Supplement
+            // Group Booking Per-Head Meal Plan Supplement
             const activeMealPlan = targetRatePlan?.mealPlan || mealPlan || 'EP';
             let groupMealSupplement = 0;
-            if (activeMealPlan === 'CP') {
-                groupMealSupplement = (adultsCount * 250) + (childrenCount * 150);
-            } else if (activeMealPlan === 'MAP') {
-                groupMealSupplement = (adultsCount * 700) + (childrenCount * 400);
-            } else if (activeMealPlan === 'AP') {
-                groupMealSupplement = (adultsCount * 1200) + (childrenCount * 700);
+            if (activeMealPlan !== 'EP') {
+                if (!targetRatePlan) {
+                    throw new BadRequestException(`The meal plan '${activeMealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
+                }
+                const adultMealRate = Number(targetRatePlan.extraAdultPrice || 0);
+                const childMealRate = Number(targetRatePlan.extraChildPrice || 0);
+                groupMealSupplement = (adultsCount * adultMealRate) + (childrenCount * childMealRate);
             }
             totalInclusivePerNight += groupMealSupplement;
 
@@ -363,6 +380,16 @@ export class PricingService {
             const rooms = finalRoomCount;
             basePricePerNight = effectiveBasePrice * rooms;
             baseAmount = effectiveBasePrice * numberOfNights * rooms;
+
+            if (mealSupplementPerNight > 0) {
+                let effectiveMealSupplement = mealSupplementPerNight * numberOfNights;
+                if (isRoomGstInclusive) {
+                    const normalizedMeal = await this.calculateReverseGST(effectiveMealSupplement, numberOfNights, rooms, undefined, true, preloadedContext?.gstTiers);
+                    effectiveMealSupplement = normalizedMeal.baseAmount;
+                }
+                baseAmount += effectiveMealSupplement;
+                basePricePerNight += (effectiveMealSupplement / numberOfNights);
+            }
 
             if (isV2) {
                 // V2 Canonical Pricing Integration: Authoritative server calculation with child ages
@@ -453,8 +480,8 @@ export class PricingService {
 
         // 6. Apply Pricing Rules (Seasonal/Dynamic Pricing)
         const pricingRule = preloadedContext?.pricingRules
-            ? preloadedContext.pricingRules.find((r: any) => r.roomTypeId === roomTypeId && r.isActive && DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, r.startDate, r.endDate))
-            : await this.getApplicablePricingRule(roomTypeId, checkInDate, checkOutDate);
+            ? preloadedContext.pricingRules.find((r: any) => r.roomTypeId === roomTypeId && r.isActive && DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, r.startDate, r.endDate) && (!targetRatePlan?.id || r.ratePlanId === targetRatePlan.id || !r.ratePlanId))
+            : await this.getApplicablePricingRule(roomTypeId, checkInDate, checkOutDate, targetRatePlan?.id || ratePlanId);
 
         let subtotal = baseAmount + extraAdultAmount + extraChildAmount;
         if (pricingRule) {

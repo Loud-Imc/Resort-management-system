@@ -60,7 +60,23 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
     ) || (adultsCount + childrenCount);
 
     // Calculate dynamic pricing based on active Meal Plan and room AC selections
-    const activeMealPlan = selectedMealPlan || 'EP';
+    const availableMealPlans = useMemo(() => {
+        if (!solution.ratesByMealPlan) return [];
+        const meta: Record<string, { label: string; icon: string }> = {
+            EP: { label: 'Room Only', icon: '☕' },
+            CP: { label: 'Breakfast', icon: '🍳' },
+            MAP: { label: 'Half Board', icon: '🍽️' },
+            AP: { label: 'Full Board', icon: '👑' },
+        };
+        return Object.entries(solution.ratesByMealPlan).map(([code, rate]: [string, any]) => ({
+            code,
+            label: rate?.name || meta[code]?.label || code,
+            icon: meta[code]?.icon || '🍴',
+            rate,
+        }));
+    }, [solution.ratesByMealPlan]);
+
+    const activeMealPlan = (solution.ratesByMealPlan && solution.ratesByMealPlan[selectedMealPlan]) ? selectedMealPlan : 'EP';
     const mealPricing = solution.ratesByMealPlan?.[activeMealPlan];
 
     const acDelta = useMemo(() => {
@@ -68,10 +84,18 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
             if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
                 const defaultIsAc = r.isAcSelected ?? true;
                 const currentIsAc = roomAcSelections?.[idx] !== undefined ? roomAcSelections[idx] : defaultIsAc;
+                const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null)
+                    ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0)
+                    : 0;
+                const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null)
+                    ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0)
+                    : 0;
+                const roomNightDelta = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
+
                 if (defaultIsAc && !currentIsAc) {
-                    return acc - ((r.basePriceAc - r.basePriceNonAc) * nights);
+                    return acc - (roomNightDelta * nights);
                 } else if (!defaultIsAc && currentIsAc) {
-                    return acc + ((r.basePriceAc - r.basePriceNonAc) * nights);
+                    return acc + (roomNightDelta * nights);
                 }
             }
             return acc;
@@ -230,53 +254,57 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
                 </div>
             </div>
 
-            {/* Interactive Meal Plan Tabs */}
-            {solution.ratesByMealPlan && Object.keys(solution.ratesByMealPlan).length > 0 && (
-                <div className="pt-2 border-t border-border/60">
-                    <div className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                        <span>Meal Plan Entitlement</span>
-                        <span className="text-[10px] lowercase font-normal text-muted-foreground">tap tab to choose plan</span>
+            {/* Interactive Meal Plan Selection */}
+            {availableMealPlans.length > 0 && (
+                availableMealPlans.length === 1 ? (
+                    <div className="pt-2 border-t border-border/60 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                            <span>{availableMealPlans[0].icon}</span>
+                            <span>{availableMealPlans[0].label} ({availableMealPlans[0].code}) · Standard Room Tariff</span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md border border-border">
+                            No meal supplement
+                        </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        {[
-                            { code: 'EP', label: 'Room Only', icon: '☕' },
-                            { code: 'CP', label: 'Breakfast', icon: '🍳' },
-                            { code: 'MAP', label: 'Half Board', icon: '🍽️' },
-                            { code: 'AP', label: 'Full Board', icon: '👑' },
-                        ].map((mp) => {
-                            const mpRate = solution.ratesByMealPlan[mp.code];
-                            const isMpActive = activeMealPlan === mp.code;
-                            const mpTotal = mpRate ? Math.round(mpRate.totalPrice + acDelta) : null;
-                            return (
-                                <button
-                                    key={mp.code}
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onMealPlanChange?.(mp.code);
-                                    }}
-                                    className={clsx(
-                                        "px-2.5 py-1.5 rounded-xl text-left border transition-all cursor-pointer",
-                                        isMpActive
-                                            ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
-                                            : "bg-card/50 border-border hover:border-primary/40 text-foreground"
-                                    )}
-                                >
-                                    <div className="flex items-center justify-between gap-1">
-                                        <span className="text-xs font-black">{mp.icon} {mp.code}</span>
-                                        {isMpActive && <CheckCircle className="h-3 w-3 text-primary shrink-0" />}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground font-medium truncate">{mp.label}</div>
-                                    {mpTotal !== null && (
+                ) : (
+                    <div className="pt-2 border-t border-border/60">
+                        <div className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                            <span>Meal Plan Entitlement</span>
+                            <span className="text-[10px] lowercase font-normal text-muted-foreground">tap tab to choose plan</span>
+                        </div>
+                        <div className={clsx("grid gap-1.5", availableMealPlans.length === 2 ? "grid-cols-2" : availableMealPlans.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")} onClick={(e) => e.stopPropagation()}>
+                            {availableMealPlans.map((mp) => {
+                                const isMpActive = activeMealPlan === mp.code;
+                                const mpTotal = Math.round(mp.rate.totalPrice + acDelta);
+                                return (
+                                    <button
+                                        key={mp.code}
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onMealPlanChange?.(mp.code);
+                                        }}
+                                        className={clsx(
+                                            "px-2.5 py-1.5 rounded-xl text-left border transition-all cursor-pointer",
+                                            isMpActive
+                                                ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
+                                                : "bg-card/50 border-border hover:border-primary/40 text-foreground"
+                                        )}
+                                    >
+                                        <div className="flex items-center justify-between gap-1">
+                                            <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                            {isMpActive && <CheckCircle className="h-3 w-3 text-primary shrink-0" />}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground font-medium truncate">{mp.label}</div>
                                         <div className="text-[11px] font-bold text-foreground mt-0.5">
                                             ₹{mpTotal.toLocaleString()}
                                         </div>
-                                    )}
-                                </button>
-                            );
-                        })}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
+                )
             )}
         </div>
     );
