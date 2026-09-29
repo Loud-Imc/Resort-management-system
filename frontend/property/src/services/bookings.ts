@@ -38,6 +38,22 @@ export const bookingsService = {
         return data;
     },
 
+    getAvailableRoomsForDateRange: async (params: {
+        propertyId: string;
+        checkInDate: string;
+        checkOutDate: string;
+    }) => {
+        const { data } = await api.get<{
+            availableRooms: Array<{
+                id: string;
+                roomNumber: string;
+                roomTypeId: string;
+                roomTypeName: string;
+            }>;
+        }>('/bookings/available-rooms', { params });
+        return data;
+    },
+
     getById: async (id: string) => {
         const { data } = await api.get<Booking>(`/bookings/${id}`);
         return data;

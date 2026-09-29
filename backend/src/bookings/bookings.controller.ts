@@ -52,6 +52,27 @@ export class BookingsController {
         );
     }
 
+    @Get('available-rooms')
+    @ApiOperation({ summary: 'Get all available rooms for a property within a date range' })
+    @ApiQuery({ name: 'propertyId', required: true })
+    @ApiQuery({ name: 'checkInDate', required: true })
+    @ApiQuery({ name: 'checkOutDate', required: true })
+    async getAvailableRoomsForDateRange(
+        @Query('propertyId') propertyId: string,
+        @Query('checkInDate') checkInDate: string,
+        @Query('checkOutDate') checkOutDate: string,
+    ) {
+        if (!propertyId || !checkInDate || !checkOutDate) {
+            throw new BadRequestException('propertyId, checkInDate, and checkOutDate are required');
+        }
+
+        return this.availabilityService.getAvailableRoomsForProperty(
+            propertyId,
+            checkInDate,
+            checkOutDate,
+        );
+    }
+
     @Post('check-availability')
     @ApiOperation({ summary: 'Check room availability (Public)' })
     async checkAvailability(@Body() dto: CheckAvailabilityDto) {

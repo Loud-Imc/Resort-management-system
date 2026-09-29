@@ -270,6 +270,7 @@ export interface PriceCalculationDto {
     isOverrideInclusive?: boolean;
     childAges?: number[];
     infantsCount?: number;
+    mealPlan?: string;
 }
 
 export interface PriceCalculationResult {
@@ -296,6 +297,10 @@ export interface PriceCalculationResult {
     numberOfNights: number;
     pricePerNight: number;
     taxRate: number;
+    mealPlan?: string;
+    mealSupplementAmount?: number;
+    adultMealRate?: number;
+    childMealRate?: number;
     appliedCodeType?: 'COUPON' | 'REFERRAL' | 'NONE';
     referralPartnerId?: string;
     roomBreakdown?: {
