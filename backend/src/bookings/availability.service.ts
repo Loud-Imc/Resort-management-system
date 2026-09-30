@@ -555,6 +555,66 @@ export class AvailabilityService {
         return availableRooms;
     }
 
+    /**
+     * Get all available physical rooms for a property within a date range.
+     * High performance: utilizes getBatchRoomAvailability to evaluate all rooms in 3-4 indexed DB queries.
+     */
+    async getAvailableRoomsForProperty(
+        propertyId: string,
+        checkInDate: Date | string,
+        checkOutDate: Date | string,
+    ): Promise<{
+        availableRooms: Array<{
+            id: string;
+            roomNumber: string;
+            roomTypeId: string;
+            roomTypeName: string;
+        }>;
+    }> {
+        const checkIn = new Date(checkInDate);
+        const checkOut = new Date(checkOutDate);
+
+        if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+            throw new BadRequestException('Invalid checkInDate or checkOutDate');
+        }
+
+        const roomTypes = await this.prisma.roomType.findMany({
+            where: { propertyId },
+            select: { id: true, name: true },
+        });
+
+        if (!roomTypes || roomTypes.length === 0) {
+            return { availableRooms: [] };
+        }
+
+        const roomTypeIds = roomTypes.map((rt) => rt.id);
+        const { availableRoomsMap } = await this.getBatchRoomAvailability(
+            roomTypeIds,
+            checkIn,
+            checkOut,
+        );
+
+        const availableRooms: Array<{
+            id: string;
+            roomNumber: string;
+            roomTypeId: string;
+            roomTypeName: string;
+        }> = [];
+
+        for (const rt of roomTypes) {
+            const rooms = availableRoomsMap.get(rt.id) || [];
+            for (const r of rooms) {
+                availableRooms.push({
+                    id: r.id,
+                    roomNumber: r.roomNumber,
+                    roomTypeId: rt.id,
+                    roomTypeName: rt.name,
+                });
+            }
+        }
+
+        return { availableRooms };
+    }
 
     /**
      * Check if a specific room is available for the given date range.

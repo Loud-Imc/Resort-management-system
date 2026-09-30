@@ -47,7 +47,6 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     isGroupBooking,
     groupSize,
     selectedSolution,
-    solutionRoomAssignments,
     roomTypes,
     priceDetails,
     originalPriceDetails,
@@ -66,7 +65,6 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     codeMessage,
     isCodeError = false,
     selectedMealPlan = 'EP',
-    roomAcSelections,
 }) => {
     const [inputCode, setInputCode] = useState('');
 
@@ -210,17 +208,24 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                             </span>
                                         </div>
                                     )}
+                                    {selectedMealPlan !== 'EP' && (
+                                        <div className="flex justify-between text-xs pt-1 border-t border-primary/20">
+                                            <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                                <span>{selectedMealPlan === 'CP' ? '🍳 Breakfast (CP):' : selectedMealPlan === 'MAP' ? '🍽️ Half Board (MAP):' : '👑 Full Board (AP):'}</span>
+                                            </span>
+                                            <span className="font-bold text-primary">
+                                                {details?.mealSupplementAmount !== undefined && details.mealSupplementAmount > 0
+                                                    ? `+₹${Math.round(details.mealSupplementAmount).toLocaleString()}`
+                                                    : `Plan: ${selectedMealPlan}`}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })()}
 
-                        <div className="space-y-1.5 pt-1.5 border-t border-primary/10">
+                        <div className="space-y-1 pt-1.5 border-t border-primary/10">
                             {allocatedRooms.map((ar: any, idx: number) => {
-                                const assignedId = solutionRoomAssignments[idx];
-                                const rt = roomTypes?.find(r => r.id === ar.roomTypeId);
-                                const assignedRoom = rt?.rooms?.find((r: any) => r.id === assignedId);
-                                const childAgesStr = ar.childAges && ar.childAges.length > 0 ? ` (${ar.childAges.join(',')})` : '';
-
                                 const rb = details?.roomBreakdown?.[idx];
                                 const roomBasePerNight = ar?.totalPricePerNight 
                                     ?? (ar?.basePricePerNight ? (ar.basePricePerNight + (ar.extraAdultChargePerNight || 0) + (ar.extraChildChargePerNight || 0)) : undefined)
@@ -235,48 +240,25 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                     ?? (isGstApplicable ? (roomBasePerNight > 7500 ? 18 : 5) : 0);
 
                                 const isRoomInc = ar?.isGstInclusive || (details?.isGstInclusive && allocatedRooms.length === 1);
+                                const mealPricing = selectedSolution?.ratesByMealPlan?.[selectedMealPlan || 'EP'];
+                                const fallbackSolTotal = allocatedRooms.length === 1 && mealPricing?.totalPrice ? Number(mealPricing.totalPrice) : undefined;
                                 const roomPrice = rb?.totalAmount 
+                                    ?? fallbackSolTotal
                                     ?? (ar?.totalPrice ? Number(ar.totalPrice) : (roomBasePerNight > 0 ? (roomBasePerNight * nights * (isRoomInc ? 1 : (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)))) : 0));
 
-                                const extraA = ar.extraAdults || ar.extraAdultsCount || 0;
-                                const extraAPrice = (ar.extraAdultChargePerNight || 0) * nights;
-                                const basePerNightGross = (ar.basePricePerNight || ar.basePrice || 0) * nights;
-
                                 return (
-                                    <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border/40 last:border-0">
-                                        <div className="flex flex-col flex-1 min-w-0">
-                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                                <span className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-[160px]" title={`${ar.roomTypeName} (${ar.adults}A${ar.children > 0 ? `, ${ar.children}C` : ''})`}>
-                                                    R{idx + 1}: {ar.roomTypeName} <span className="text-muted-foreground font-normal">({ar.adults}A{ar.children > 0 ? `, ${ar.children}C${childAgesStr}` : ''})</span>
-                                                </span>
-                                                {roomTaxRate > 0 && (
-                                                    <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                                        roomTaxRate === 18
-                                                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                                                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                                                    }`}>
-                                                        GST {roomTaxRate}%
-                                                    </span>
-                                                )}
-                                                <span className="font-bold text-[9.5px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
-                                                    {assignedRoom ? `Room #${assignedRoom.roomNumber}` : 'Auto'}
-                                                </span>
-                                                {(() => {
-                                                    const isAc = roomAcSelections?.[idx] !== undefined ? roomAcSelections[idx] : (ar.isAcSelected ?? (ar.acOption !== 'NON_AC_ONLY'));
-                                                    return (
-                                                        <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                                                            isAc
-                                                                ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
-                                                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                                        }`}>
-                                                            {isAc ? '❄️ AC' : '🍃 Non-AC'}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </div>
-                                            {extraA > 0 && (
-                                                <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
-                                                    ₹{basePerNightGross.toLocaleString()} base + ₹{extraAPrice.toLocaleString()} ({extraA} Extra {extraA > 1 ? 'Beds' : 'Bed'})
+                                    <div key={idx} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <span className="font-semibold text-foreground truncate" title={ar.roomTypeName}>
+                                                R{idx + 1}: {ar.roomTypeName}
+                                            </span>
+                                            {roomTaxRate > 0 && (
+                                                <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                                    roomTaxRate === 18
+                                                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                                                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                                }`}>
+                                                    GST {roomTaxRate}%
                                                 </span>
                                             )}
                                         </div>

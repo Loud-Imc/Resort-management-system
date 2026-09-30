@@ -76,7 +76,9 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
         }));
     }, [solution.ratesByMealPlan]);
 
-    const activeMealPlan = (solution.ratesByMealPlan && solution.ratesByMealPlan[selectedMealPlan]) ? selectedMealPlan : 'EP';
+    const activeMealPlan = (solution.ratesByMealPlan && selectedMealPlan && solution.ratesByMealPlan[selectedMealPlan])
+        ? selectedMealPlan
+        : (solution.ratesByMealPlan?.['EP'] ? 'EP' : (solution.ratesByMealPlan ? Object.keys(solution.ratesByMealPlan)[0] : 'EP'));
     const mealPricing = solution.ratesByMealPlan?.[activeMealPlan];
 
     const acDelta = useMemo(() => {

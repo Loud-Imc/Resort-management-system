@@ -19,6 +19,7 @@ import {
     Check, RotateCcw, Building2, DoorClosed
 } from 'lucide-react';
 import clsx from 'clsx';
+import { ratePlansService, type RatePlan } from '../../services/ratePlans';
 import AccommodationPackageCard from '../../components/bookings/AccommodationPackageCard';
 import RoomAssignmentSection from '../../components/bookings/RoomAssignmentSection';
 // import PropertyInventoryReference from '../../components/bookings/PropertyInventoryReference';
@@ -158,7 +159,12 @@ export default function CreateBooking() {
     const [childAges, setChildAges] = useState<number[]>([]);
     const [infantsCount, setInfantsCount] = useState<number>(0);
     const [selectedMealPlan, setSelectedMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('EP');
+    const [solutionMealPlans, setSolutionMealPlans] = useState<Record<string, 'EP' | 'CP' | 'MAP' | 'AP'>>({});
     const [roomAcSelections, setRoomAcSelections] = useState<Record<number, boolean>>({});
+
+    // Pre-fetch availability for selected date range (used to filter room/room-type chips before Check Availability)
+    const [dateRangeAvailableRoomIds, setDateRangeAvailableRoomIds] = useState<string[] | null>(null);
+    const [isFetchingDateRangeAvailability, setIsFetchingDateRangeAvailability] = useState(false);
 
     // Promo / Referral Code State
     const [isApplyingPromoCode, setIsApplyingPromoCode] = useState(false);
@@ -317,6 +323,49 @@ export default function CreateBooking() {
         }
     }, [watchedCheckInDate, watchedCheckOutDate, setValue]);
 
+    // Automatically pre-fetch available rooms for the selected date range using dedicated API
+    // so the Room Type & Room filter chips only display rooms that are actually free.
+    useEffect(() => {
+        if (!selectedProperty?.id || !watchedCheckInDate || !watchedCheckOutDate) {
+            setDateRangeAvailableRoomIds(null);
+            return;
+        }
+        const checkIn = new Date(watchedCheckInDate);
+        const checkOut = new Date(watchedCheckOutDate);
+        if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+            setDateRangeAvailableRoomIds(null);
+            return;
+        }
+
+        const debounceTimer = setTimeout(async () => {
+            setIsFetchingDateRangeAvailability(true);
+            try {
+                const res = await bookingsService.getAvailableRoomsForDateRange({
+                    propertyId: selectedProperty.id,
+                    checkInDate: watchedCheckInDate,
+                    checkOutDate: watchedCheckOutDate,
+                });
+                const availableRooms = res.availableRooms || [];
+                const availableIds = availableRooms.map((r: any) => r.id).filter(Boolean);
+                setDateRangeAvailableRoomIds(availableIds);
+
+                // Prune any previously selected physical rooms that are not available in this date range
+                setFilterRoomIds(prev => prev.filter(id => availableIds.includes(id)));
+
+                // Prune any previously selected room types that have no available rooms in this date range
+                const availableTypeIds = new Set(availableRooms.map((r: any) => r.roomTypeId).filter(Boolean));
+                setFilterRoomTypeIds(prev => prev.filter(id => availableTypeIds.has(id)));
+            } catch (err) {
+                console.error('[CreateBooking] Failed to fetch date-range available rooms:', err);
+                setDateRangeAvailableRoomIds(null);
+            } finally {
+                setIsFetchingDateRangeAvailability(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(debounceTimer);
+    }, [selectedProperty?.id, watchedCheckInDate, watchedCheckOutDate]);
+
     const isBookerAlsoGuest = watch('isBookerAlsoGuest');
     const guestFirstName = watch('guestFirstName');
     const guestLastName = watch('guestLastName');
@@ -368,6 +417,12 @@ export default function CreateBooking() {
     const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
         queryKey: ['roomTypes', selectedProperty?.id],
         queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
+        enabled: !!selectedProperty?.id,
+    });
+
+    const { data: propertyRatePlans } = useQuery<RatePlan[]>({
+        queryKey: ['propertyRatePlans', selectedProperty?.id],
+        queryFn: () => ratePlansService.getRatePlansForProperty(selectedProperty!.id),
         enabled: !!selectedProperty?.id,
     });
 
@@ -509,6 +564,7 @@ export default function CreateBooking() {
         setFilterRoomTypeIds([]);
         setFilterRoomIds([]);
         setSelectedRoomsEvaluation(null);
+        setSolutionMealPlans({});
 
         if (enableGroup) {
             const currentAdults = Math.max(2, Number(getValues('adultsCount')) || 2);
@@ -520,15 +576,17 @@ export default function CreateBooking() {
         }
     };
 
-    const handleSelectSolution = (solution: any) => {
+    const handleSelectSolution = (solution: any, preferredMealPlan?: 'EP' | 'CP' | 'MAP' | 'AP') => {
         if (!solution) return;
         selectedSolutionIdRef.current = solution.id || null;
         setSelectedSolution(solution);
 
-        // If current selectedMealPlan is not available in this solution's ratesByMealPlan, reset to EP
-        if (solution.ratesByMealPlan && !solution.ratesByMealPlan[selectedMealPlan]) {
-            setSelectedMealPlan('EP');
-        }
+        const targetPlan: 'EP' | 'CP' | 'MAP' | 'AP' = preferredMealPlan
+            || solutionMealPlans[solution.id]
+            || ((solution.ratesByMealPlan && solution.ratesByMealPlan['EP']) ? 'EP' : (Object.keys(solution.ratesByMealPlan || {})[0] as any || 'EP'));
+
+        setSelectedMealPlan(targetPlan);
+        setSolutionMealPlans(prev => ({ ...prev, [solution.id]: targetPlan }));
 
         const allocatedRooms = solution.rooms || solution.allocatedRooms || [];
         const firstRoomType = allocatedRooms[0]?.roomTypeId;
@@ -572,37 +630,11 @@ export default function CreateBooking() {
         });
         setRoomAcSelections(initialAcSelections);
 
-        const pricing = solution.pricing || solution.pricingSummary;
-        if (pricing) {
-            const baseAmount = pricing.baseAmount ?? pricing.basePrice ?? 0;
-            const extraAdultAmount = pricing.extraAmount ?? pricing.extraGuestTotal ?? 0;
-            const taxAmount = pricing.taxAmount ?? 0;
-            const totalAmount = pricing.totalPrice ?? pricing.grandTotal ?? (baseAmount + extraAdultAmount + taxAmount);
-            const numberOfNights = pricing.numberOfNights ?? pricing.nights ?? 1;
-            const taxRate = pricing.taxRate ?? ((taxAmount > 0 && (baseAmount + extraAdultAmount) > 0) ? Math.round((taxAmount / (baseAmount + extraAdultAmount)) * 100) : 0);
-
-            const solPrice: PriceCalculationResult = {
-                baseAmount,
-                extraAdultAmount,
-                extraChildAmount: 0,
-                taxAmount,
-                discountAmount: 0,
-                offerDiscountAmount: 0,
-                couponDiscountAmount: 0,
-                referralDiscountAmount: 0,
-                totalAmount,
-                numberOfNights,
-                pricePerNight: pricing.pricePerNight || (totalAmount / numberOfNights),
-                taxRate,
-                isGstInclusive: Boolean(pricing.isGstInclusive),
-            };
-            setPriceDetails(solPrice);
-            setOriginalPriceDetails(solPrice);
-            setAvailability({
-                available: true,
-                availableRooms: solution.totalRooms || solution.totalRoomsCount || allocatedRooms.length,
-            });
-        }
+        updatePriceForSolution(solution, targetPlan, initialAcSelections);
+        setAvailability({
+            available: true,
+            availableRooms: solution.totalRooms || solution.totalRoomsCount || allocatedRooms.length,
+        });
     };
 
     const updatePriceForSolution = (
@@ -647,6 +679,48 @@ export default function CreateBooking() {
             baseAmount = Math.max(0, baseAmount + acDelta);
             const taxRate = mealPricing.taxRate ?? ((taxAmount > 0 && (baseAmount + extraAdultAmount) > 0) ? Math.round((taxAmount / (baseAmount + extraAdultAmount)) * 100) : 0);
 
+            const adultMealRate = Number(mealPricing?.adultMealRate || 0);
+            const childMealRate = Number(mealPricing?.childMealRate || 0);
+            const isSolutionInc = Boolean(mealPricing.isGstInclusive ?? solution.pricing?.isGstInclusive);
+
+            const roomBreakdown = allocatedRooms.map((r: any, idx: number) => {
+                const roomAdults = Number(r.adults) || 1;
+                const roomChildren = Number(r.children) || 0;
+                const roomMealSupplement = (roomAdults * adultMealRate) + (roomChildren * childMealRate);
+
+                const baseNight = (r.totalPricePerNight ?? (r.basePricePerNight ? (r.basePricePerNight + (r.extraAdultChargePerNight || 0) + (r.extraChildChargePerNight || 0)) : 0)) + roomMealSupplement;
+
+                let roomAcDelta = 0;
+                if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
+                    const defaultIsAc = r.isAcSelected ?? true;
+                    const currentIsAc = acSelections[idx] !== undefined ? acSelections[idx] : defaultIsAc;
+                    const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null) ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0) : 0;
+                    const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null) ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0) : 0;
+                    const deltaPerNt = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
+                    if (defaultIsAc && !currentIsAc) roomAcDelta = -deltaPerNt;
+                    else if (!defaultIsAc && currentIsAc) roomAcDelta = deltaPerNt;
+                }
+
+                const finalRoomNight = Math.max(0, baseNight + roomAcDelta);
+                const isRoomInc = Boolean(r.isGstInclusive ?? isSolutionInc);
+                const roomTaxRate = taxRate;
+                const roomTotal = finalRoomNight * numberOfNights * (isRoomInc ? 1 : (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)));
+
+                return {
+                    roomTypeId: r.roomTypeId,
+                    adults: roomAdults,
+                    children: roomChildren,
+                    infants: r.infants || 0,
+                    baseAmount: finalRoomNight * numberOfNights,
+                    discountAmount: 0,
+                    netBaseAmount: finalRoomNight * numberOfNights,
+                    taxAmount: isRoomInc ? (roomTotal - (roomTotal / (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)))) : (finalRoomNight * numberOfNights * (roomTaxRate / 100)),
+                    taxRate: roomTaxRate,
+                    totalAmount: roomTotal,
+                    pricePerNight: finalRoomNight,
+                };
+            });
+
             const solPrice: PriceCalculationResult = {
                 baseAmount,
                 extraAdultAmount,
@@ -660,16 +734,93 @@ export default function CreateBooking() {
                 numberOfNights,
                 pricePerNight: totalAmount / numberOfNights,
                 taxRate,
-                isGstInclusive: Boolean(mealPricing.isGstInclusive ?? solution.pricing?.isGstInclusive),
+                isGstInclusive: isSolutionInc,
+                mealPlan,
+                mealSupplementAmount: mealPricing?.mealSupplementPerNight ? (mealPricing.mealSupplementPerNight * numberOfNights) : 0,
+                adultMealRate,
+                childMealRate,
+                roomBreakdown,
             };
             setPriceDetails(solPrice);
             setOriginalPriceDetails(solPrice);
         }
     };
 
-    const handleMealPlanChange = (plan: string) => {
+    const handleSolutionMealPlanChange = (solution: any, plan: string) => {
+        const mealPlanCode = plan as 'EP' | 'CP' | 'MAP' | 'AP';
+        setSolutionMealPlans(prev => ({ ...prev, [solution.id]: mealPlanCode }));
+
+        if (selectedSolution?.id === solution.id) {
+            setSelectedMealPlan(mealPlanCode);
+            updatePriceForSolution(solution, mealPlanCode, roomAcSelections);
+        } else {
+            handleSelectSolution(solution, mealPlanCode);
+        }
+    };
+
+    const handleMealPlanChange = async (plan: string) => {
         setSelectedMealPlan(plan as any);
-        if (selectedSolution) {
+        if (selectedSolution?.id) {
+            setSolutionMealPlans(prev => ({ ...prev, [selectedSolution.id]: plan as any }));
+        }
+        if (isGroupMode) {
+            const gAdults = Number(watch('adultsCount')) || 1;
+            const gChildren = Number(watch('childrenCount')) || 0;
+            const totalGroupSize = gAdults + gChildren;
+            const preview = availability?.allocationPreview || [];
+            const targetRoomTypeId = preview[0]?.roomTypeId || selectedSolution?.allocatedRooms?.[0]?.roomTypeId || roomTypes?.[0]?.id || '';
+            const previewLength = preview.length || selectedSolution?.totalRooms || (watch('selectedRoomIds') || []).length || 1;
+
+            setIsPriceLoading(true);
+            try {
+                const priceParams = {
+                    propertyId: selectedProperty?.id,
+                    roomTypeId: targetRoomTypeId,
+                    checkInDate: watchedCheckInDate,
+                    checkOutDate: watchedCheckOutDate,
+                    adultsCount: gAdults,
+                    childrenCount: gChildren,
+                    isGroupBooking: true,
+                    groupSize: totalGroupSize,
+                    roomCount: previewLength,
+                    generalCode: getValues('appliedCode'),
+                    mealPlan: plan,
+                };
+                const originalPrice = await (bookingsService as any).calculatePrice(priceParams);
+                setOriginalPriceDetails(originalPrice);
+
+                const overrideTotal = getValues('overrideTotal');
+                if (overrideTotal) {
+                    const overridePrice = await (bookingsService as any).calculatePrice({
+                        ...priceParams,
+                        overrideTotal: Number(overrideTotal),
+                        isOverrideInclusive: getValues('isOverrideInclusive'),
+                    });
+                    setPriceDetails(overridePrice);
+                } else {
+                    setPriceDetails(originalPrice);
+                }
+
+                if (selectedSolution) {
+                    setSelectedSolution((prev: any) => ({
+                        ...prev,
+                        pricing: {
+                            ...prev?.pricing,
+                            totalPrice: originalPrice.totalAmount,
+                            baseAmount: originalPrice.baseAmount,
+                            taxAmount: originalPrice.taxAmount,
+                            pricePerNight: originalPrice.pricePerNight,
+                            numberOfNights: originalPrice.numberOfNights,
+                        }
+                    }));
+                }
+            } catch (err: any) {
+                console.error('Failed to recalculate group price on meal plan change', err);
+                toast.error(err?.response?.data?.message || 'Failed to update group price for selected meal plan');
+            } finally {
+                setIsPriceLoading(false);
+            }
+        } else if (selectedSolution) {
             updatePriceForSolution(selectedSolution, plan, roomAcSelections);
         }
     };
@@ -746,6 +897,7 @@ export default function CreateBooking() {
                 isGroupBooking: isGroupMode,
                 groupSize: isGroupMode ? (adults + children) : undefined,
                 roomCount: selectedSolution?.totalRooms || 1,
+                mealPlan: selectedMealPlan || 'EP',
             });
 
             if (res.couponDiscountAmount > 0 || res.referralDiscountAmount > 0) {
@@ -880,6 +1032,7 @@ export default function CreateBooking() {
                         groupSize: totalGroupSize,
                         roomCount: preview.length,
                         generalCode: getValues('appliedCode'),
+                        mealPlan: selectedMealPlan || 'EP',
                     };
 
                     const originalPrice = await (bookingsService as any).calculatePrice(priceParams);
@@ -964,6 +1117,7 @@ export default function CreateBooking() {
                     if (matchingSol) {
                         handleSelectSolution(matchingSol);
                     } else {
+                        setSolutionMealPlans({});
                         handleSelectSolution(searchRes.accommodationSolutions[0]);
                     }
                 } else {
@@ -1150,6 +1304,7 @@ export default function CreateBooking() {
                 groupSize: isGroup ? Number(currentValues.groupSize) : undefined,
                 roomCount,
                 generalCode: currentValues.appliedCode,
+                mealPlan: selectedMealPlan || 'EP',
             };
 
             try {
@@ -1219,6 +1374,7 @@ export default function CreateBooking() {
                 generalCode: currentValues.appliedCode,
                 overrideTotal: overrideAmountNum,
                 isOverrideInclusive: currentValues.isOverrideInclusive ?? true,
+                mealPlan: selectedMealPlan || 'EP',
             };
 
             const overridePrice = await (bookingsService as any).calculatePrice(priceParams);
@@ -1783,18 +1939,25 @@ export default function CreateBooking() {
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                             {[
-                                                { code: 'EP', label: 'Room Only', sub: 'Base tariff only', icon: '☕' },
-                                                { code: 'CP', label: 'Breakfast', sub: '+₹250/adult, +₹150/child', icon: '🍳' },
-                                                { code: 'MAP', label: 'Half Board', sub: '+₹700/adult, +₹400/child', icon: '🍽️' },
-                                                { code: 'AP', label: 'Full Board', sub: '+₹1,200/adult, +₹700/child', icon: '👑' },
+                                                { code: 'EP', label: 'Room Only', defaultAdult: 0, defaultChild: 0, icon: '☕' },
+                                                { code: 'CP', label: 'Breakfast', defaultAdult: 250, defaultChild: 150, icon: '🍳' },
+                                                { code: 'MAP', label: 'Half Board', defaultAdult: 700, defaultChild: 400, icon: '🍽️' },
+                                                { code: 'AP', label: 'Full Board', defaultAdult: 1200, defaultChild: 700, icon: '👑' },
                                             ].map(mp => {
                                                 const isSelected = selectedMealPlan === mp.code;
+                                                const configuredPlan = propertyRatePlans?.find(p => p.mealPlan === mp.code);
+                                                const adultRate = configuredPlan ? Number(configuredPlan.extraAdultPrice) : mp.defaultAdult;
+                                                const childRate = configuredPlan ? Number(configuredPlan.extraChildPrice) : mp.defaultChild;
+                                                const subText = mp.code === 'EP' 
+                                                    ? 'Base tariff only' 
+                                                    : `+₹${adultRate.toLocaleString()}/ad${childRate > 0 ? `, +₹${childRate.toLocaleString()}/ch` : ''}`;
+
                                                 return (
                                                     <button
                                                         key={mp.code}
                                                         type="button"
                                                         onClick={() => {
-                                                            setSelectedMealPlan(mp.code as any);
+                                                            handleMealPlanChange(mp.code);
                                                         }}
                                                         className={clsx(
                                                             "p-2.5 rounded-xl border text-left transition-all cursor-pointer",
@@ -1808,7 +1971,7 @@ export default function CreateBooking() {
                                                             {isSelected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
                                                         </div>
                                                         <div className="text-[11px] font-bold text-foreground mt-0.5">{mp.label}</div>
-                                                        <div className="text-[10px] text-muted-foreground font-medium mt-0.5 leading-tight">{mp.sub}</div>
+                                                        <div className="text-[10px] text-muted-foreground font-medium mt-0.5 leading-tight">{subText}</div>
                                                     </button>
                                                 );
                                             })}
@@ -1900,59 +2063,96 @@ export default function CreateBooking() {
                                                     </button>
                                                 )}
                                             </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFilterRoomTypeIds([])}
-                                                    className={clsx(
-                                                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
-                                                        filterRoomTypeIds.length === 0
-                                                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                                                            : "bg-background hover:bg-muted text-muted-foreground border-border"
-                                                    )}
-                                                >
-                                                    {filterRoomTypeIds.length === 0 && <Check className="h-3.5 w-3.5" />}
-                                                    All Room Types ({roomTypes?.length || 0})
-                                                </button>
-                                                {roomTypes?.map((rt: any) => {
-                                                    const isSelected = filterRoomTypeIds.includes(rt.id);
-                                                    const roomCount = rt.rooms?.filter((r: any) => r.isEnabled)?.length ?? rt.rooms?.length ?? 0;
-                                                    return (
-                                                        <button
-                                                            key={rt.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setFilterRoomTypeIds(prev => {
-                                                                    const next = prev.includes(rt.id)
-                                                                        ? prev.filter(id => id !== rt.id)
-                                                                        : [...prev, rt.id];
-                                                                    // Also clean up any filterRoomIds that belong to deselected type
-                                                                    if (prev.includes(rt.id) && rt.rooms) {
-                                                                        const typeRoomIds = rt.rooms.map((r: any) => r.id);
-                                                                        setFilterRoomIds(fRooms => fRooms.filter(rId => !typeRoomIds.includes(rId)));
-                                                                    }
-                                                                    return next;
-                                                                });
-                                                            }}
-                                                            className={clsx(
-                                                                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
-                                                                isSelected
-                                                                    ? "bg-primary/10 text-primary border-primary font-black shadow-xs ring-1 ring-primary/20"
-                                                                    : "bg-background hover:bg-muted text-foreground border-border"
+
+                                            {(() => {
+                                                const visibleRoomTypes = roomTypes?.filter((rt: any) => {
+                                                    if (dateRangeAvailableRoomIds === null) return true; // no date filter yet — show all
+                                                    const enabledRooms = rt.rooms?.filter((r: any) => r.isEnabled) || [];
+                                                    return enabledRooms.some((r: any) => dateRangeAvailableRoomIds.includes(r.id));
+                                                }) || [];
+
+                                                return (
+                                                    <>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setFilterRoomTypeIds([])}
+                                                                className={clsx(
+                                                                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                                    filterRoomTypeIds.length === 0
+                                                                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                                                        : "bg-background hover:bg-muted text-muted-foreground border-border"
+                                                                )}
+                                                            >
+                                                                {filterRoomTypeIds.length === 0 && <Check className="h-3.5 w-3.5" />}
+                                                                All Room Types ({visibleRoomTypes.length})
+                                                            </button>
+                                                            {isFetchingDateRangeAvailability && (
+                                                                <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 px-2">
+                                                                    <Loader2 className="h-3 w-3 animate-spin" /> Checking availability...
+                                                                </span>
                                                             )}
-                                                        >
-                                                            {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
-                                                            <span>{rt.name}</span>
-                                                            <span className={clsx(
-                                                                "text-[10px] px-1.5 py-0.5 rounded-md",
-                                                                isSelected ? "bg-primary/20 text-primary font-black" : "bg-muted text-muted-foreground font-semibold"
-                                                            )}>
-                                                                {roomCount} {roomCount === 1 ? 'room' : 'rooms'}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-1">
+                                                            {!isFetchingDateRangeAvailability && (() => {
+                                                                if (dateRangeAvailableRoomIds !== null && visibleRoomTypes.length === 0) {
+                                                                    return (
+                                                                        <div className="col-span-full text-xs text-amber-600 dark:text-amber-400 font-medium py-1 px-1">
+                                                                            No room types available for the selected dates.
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                return visibleRoomTypes.map((rt: any) => {
+                                                                    const isSelected = filterRoomTypeIds.includes(rt.id);
+                                                                    const enabledRooms = rt.rooms?.filter((r: any) => r.isEnabled) || [];
+                                                                    const availableCount = dateRangeAvailableRoomIds !== null
+                                                                        ? enabledRooms.filter((r: any) => dateRangeAvailableRoomIds.includes(r.id)).length
+                                                                        : enabledRooms.length;
+                                                                    return (
+                                                                        <button
+                                                                            key={rt.id}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setFilterRoomTypeIds(prev => {
+                                                                                    const next = prev.includes(rt.id)
+                                                                                        ? prev.filter(id => id !== rt.id)
+                                                                                        : [...prev, rt.id];
+                                                                                    if (prev.includes(rt.id) && rt.rooms) {
+                                                                                        const typeRoomIds = rt.rooms.map((r: any) => r.id);
+                                                                                        setFilterRoomIds(fRooms => fRooms.filter(rId => !typeRoomIds.includes(rId)));
+                                                                                    }
+                                                                                    return next;
+                                                                                });
+                                                                            }}
+                                                                            className={clsx(
+                                                                                "w-full px-3 py-1.5 rounded-md text-left transition-all border cursor-pointer flex flex-col justify-center gap-0.5 shadow-2xs overflow-hidden",
+                                                                                isSelected
+                                                                                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs ring-2 ring-primary/30"
+                                                                                    : "bg-background hover:bg-muted/70 text-foreground border-border"
+                                                                            )}
+                                                                        >
+                                                                            <div className="flex items-center gap-1 w-full min-w-0">
+                                                                                {isSelected && <Check className="h-3 w-3 shrink-0" />}
+                                                                                <span className="text-xs font-bold leading-tight truncate">{rt.name}</span>
+                                                                            </div>
+                                                                            <span
+                                                                                className={clsx(
+                                                                                    "text-[10px] leading-tight font-medium truncate w-full",
+                                                                                    isSelected ? "text-primary-foreground/85" : "text-emerald-700 dark:text-emerald-400 font-semibold"
+                                                                                )}
+                                                                            >
+                                                                                {availableCount} {dateRangeAvailableRoomIds !== null ? 'available' : 'rooms'}
+                                                                            </span>
+                                                                        </button>
+                                                                    );
+                                                                });
+                                                            })()}
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Physical Rooms Multi-Select */}
@@ -1971,24 +2171,44 @@ export default function CreateBooking() {
                                                     </button>
                                                 )}
                                             </div>
-                                            <div className="flex flex-wrap gap-2">
+
+                                            <div className="flex items-center gap-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => setFilterRoomIds([])}
                                                     className={clsx(
-                                                        "px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
                                                         filterRoomIds.length === 0
                                                             ? "bg-primary text-primary-foreground border-primary shadow-xs"
                                                             : "bg-background hover:bg-muted text-muted-foreground border-border"
                                                     )}
                                                 >
-                                                    {filterRoomIds.length === 0 && <Check className="h-3 w-3" />}
+                                                    {filterRoomIds.length === 0 && <Check className="h-3.5 w-3.5" />}
                                                     Any Physical Room
                                                 </button>
-                                                {roomTypes
-                                                    ?.filter((rt: any) => filterRoomTypeIds.length === 0 || filterRoomTypeIds.includes(rt.id))
-                                                    .flatMap((rt: any) => (rt.rooms || []).filter((r: any) => r.isEnabled).map((r: any) => ({ ...r, roomTypeName: rt.name, roomTypeId: rt.id })))
-                                                    .map((room: any) => {
+                                                {isFetchingDateRangeAvailability && (
+                                                    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 px-2">
+                                                        <Loader2 className="h-3 w-3 animate-spin" /> Checking availability...
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-1">
+                                                {!isFetchingDateRangeAvailability && (() => {
+                                                    const visiblePhysicalRooms = roomTypes
+                                                        ?.filter((rt: any) => filterRoomTypeIds.length === 0 || filterRoomTypeIds.includes(rt.id))
+                                                        .flatMap((rt: any) => (rt.rooms || []).filter((r: any) => r.isEnabled).map((r: any) => ({ ...r, roomTypeName: rt.name, roomTypeId: rt.id })))
+                                                        .filter((room: any) => dateRangeAvailableRoomIds === null || dateRangeAvailableRoomIds.includes(room.id)) || [];
+
+                                                    if (dateRangeAvailableRoomIds !== null && visiblePhysicalRooms.length === 0) {
+                                                        return (
+                                                            <div className="col-span-full text-xs text-amber-600 dark:text-amber-400 font-medium py-1 px-1">
+                                                                No physical rooms available for the selected dates.
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return visiblePhysicalRooms.map((room: any) => {
                                                         const isSelected = filterRoomIds.includes(room.id);
                                                         return (
                                                             <button
@@ -2007,20 +2227,29 @@ export default function CreateBooking() {
                                                                     setSelectedRoomsEvaluation(null);
                                                                 }}
                                                                 className={clsx(
-                                                                    "px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5",
+                                                                    "w-full px-3 py-1.5 rounded-md text-left transition-all border cursor-pointer flex flex-col justify-center gap-0.5 shadow-2xs overflow-hidden",
                                                                     isSelected
-                                                                        ? "bg-primary/10 text-primary border-primary font-black shadow-xs ring-1 ring-primary/20"
-                                                                        : "bg-background hover:bg-muted text-foreground border-border"
+                                                                        ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs ring-2 ring-primary/30"
+                                                                        : "bg-[#d0fae6] hover:bg-[#bbf7d0] text-emerald-950 border-[#a7f3d0] dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800"
                                                                 )}
                                                             >
-                                                                {isSelected && <Check className="h-3 w-3 text-primary" />}
-                                                                <span>Room #{room.roomNumber}</span>
-                                                                <span className="text-[10px] text-muted-foreground font-normal">
-                                                                    ({room.roomTypeName})
+                                                                <div className="flex items-center gap-1 w-full min-w-0">
+                                                                    {isSelected && <Check className="h-3 w-3 shrink-0" />}
+                                                                    <span className="text-xs font-bold leading-tight truncate">#{room.roomNumber}</span>
+                                                                </div>
+                                                                <span
+                                                                    title={room.roomTypeName}
+                                                                    className={clsx(
+                                                                        "text-[10px] leading-tight font-medium truncate w-full",
+                                                                        isSelected ? "text-primary-foreground/85" : "text-emerald-800 dark:text-emerald-300"
+                                                                    )}
+                                                                >
+                                                                    {room.roomTypeName}
                                                                 </span>
                                                             </button>
                                                         );
-                                                    })}
+                                                    });
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
@@ -2172,10 +2401,10 @@ export default function CreateBooking() {
                                                     isSelected={selectedSolution?.id === sol.id}
                                                     adultsCount={Number(watch('adultsCount')) || 1}
                                                     childrenCount={Number(watch('childrenCount')) || 0}
-                                                    onSelect={handleSelectSolution}
-                                                    selectedMealPlan={selectedMealPlan}
-                                                    onMealPlanChange={handleMealPlanChange}
-                                                    roomAcSelections={roomAcSelections}
+                                                    onSelect={(s) => handleSelectSolution(s)}
+                                                    selectedMealPlan={solutionMealPlans[sol.id] || (selectedSolution?.id === sol.id ? selectedMealPlan : 'EP')}
+                                                    onMealPlanChange={(plan) => handleSolutionMealPlanChange(sol, plan)}
+                                                    roomAcSelections={selectedSolution?.id === sol.id ? roomAcSelections : undefined}
                                                     onRoomAcToggle={handleRoomAcToggle}
                                                 />
                                             ))}
@@ -3048,9 +3277,9 @@ export default function CreateBooking() {
                                         handleSelectSolution(s);
                                         setShowFullSolutionsModal(false);
                                     }}
-                                    selectedMealPlan={selectedMealPlan}
-                                    onMealPlanChange={handleMealPlanChange}
-                                    roomAcSelections={roomAcSelections}
+                                    selectedMealPlan={solutionMealPlans[sol.id] || (selectedSolution?.id === sol.id ? selectedMealPlan : 'EP')}
+                                    onMealPlanChange={(plan) => handleSolutionMealPlanChange(sol, plan)}
+                                    roomAcSelections={selectedSolution?.id === sol.id ? roomAcSelections : undefined}
                                     onRoomAcToggle={handleRoomAcToggle}
                                 />
                             ))}

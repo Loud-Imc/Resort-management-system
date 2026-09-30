@@ -53,6 +53,9 @@ export interface PricingBreakdown {
     // Rate Plan & AC
     ratePlanId?: string;
     mealPlan?: string;
+    mealSupplementAmount?: number;
+    adultMealRate?: number;
+    childMealRate?: number;
     isAcSelected?: boolean;
 }
 
@@ -234,7 +237,24 @@ export class PricingService {
                 include: { roomTypePrices: { where: { roomTypeId } } },
             });
             if (!targetRatePlan) {
-                throw new BadRequestException(`The meal plan '${mealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
+                const defaultSupplements: Record<string, { adult: number; child: number }> = {
+                    CP: { adult: 250, child: 150 },
+                    MAP: { adult: 700, child: 400 },
+                    AP: { adult: 1200, child: 700 },
+                };
+                if (defaultSupplements[mealPlan]) {
+                    targetRatePlan = {
+                        id: undefined,
+                        mealPlan,
+                        name: `${mealPlan} Plan`,
+                        extraAdultPrice: defaultSupplements[mealPlan].adult,
+                        extraChildPrice: defaultSupplements[mealPlan].child,
+                        isActive: true,
+                        roomTypePrices: [],
+                    };
+                } else {
+                    throw new BadRequestException(`The meal plan '${mealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
+                }
             }
             roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
         } else if (mealPlan === 'EP') {
@@ -258,6 +278,7 @@ export class PricingService {
             : Number(roomType.extraChildPrice);
 
         let mealSupplementPerNight = 0;
+        let groupMealSupplement = 0;
 
         if (roomTypeRatePrice && Number(roomTypeRatePrice.basePrice) > 0) {
             if (authoritativeIsAc && roomTypeRatePrice.basePriceAc !== null && roomTypeRatePrice.basePriceAc !== undefined) {
@@ -347,10 +368,24 @@ export class PricingService {
 
             // Group Booking Per-Head Meal Plan Supplement
             const activeMealPlan = targetRatePlan?.mealPlan || mealPlan || 'EP';
-            let groupMealSupplement = 0;
+            groupMealSupplement = 0;
             if (activeMealPlan !== 'EP') {
                 if (!targetRatePlan) {
-                    throw new BadRequestException(`The meal plan '${activeMealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
+                    const defaultSupplements: Record<string, { adult: number; child: number }> = {
+                        CP: { adult: 250, child: 150 },
+                        MAP: { adult: 700, child: 400 },
+                        AP: { adult: 1200, child: 700 },
+                    };
+                    if (defaultSupplements[activeMealPlan]) {
+                        targetRatePlan = {
+                            id: undefined,
+                            mealPlan: activeMealPlan,
+                            extraAdultPrice: defaultSupplements[activeMealPlan].adult,
+                            extraChildPrice: defaultSupplements[activeMealPlan].child,
+                        };
+                    } else {
+                        throw new BadRequestException(`The meal plan '${activeMealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
+                    }
                 }
                 const adultMealRate = Number(targetRatePlan.extraAdultPrice || 0);
                 const childMealRate = Number(targetRatePlan.extraChildPrice || 0);
@@ -682,6 +717,9 @@ export class PricingService {
             offerDiscountValue: activeOffer?.discountValue ? Number(activeOffer.discountValue) : undefined,
             ratePlanId: targetRatePlan?.id || ratePlanId,
             mealPlan: targetRatePlan?.mealPlan || mealPlan || 'EP',
+            mealSupplementAmount: isGroupBooking ? (groupMealSupplement * numberOfNights) : (mealSupplementPerNight * numberOfNights),
+            adultMealRate: targetRatePlan ? Number(targetRatePlan.extraAdultPrice || 0) : 0,
+            childMealRate: targetRatePlan ? Number(targetRatePlan.extraChildPrice || 0) : 0,
             isAcSelected: authoritativeIsAc,
         };
 
