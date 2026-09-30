@@ -54,7 +54,7 @@ if has_changes "backend/"; then
     
     echo "🔄 Restarting Backend Service..."
     if pm2 describe resort-api-staging > /dev/null 2>&1; then
-        pm2 restart dist/main.js --name "resort-api-staging" --update-env || pm2 reload resort-api-staging --update-env
+        pm2 restart resort-api-staging --update-env || pm2 reload resort-api-staging --update-env
     else
         NODE_ENV=staging pm2 start dist/main.js --name "resort-api-staging"
     fi
