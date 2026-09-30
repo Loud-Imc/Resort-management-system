@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException, Inject, forwardRef, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, Logger, ForbiddenException, BadRequestException, HttpException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChannelsService } from '../channels/channels.service';
 import { ConnectivityOutboxService } from '../connectivity/services/connectivity-outbox.service';
@@ -507,6 +507,7 @@ export class RoomTypesService {
             if (error.code === 'P2002') {
                 throw new ConflictException('A room type with this name already exists for this property.');
             }
+            if (error instanceof HttpException) throw error;
             throw new InternalServerErrorException('Failed to create room type. Please check the logs.');
         }
     }
@@ -639,20 +640,20 @@ export class RoomTypesService {
             const resolvedBMC = updateRoomTypeDto.baseMaxChildren !== undefined ? updateRoomTypeDto.baseMaxChildren : existing.baseMaxChildren;
             const resolvedFreeChildren = updateRoomTypeDto.freeChildrenCount !== undefined ? updateRoomTypeDto.freeChildrenCount : existing.freeChildrenCount;
 
-            const physAdults = updateRoomTypeDto.maxPhysicalAdults !== undefined
-                ? (updateRoomTypeDto.maxPhysicalAdults !== null ? Number(updateRoomTypeDto.maxPhysicalAdults) : (resolvedMaxOcc ? Number(resolvedMaxOcc) : 2))
-                : existing.maxPhysicalAdults;
-            const physChildren = updateRoomTypeDto.maxPhysicalChildren !== undefined
-                ? (updateRoomTypeDto.maxPhysicalChildren !== null ? Number(updateRoomTypeDto.maxPhysicalChildren) : null)
-                : existing.maxPhysicalChildren;
-            const physInfants = updateRoomTypeDto.maxPhysicalInfants !== undefined
-                ? (updateRoomTypeDto.maxPhysicalInfants !== null ? Number(updateRoomTypeDto.maxPhysicalInfants) : null)
-                : existing.maxPhysicalInfants;
+            const physAdultsForValidation = (updateRoomTypeDto.maxPhysicalAdults !== undefined && updateRoomTypeDto.maxPhysicalAdults !== null)
+                ? Number(updateRoomTypeDto.maxPhysicalAdults)
+                : undefined;
+            const physChildrenForValidation = (updateRoomTypeDto.maxPhysicalChildren !== undefined && updateRoomTypeDto.maxPhysicalChildren !== null)
+                ? Number(updateRoomTypeDto.maxPhysicalChildren)
+                : undefined;
+            const physInfantsForValidation = (updateRoomTypeDto.maxPhysicalInfants !== undefined && updateRoomTypeDto.maxPhysicalInfants !== null)
+                ? Number(updateRoomTypeDto.maxPhysicalInfants)
+                : undefined;
 
             this.validateOccupancyHierarchy({
-                maxPhysicalAdults: physAdults,
-                maxPhysicalChildren: physChildren,
-                maxPhysicalInfants: physInfants,
+                maxPhysicalAdults: physAdultsForValidation,
+                maxPhysicalChildren: physChildrenForValidation,
+                maxPhysicalInfants: physInfantsForValidation,
                 freeChildrenCount: resolvedFreeChildren,
                 totalBaseOccupancy: resolvedBaseOcc,
                 totalMaxOccupancy: resolvedMaxOcc,
@@ -669,8 +670,28 @@ export class RoomTypesService {
             } else if (existing.groupMaxOccupancy !== null && existing.groupMaxOccupancy !== undefined) {
                 resolvedGroupMax = Number(existing.groupMaxOccupancy);
             } else {
-                resolvedGroupMax = (Number(physAdults ?? 2)) + (Number(physChildren ?? 0));
+                const fallbackA = updateRoomTypeDto.maxAdults ?? existing.maxAdults ?? 2;
+                const fallbackC = updateRoomTypeDto.maxChildren ?? existing.maxChildren ?? 0;
+                resolvedGroupMax = Number(fallbackA) + Number(fallbackC);
             }
+
+            const resolvedPhysAdults = updateRoomTypeDto.maxPhysicalAdults !== undefined
+                ? (updateRoomTypeDto.maxPhysicalAdults !== null
+                    ? Number(updateRoomTypeDto.maxPhysicalAdults)
+                    : Math.max(Number(updateRoomTypeDto.maxAdults ?? existing.maxAdults ?? (resolvedMaxOcc || 2)), 1))
+                : existing.maxPhysicalAdults;
+
+            const resolvedPhysChildren = updateRoomTypeDto.maxPhysicalChildren !== undefined
+                ? (updateRoomTypeDto.maxPhysicalChildren !== null
+                    ? Number(updateRoomTypeDto.maxPhysicalChildren)
+                    : Math.max(Number(updateRoomTypeDto.maxChildren ?? existing.maxChildren ?? (resolvedMaxOcc ? Number(resolvedMaxOcc) - 1 : 0)), 0))
+                : existing.maxPhysicalChildren;
+
+            const resolvedPhysInfants = updateRoomTypeDto.maxPhysicalInfants !== undefined
+                ? (updateRoomTypeDto.maxPhysicalInfants !== null
+                    ? Number(updateRoomTypeDto.maxPhysicalInfants)
+                    : 0)
+                : (existing.maxPhysicalInfants ?? 0);
 
             const { cancellationPolicy, cancellationPolicyId, propertyId, ...rest } = updateRoomTypeDto;
 
@@ -681,13 +702,27 @@ export class RoomTypesService {
             };
 
             if (updateRoomTypeDto.maxPhysicalAdults !== undefined) {
-                data.maxPhysicalAdults = physAdults;
+                data.maxPhysicalAdults = resolvedPhysAdults;
             }
             if (updateRoomTypeDto.maxPhysicalChildren !== undefined) {
-                data.maxPhysicalChildren = physChildren;
+                data.maxPhysicalChildren = resolvedPhysChildren;
             }
             if (updateRoomTypeDto.maxPhysicalInfants !== undefined) {
-                data.maxPhysicalInfants = physInfants;
+                data.maxPhysicalInfants = resolvedPhysInfants;
+            }
+
+            // Ensure non-nullable base and max fields are never set to null in database
+            if (data.baseAdults === null) {
+                data.baseAdults = existing.baseAdults ?? 2;
+            }
+            if (data.baseChildren === null) {
+                data.baseChildren = existing.baseChildren ?? 0;
+            }
+            if (data.maxAdults === null) {
+                data.maxAdults = existing.maxAdults ?? (resolvedMaxOcc ? Number(resolvedMaxOcc) : 2);
+            }
+            if (data.maxChildren === null) {
+                data.maxChildren = existing.maxChildren ?? 0;
             }
 
             if (cancellationPolicy !== undefined) {
@@ -743,13 +778,13 @@ export class RoomTypesService {
                 this.logger.error(`Auto-sync failed for property ${updated.propertyId} after room type update: ${err.message}`, err.stack);
             });
 
-            return updated;
+            return this.enrichRoomTypeWithOccupancy(updated);
         } catch (error) {
             this.logger.error(`Error updating room type ${id}: ${error.message}`, error.stack);
             if (error.code === 'P2002') {
                 throw new ConflictException('A room type with this name already exists for this property.');
             }
-            if (error instanceof NotFoundException) throw error;
+            if (error instanceof HttpException) throw error;
             throw new InternalServerErrorException('Failed to update room type. Please check the logs.');
         }
     }
