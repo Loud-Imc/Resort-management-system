@@ -47,6 +47,7 @@ export class SearchRoomsDto {
 
     @ApiProperty({ example: 'Wayanad', required: false })
     @IsOptional()
+    @IsString()
     location?: string;
 
     @ApiProperty({ example: 'RESORT', required: false })
@@ -55,6 +56,8 @@ export class SearchRoomsDto {
     type?: string;
 
     @ApiProperty({ example: 'uuid-of-category', required: false })
+    @IsOptional()
+    @IsString()
     categoryId?: string;
 
     @ApiProperty({ example: 'OREEDU_PMS', required: false, enum: ['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'] })
