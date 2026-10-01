@@ -81,31 +81,77 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
         : (solution.ratesByMealPlan?.['EP'] ? 'EP' : (solution.ratesByMealPlan ? Object.keys(solution.ratesByMealPlan)[0] : 'EP'));
     const mealPricing = solution.ratesByMealPlan?.[activeMealPlan];
 
-    const acDelta = useMemo(() => {
-        return allocatedRooms.reduce((acc: number, r: any, idx: number) => {
+    const calculateGrandTotalForMealPlan = (
+        targetMealPricing: any,
+        currentAcSelections?: Record<number, boolean>
+    ) => {
+        if (!targetMealPricing && !solution.pricing && !solution.pricingSummary) return 0;
+        const mp = targetMealPricing || solution.pricing || solution.pricingSummary;
+        const adultMealRate = Number(mp?.adultMealRate || 0);
+        const childMealRate = Number(mp?.childMealRate || 0);
+        const isSolutionInc = Boolean(mp?.isGstInclusive ?? solution.pricing?.isGstInclusive);
+        const isGstApplicable = Boolean(
+            (mp?.taxAmount ?? 0) > 0 ||
+            (mp?.taxRate ?? 0) > 0 ||
+            (solution.pricing?.taxAmount ?? 0) > 0 ||
+            (solution.pricing?.taxRate ?? 0) > 0
+        );
+
+        if (!allocatedRooms || allocatedRooms.length === 0) {
+            return mp?.totalPrice ?? mp?.grandTotal ?? 0;
+        }
+
+        let totalGrand = 0;
+
+        for (let idx = 0; idx < allocatedRooms.length; idx++) {
+            const r: any = allocatedRooms[idx];
+            const defaultIsAc = r.isAcSelected ?? true;
+            const currentIsAc = currentAcSelections?.[idx] !== undefined ? currentAcSelections[idx] : defaultIsAc;
+
+            let roomAcDelta = 0;
             if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
-                const defaultIsAc = r.isAcSelected ?? true;
-                const currentIsAc = roomAcSelections?.[idx] !== undefined ? roomAcSelections[idx] : defaultIsAc;
                 const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null)
                     ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0)
                     : 0;
                 const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null)
                     ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0)
                     : 0;
-                const roomNightDelta = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
-
-                if (defaultIsAc && !currentIsAc) {
-                    return acc - (roomNightDelta * nights);
-                } else if (!defaultIsAc && currentIsAc) {
-                    return acc + (roomNightDelta * nights);
-                }
+                const deltaPerNt = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
+                if (defaultIsAc && !currentIsAc) roomAcDelta = -deltaPerNt;
+                else if (!defaultIsAc && currentIsAc) roomAcDelta = deltaPerNt;
             }
-            return acc;
-        }, 0);
-    }, [allocatedRooms, roomAcSelections, nights]);
 
-    const baseStayPrice = mealPricing?.totalPrice ?? solution.pricing?.totalPrice ?? solution.pricingSummary?.grandTotal ?? 0;
-    const totalStayPrice = Math.max(0, baseStayPrice + acDelta);
+            const roomAdults = Number(r.adults) || 1;
+            const roomChildren = Number(r.children) || 0;
+            const roomMealSupplement = (roomAdults * adultMealRate) + (roomChildren * childMealRate);
+            const baseNight = (r.totalPricePerNight ?? (r.basePricePerNight ? (r.basePricePerNight + (r.extraAdultChargePerNight || 0) + (r.extraChildChargePerNight || 0)) : 0)) + roomMealSupplement;
+            const roomNightTariff = Math.max(0, baseNight + roomAcDelta);
+            const isRoomInc = Boolean(r.isGstInclusive ?? isSolutionInc);
+
+            let roomTotalPerNight = 0;
+
+            if (isGstApplicable) {
+                if (isRoomInc) {
+                    roomTotalPerNight = roomNightTariff;
+                } else {
+                    // 0 - 7500 is 5% GST, above 7500 is 18% GST
+                    const roomTaxRate = roomNightTariff > 7500 ? 18 : 5;
+                    roomTotalPerNight = roomNightTariff * (1 + roomTaxRate / 100);
+                }
+            } else {
+                roomTotalPerNight = roomNightTariff;
+            }
+
+            totalGrand += roomTotalPerNight * nights;
+        }
+
+        return totalGrand > 0 ? totalGrand : (mp?.totalPrice ?? mp?.grandTotal ?? 0);
+    };
+
+    const totalStayPrice = useMemo(() => {
+        return calculateGrandTotalForMealPlan(mealPricing, roomAcSelections);
+    }, [mealPricing, roomAcSelections, allocatedRooms, nights]);
+
     const pricePerNight = totalStayPrice / nights;
 
     return (
@@ -277,7 +323,7 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
                         <div className={clsx("grid gap-1.5", availableMealPlans.length === 2 ? "grid-cols-2" : availableMealPlans.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")} onClick={(e) => e.stopPropagation()}>
                             {availableMealPlans.map((mp) => {
                                 const isMpActive = activeMealPlan === mp.code;
-                                const mpTotal = Math.round(mp.rate.totalPrice + acDelta);
+                                const mpTotal = Math.round(calculateGrandTotalForMealPlan(mp.rate, roomAcSelections));
                                 return (
                                     <button
                                         key={mp.code}

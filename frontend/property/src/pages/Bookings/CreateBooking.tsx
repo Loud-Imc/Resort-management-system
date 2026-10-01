@@ -648,92 +648,131 @@ export default function CreateBooking() {
         const mealPricing = solution.ratesByMealPlan?.[mealPlan] || solution.pricing || solution.pricingSummary;
 
         if (mealPricing) {
-            let baseAmount = mealPricing.baseAmount ?? mealPricing.basePrice ?? 0;
-            const extraAdultAmount = mealPricing.extraAmount ?? mealPricing.extraGuestTotal ?? 0;
-            let taxAmount = mealPricing.taxAmount ?? 0;
-            let totalAmount = mealPricing.totalPrice ?? mealPricing.grandTotal ?? (baseAmount + extraAdultAmount + taxAmount);
             const numberOfNights = mealPricing.numberOfNights ?? nights;
-
-            const acDelta = allocatedRooms.reduce((acc: number, r: any, idx: number) => {
-                if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
-                    const defaultIsAc = r.isAcSelected ?? true;
-                    const currentIsAc = acSelections[idx] !== undefined ? acSelections[idx] : defaultIsAc;
-                    const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null)
-                        ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0)
-                        : 0;
-                    const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null)
-                        ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0)
-                        : 0;
-                    const roomNightDelta = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
-
-                    if (defaultIsAc && !currentIsAc) {
-                        return acc - (roomNightDelta * numberOfNights);
-                    } else if (!defaultIsAc && currentIsAc) {
-                        return acc + (roomNightDelta * numberOfNights);
-                    }
-                }
-                return acc;
-            }, 0);
-
-            totalAmount = Math.max(0, totalAmount + acDelta);
-            baseAmount = Math.max(0, baseAmount + acDelta);
-            const taxRate = mealPricing.taxRate ?? ((taxAmount > 0 && (baseAmount + extraAdultAmount) > 0) ? Math.round((taxAmount / (baseAmount + extraAdultAmount)) * 100) : 0);
-
             const adultMealRate = Number(mealPricing?.adultMealRate || 0);
             const childMealRate = Number(mealPricing?.childMealRate || 0);
             const isSolutionInc = Boolean(mealPricing.isGstInclusive ?? solution.pricing?.isGstInclusive);
+            const isGstApplicable = Boolean(
+                (selectedProperty as any)?.isGstApplicable ?? (
+                    (mealPricing?.taxAmount ?? 0) > 0 ||
+                    (mealPricing?.taxRate ?? 0) > 0 ||
+                    (solution.pricing?.taxAmount ?? 0) > 0 ||
+                    (solution.pricing?.taxRate ?? 0) > 0
+                )
+            );
+
+            let totalBaseAmount = 0;
+            let totalExtraAdultAmount = 0;
+            let totalExtraChildAmount = 0;
+            let totalTaxAmount = 0;
+            let totalGrandAmount = 0;
 
             const roomBreakdown = allocatedRooms.map((r: any, idx: number) => {
                 const roomAdults = Number(r.adults) || 1;
                 const roomChildren = Number(r.children) || 0;
                 const roomMealSupplement = (roomAdults * adultMealRate) + (roomChildren * childMealRate);
 
-                const baseNight = (r.totalPricePerNight ?? (r.basePricePerNight ? (r.basePricePerNight + (r.extraAdultChargePerNight || 0) + (r.extraChildChargePerNight || 0)) : 0)) + roomMealSupplement;
+                const defaultIsAc = r.isAcSelected ?? true;
+                const currentIsAc = acSelections[idx] !== undefined ? acSelections[idx] : defaultIsAc;
 
                 let roomAcDelta = 0;
                 if (r.acOption === 'BOTH' && r.basePriceAc != null && r.basePriceNonAc != null) {
-                    const defaultIsAc = r.isAcSelected ?? true;
-                    const currentIsAc = acSelections[idx] !== undefined ? acSelections[idx] : defaultIsAc;
-                    const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null) ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0) : 0;
-                    const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null) ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0) : 0;
+                    const extraAdultDiff = (r.extraAdultPriceAc != null && r.extraAdultPriceNonAc != null)
+                        ? (r.extraAdultPriceAc - r.extraAdultPriceNonAc) * (r.extraAdults || 0)
+                        : 0;
+                    const extraChildDiff = (r.extraChildPriceAc != null && r.extraChildPriceNonAc != null)
+                        ? (r.extraChildPriceAc - r.extraChildPriceNonAc) * (r.paidChildren || r.extraChildren || 0)
+                        : 0;
                     const deltaPerNt = (r.basePriceAc - r.basePriceNonAc) + extraAdultDiff + extraChildDiff;
                     if (defaultIsAc && !currentIsAc) roomAcDelta = -deltaPerNt;
                     else if (!defaultIsAc && currentIsAc) roomAcDelta = deltaPerNt;
                 }
 
+                const baseNight = (r.totalPricePerNight ?? (r.basePricePerNight ? (r.basePricePerNight + (r.extraAdultChargePerNight || 0) + (r.extraChildChargePerNight || 0)) : 0)) + roomMealSupplement;
                 const finalRoomNight = Math.max(0, baseNight + roomAcDelta);
                 const isRoomInc = Boolean(r.isGstInclusive ?? isSolutionInc);
-                const roomTaxRate = taxRate;
-                const roomTotal = finalRoomNight * numberOfNights * (isRoomInc ? 1 : (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)));
+
+                let roomTaxRate = 0;
+                let roomTaxPerNight = 0;
+                let roomBasePerNight = 0;
+                let roomTotalPerNight = 0;
+
+                if (isGstApplicable) {
+                    if (isRoomInc) {
+                        // 0 - 7500 is 5% GST, above 7500 is 18% GST (inclusive reverse calculation)
+                        roomTaxRate = (finalRoomNight / 1.18 > 7500) ? 18 : 5;
+                        const divisor = 1 + (roomTaxRate / 100);
+                        roomTaxPerNight = finalRoomNight - (finalRoomNight / divisor);
+                        roomBasePerNight = finalRoomNight - roomTaxPerNight;
+                        roomTotalPerNight = finalRoomNight;
+                    } else {
+                        // 0 - 7500 is 5% GST, above 7500 is 18% GST
+                        roomTaxRate = finalRoomNight > 7500 ? 18 : 5;
+                        roomBasePerNight = finalRoomNight;
+                        roomTaxPerNight = finalRoomNight * (roomTaxRate / 100);
+                        roomTotalPerNight = roomBasePerNight + roomTaxPerNight;
+                    }
+                } else {
+                    roomTaxRate = 0;
+                    roomBasePerNight = finalRoomNight;
+                    roomTaxPerNight = 0;
+                    roomTotalPerNight = finalRoomNight;
+                }
+
+                const roomBaseTotal = roomBasePerNight * numberOfNights;
+                const roomTaxTotal = roomTaxPerNight * numberOfNights;
+                const roomGrandTotal = roomTotalPerNight * numberOfNights;
+
+                // Extra adult/child separation if not inclusive
+                const roomExtraAdultNight = (currentIsAc && r.extraAdultPriceAc != null)
+                    ? (r.extraAdultPriceAc * (r.extraAdults || 0))
+                    : ((r.extraAdultPriceNonAc ?? r.extraAdultPrice ?? 0) * (r.extraAdults || 0));
+                const roomExtraChildNight = (currentIsAc && r.extraChildPriceAc != null)
+                    ? (r.extraChildPriceAc * (r.paidChildren || r.extraChildren || 0))
+                    : ((r.extraChildPriceNonAc ?? r.extraChildPrice ?? 0) * (r.paidChildren || r.extraChildren || 0));
+
+                const extraChargesNight = isRoomInc ? 0 : (roomExtraAdultNight + roomExtraChildNight);
+                const roomPureBaseNight = Math.max(0, roomBasePerNight - extraChargesNight);
+
+                totalBaseAmount += roomPureBaseNight * numberOfNights;
+                totalExtraAdultAmount += roomExtraAdultNight * numberOfNights;
+                totalExtraChildAmount += roomExtraChildNight * numberOfNights;
+                totalTaxAmount += roomTaxTotal;
+                totalGrandAmount += roomGrandTotal;
 
                 return {
                     roomTypeId: r.roomTypeId,
                     adults: roomAdults,
                     children: roomChildren,
                     infants: r.infants || 0,
-                    baseAmount: finalRoomNight * numberOfNights,
+                    baseAmount: Number(roomBaseTotal.toFixed(2)),
                     discountAmount: 0,
-                    netBaseAmount: finalRoomNight * numberOfNights,
-                    taxAmount: isRoomInc ? (roomTotal - (roomTotal / (1 + (roomTaxRate > 0 ? roomTaxRate / 100 : 0)))) : (finalRoomNight * numberOfNights * (roomTaxRate / 100)),
+                    netBaseAmount: Number(roomBaseTotal.toFixed(2)),
+                    taxAmount: Number(roomTaxTotal.toFixed(2)),
                     taxRate: roomTaxRate,
-                    totalAmount: roomTotal,
-                    pricePerNight: finalRoomNight,
+                    totalAmount: Number(roomGrandTotal.toFixed(2)),
+                    pricePerNight: Number(finalRoomNight.toFixed(2)),
                 };
             });
 
+            const overallBase = totalBaseAmount + totalExtraAdultAmount + totalExtraChildAmount;
+            const overallTaxRate = (isGstApplicable && overallBase > 0)
+                ? Math.round((totalTaxAmount / overallBase) * 100)
+                : 0;
+
             const solPrice: PriceCalculationResult = {
-                baseAmount,
-                extraAdultAmount,
-                extraChildAmount: 0,
-                taxAmount,
+                baseAmount: Number(totalBaseAmount.toFixed(2)),
+                extraAdultAmount: Number(totalExtraAdultAmount.toFixed(2)),
+                extraChildAmount: Number(totalExtraChildAmount.toFixed(2)),
+                taxAmount: Number(totalTaxAmount.toFixed(2)),
                 discountAmount: 0,
                 offerDiscountAmount: 0,
                 couponDiscountAmount: 0,
                 referralDiscountAmount: 0,
-                totalAmount,
+                totalAmount: Number(totalGrandAmount.toFixed(2)),
                 numberOfNights,
-                pricePerNight: totalAmount / numberOfNights,
-                taxRate,
+                pricePerNight: Number((totalGrandAmount / numberOfNights).toFixed(2)),
+                taxRate: overallTaxRate,
                 isGstInclusive: isSolutionInc,
                 mealPlan,
                 mealSupplementAmount: mealPricing?.mealSupplementPerNight ? (mealPricing.mealSupplementPerNight * numberOfNights) : 0,

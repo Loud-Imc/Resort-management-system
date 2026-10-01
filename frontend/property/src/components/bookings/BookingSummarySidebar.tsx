@@ -331,7 +331,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         {/* Taxes / GST */}
                         {details.taxAmount > 0 && (
                             <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground font-medium">GST</span>
+                                <span className="text-muted-foreground font-medium">GST {details.taxRate > 0 ? `(${details.taxRate}%)` : ''}</span>
                                 <span className="font-semibold text-foreground flex items-center gap-1">
                                     {isPriceLoading ? (
                                         <Loader2 className="h-3 w-3 animate-spin text-primary" />
