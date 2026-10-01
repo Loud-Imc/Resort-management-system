@@ -1189,6 +1189,7 @@ export class AvailabilityService {
         includeFlexibleDates: boolean = false,
         roomTypeIds?: string[],
         roomIds?: string[],
+        platform: 'OREEDU_PMS' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL' = 'OREEDU_PMS',
     ) {
         if (!isGroupBooking && children > 0) {
             validateChildAges(children, childAges);
@@ -1613,6 +1614,43 @@ export class AvailabilityService {
                 let solutions: SolverAccommodationSolution[] = [];
                 let isExactSelectionFeasible = false;
 
+                const stayNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                const computeEffectiveCandidateBasePrice = (rt: any, defaultBase: number) => {
+                    let total = 0;
+                    const curr = new Date(checkIn);
+                    curr.setHours(0, 0, 0, 0);
+
+                    const primaryPlan = property?.ratePlans?.find((rp: any) => rp.isPrimary) || property?.ratePlans?.[0];
+                    const rules = primaryPlan?.pricingRules || [];
+
+                    for (let i = 0; i < stayNights; i++) {
+                        const next = new Date(curr);
+                        next.setDate(next.getDate() + 1);
+
+                        const matchedRule = rules.find((r: any) =>
+                            r.isActive &&
+                            r.channelTarget === platform &&
+                            (!r.roomTypeId || r.roomTypeId === rt.id) &&
+                            DateUtils.areNightIntervalsOverlapping(curr, next, r.startDate, r.endDate)
+                        );
+
+                        if (matchedRule) {
+                            if (matchedRule.adjustmentType === 'SET_FIXED_PRICE') {
+                                total += Number(matchedRule.adjustmentValue);
+                            } else if (matchedRule.adjustmentType === 'PERCENTAGE') {
+                                total += defaultBase + (defaultBase * Number(matchedRule.adjustmentValue)) / 100;
+                            } else {
+                                total += defaultBase + Number(matchedRule.adjustmentValue);
+                            }
+                        } else {
+                            total += defaultBase;
+                        }
+
+                        curr.setDate(curr.getDate() + 1);
+                    }
+                    return stayNights > 0 ? (total / stayNights) : defaultBase;
+                };
+
                 // Evaluate selected physical rooms if provided
                 if (propSelectedRooms.length > 0) {
                     const availableSelectedRooms = propSelectedRooms.filter(r =>
@@ -1650,9 +1688,10 @@ export class AvailabilityService {
                             .filter((rt: any) => (counts[rt.id] || 0) > 0)
                             .map((rt: any) => {
                                 const isAcDefault = rt.acOption !== 'NON_AC_ONLY';
-                                const basePrice = (isAcDefault && rt.basePriceAc !== null && rt.basePriceAc !== undefined)
+                                const rawBasePrice = (isAcDefault && rt.basePriceAc !== null && rt.basePriceAc !== undefined)
                                     ? Number(rt.basePriceAc)
                                     : Number(rt.basePrice);
+                                const basePrice = computeEffectiveCandidateBasePrice(rt, rawBasePrice);
                                 const extraAdultPrice = (isAcDefault && rt.extraAdultPriceAc !== null && rt.extraAdultPriceAc !== undefined)
                                     ? Number(rt.extraAdultPriceAc)
                                     : Number(rt.extraAdultPrice);
@@ -1755,9 +1794,10 @@ export class AvailabilityService {
                         .filter((rt: any) => (availableCountMap.get(rt.id) || 0) > 0 && rt.maxPhysicalAdults >= 1)
                         .map((rt: any) => {
                             const isAcDefault = rt.acOption !== 'NON_AC_ONLY';
-                            const basePrice = (isAcDefault && rt.basePriceAc !== null && rt.basePriceAc !== undefined)
+                            const rawBasePrice = (isAcDefault && rt.basePriceAc !== null && rt.basePriceAc !== undefined)
                                 ? Number(rt.basePriceAc)
                                 : Number(rt.basePrice);
+                            const basePrice = computeEffectiveCandidateBasePrice(rt, rawBasePrice);
                             const extraAdultPrice = (isAcDefault && rt.extraAdultPriceAc !== null && rt.extraAdultPriceAc !== undefined)
                                 ? Number(rt.extraAdultPriceAc)
                                 : Number(rt.extraAdultPrice);

@@ -31,6 +31,27 @@ export class ChannelsController {
     return this.channelsService.getActiveOtas(propertyId);
   }
 
+  @Get('rate-plan-mappings/:propertyId')
+  async getRatePlanMappings(@Param('propertyId') propertyId: string) {
+    return this.channelsService.getRatePlanMappings(propertyId);
+  }
+
+  @Post('rate-plan-mappings/auto-provision/:propertyId')
+  @HttpCode(HttpStatus.OK)
+  async autoProvisionRatePlans(@Param('propertyId') propertyId: string) {
+    return this.channelsService.autoProvisionRatePlans(propertyId);
+  }
+
+  @Post('push-room/:propertyId/:roomTypeId')
+  @HttpCode(HttpStatus.OK)
+  async pushRoomAri(
+    @Param('propertyId') propertyId: string,
+    @Param('roomTypeId') roomTypeId: string,
+    @Query('days') days?: number,
+  ) {
+    return this.channelsService.pushAriForRoomType(propertyId, roomTypeId, days ? Number(days) : 90);
+  }
+
   @Post('mappings/property')
   async savePropertyMapping(
     @Body() body: { propertyId: string; channelName: string; externalPropertyId: string; apiKey?: string },

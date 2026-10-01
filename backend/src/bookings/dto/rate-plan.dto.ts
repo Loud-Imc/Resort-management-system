@@ -185,6 +185,10 @@ export class BulkPricingRuleDto {
   @IsString()
   channelId?: string; // e.g. "ALL", or specific OTA ID/name
 
+  @IsOptional()
+  @IsArray()
+  channelTargets?: string[]; // Explicit targets: ['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL', or OTA ID]
+
   @IsString()
   @IsNotEmpty()
   startDate: string;

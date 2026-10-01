@@ -169,6 +169,7 @@ model RoomType {
   property                   Property            @relation(fields: [propertyId], references: [id])
   rooms                      Room[]
   channelMappings            ChannelRoomTypeMapping[]
+  channelRatePlanMappings    ChannelRatePlanMapping[]
   connectivityMappings       ConnectivityRoomTypeMapping[]
   ratePlanPrices             RoomTypeRatePlanPrice[]
   connectivityAvailabilityOverrides ConnectivityAvailabilityOverride[]
@@ -399,12 +400,14 @@ model PricingRule {
   ratePlanId      String?
   isFestivalRule  Boolean               @default(false)
   festivalName    String?
+  channelTarget   String                @default("OREEDU_PMS")
   isActive        Boolean               @default(true)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   roomType        RoomType?             @relation(fields: [roomTypeId], references: [id])
   ratePlan        RatePlan?             @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
 
+  @@index([roomTypeId, channelTarget, startDate, endDate])
   @@map("pricing_rules")
 }
 
@@ -677,6 +680,7 @@ model ChannelPropertyMapping {
   updatedAt          DateTime                 @updatedAt
   property           Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   roomMappings       ChannelRoomTypeMapping[]
+  ratePlanMappings   ChannelRatePlanMapping[]
 
   @@unique([propertyId, channelName])
   @@map("channel_property_mappings")
@@ -697,6 +701,23 @@ model ChannelRoomTypeMapping {
 
   @@unique([propertyMappingId, roomTypeId])
   @@map("channel_room_type_mappings")
+}
+
+model ChannelRatePlanMapping {
+  id                 String                 @id @default(uuid())
+  propertyMappingId  String
+  roomTypeId         String
+  ratePlanId         String
+  acType             AcType                 @default(DEFAULT)
+  externalRatePlanId String                 // e.g., Channex rate plan ID
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  propertyMapping    ChannelPropertyMapping @relation(fields: [propertyMappingId], references: [id], onDelete: Cascade)
+  roomType           RoomType               @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  ratePlan           RatePlan               @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyMappingId, roomTypeId, ratePlanId, acType])
+  @@map("channel_rate_plan_mappings")
 }
 
 model CancellationPolicy {
@@ -1900,8 +1921,9 @@ model RatePlan {
   derivedChildren      RatePlan[]          @relation("DerivedRatePlans")
   roomTypePrices       RoomTypeRatePlanPrice[]
   pricingRules         PricingRule[]
-  channelMappings      ChannelRoomTypeMapping[]
-  connectivityMappings ConnectivityRoomTypeMapping[]
+  channelMappings         ChannelRoomTypeMapping[]
+  channelRatePlanMappings ChannelRatePlanMapping[]
+  connectivityMappings    ConnectivityRoomTypeMapping[]
   bookings             Booking[]
   bookingRooms         BookingRoom[]
 

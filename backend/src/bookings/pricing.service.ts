@@ -135,6 +135,7 @@ export class PricingService {
         ratePlanId?: string,
         isAcSelected?: boolean,
         mealPlan?: any,
+        platform: 'OREEDU_PMS' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL' = 'OREEDU_PMS',
     ): Promise<PricingBreakdown> {
         // Resolve generalCode if provided
         if (generalCode && !couponCode && !referralCode) {
@@ -513,21 +514,44 @@ export class PricingService {
             }
         }
 
-        // 6. Apply Pricing Rules (Seasonal/Dynamic Pricing)
-        const pricingRule = preloadedContext?.pricingRules
-            ? preloadedContext.pricingRules.find((r: any) => r.roomTypeId === roomTypeId && r.isActive && DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, r.startDate, r.endDate) && (!targetRatePlan?.id || r.ratePlanId === targetRatePlan.id || !r.ratePlanId))
-            : await this.getApplicablePricingRule(roomTypeId, checkInDate, checkOutDate, targetRatePlan?.id || ratePlanId);
+        // 6. Calculate Stay Base Amount Night-by-Night using platform-specific pricing rules
+        let nightlyBaseSum = 0;
+        const currentNight = new Date(checkInDate);
+        currentNight.setHours(0, 0, 0, 0);
+
+        for (let i = 0; i < numberOfNights; i++) {
+            const nextNight = new Date(currentNight);
+            nextNight.setDate(nextNight.getDate() + 1);
+
+            const ruleThisNight = preloadedContext?.pricingRules
+                ? preloadedContext.pricingRules.find((r: any) =>
+                    r.roomTypeId === roomTypeId &&
+                    r.isActive &&
+                    r.channelTarget === platform &&
+                    DateUtils.areNightIntervalsOverlapping(currentNight, nextNight, r.startDate, r.endDate) &&
+                    (!targetRatePlan?.id || r.ratePlanId === targetRatePlan.id || !r.ratePlanId)
+                  )
+                : await this.getApplicablePricingRule(roomTypeId, currentNight, nextNight, targetRatePlan?.id || ratePlanId, platform);
+
+            let nightBase = effectiveBasePrice;
+            if (ruleThisNight) {
+                if (ruleThisNight.adjustmentType === 'PERCENTAGE') {
+                    nightBase += (nightBase * Number(ruleThisNight.adjustmentValue)) / 100;
+                } else if (ruleThisNight.adjustmentType === 'SET_FIXED_PRICE') {
+                    nightBase = Number(ruleThisNight.adjustmentValue);
+                } else {
+                    nightBase += Number(ruleThisNight.adjustmentValue);
+                }
+            }
+
+            nightlyBaseSum += nightBase * finalRoomCount;
+            currentNight.setDate(currentNight.getDate() + 1);
+        }
+
+        baseAmount = nightlyBaseSum + (mealSupplementPerNight * numberOfNights);
+        basePricePerNight = numberOfNights > 0 ? (baseAmount / numberOfNights) : effectiveBasePrice * finalRoomCount;
 
         let subtotal = baseAmount + extraAdultAmount + extraChildAmount;
-        if (pricingRule) {
-            if (pricingRule.adjustmentType === 'PERCENTAGE') {
-                subtotal += (subtotal * Number(pricingRule.adjustmentValue)) / 100;
-            } else if (pricingRule.adjustmentType === 'SET_FIXED_PRICE') {
-                subtotal = Number(pricingRule.adjustmentValue) + extraAdultAmount + extraChildAmount;
-            } else {
-                subtotal += Number(pricingRule.adjustmentValue);
-            }
-        }
 
         // CAPTURE ORIGINAL SUBTOTAL (Pre-offer/coupon/referral)
         const subtotalBeforeDiscounts = subtotal;
@@ -802,18 +826,20 @@ export class PricingService {
     }
 
     /**
-     * Get applicable pricing rule for the date range
+     * Get applicable pricing rule for the date range matching the specific platform
      */
-    private async getApplicablePricingRule(
+    async getApplicablePricingRule(
         roomTypeId: string,
         checkInDate: Date,
         checkOutDate: Date,
         ratePlanId?: string,
+        platform: string = 'OREEDU_PMS',
     ) {
         const pricingRules = await this.prisma.pricingRule.findMany({
             where: {
                 roomTypeId,
                 isActive: true,
+                channelTarget: platform,
                 ...(ratePlanId ? { OR: [{ ratePlanId }, { ratePlanId: null }] } : {}),
             },
             orderBy: [
@@ -1026,6 +1052,8 @@ export class PricingService {
         endDate: Date | string,
         targetCurrency?: string,
         ratePlanId?: string,
+        isAcSelected?: boolean,
+        platform: string = 'OREEDU_PMS',
     ): Promise<PublishedDailyRateQuote[]> {
         const roomType = await this.prisma.roomType.findUnique({
             where: { id: roomTypeId },
@@ -1056,10 +1084,27 @@ export class PricingService {
 
         // If a specific rate plan was requested, load it for its base price
         let targetRatePlan: any = null;
+        let roomTypeRatePrice: any = null;
         if (ratePlanId) {
             targetRatePlan = await this.prisma.ratePlan.findUnique({
                 where: { id: ratePlanId },
+                include: { roomTypePrices: { where: { roomTypeId } } },
             });
+            roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
+        }
+
+        let originalBasePrice = Number(roomType.basePrice);
+        if (isAcSelected && roomType.basePriceAc) {
+            originalBasePrice = Number(roomType.basePriceAc);
+        }
+        if (roomTypeRatePrice) {
+            if (isAcSelected && roomTypeRatePrice.basePriceAc) {
+                originalBasePrice = Number(roomTypeRatePrice.basePriceAc);
+            } else if (roomTypeRatePrice.basePrice) {
+                originalBasePrice = Number(roomTypeRatePrice.basePrice);
+            }
+        } else if (targetRatePlan?.basePrice) {
+            originalBasePrice = Number(targetRatePlan.basePrice);
         }
 
         const results: PublishedDailyRateQuote[] = [];
@@ -1074,7 +1119,6 @@ export class PricingService {
             const nextDate = new Date(current);
             nextDate.setDate(nextDate.getDate() + 1);
 
-            const originalBasePrice = targetRatePlan?.basePrice ? Number(targetRatePlan.basePrice) : Number(roomType.basePrice);
             let effectiveBasePrice = originalBasePrice;
             const isGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
             const gstMode: 'INCLUSIVE' | 'EXCLUSIVE' = isGstInclusive ? 'INCLUSIVE' : 'EXCLUSIVE';
@@ -1085,7 +1129,7 @@ export class PricingService {
                 effectiveBasePrice = normalized.baseAmount;
             }
 
-            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate, ratePlanId);
+            const pricingRule = await this.getApplicablePricingRule(roomTypeId, current, nextDate, ratePlanId, platform);
 
             let subtotal = effectiveBasePrice;
             let appliedPricingRule: { id: string; name: string; adjustmentType: string; adjustmentValue: number } | undefined = undefined;

@@ -14,6 +14,7 @@ export interface RateUpdateDto {
   roomTypeId: string;
   externalRoomTypeId: string;
   externalRatePlanId?: string;
+  channelId?: string; // Target specific OTA channel connection on Channex (or undefined/'ALL' for global broadcast)
   price?: number;
   minStayArrival?: number;
   minStayThrough?: number;

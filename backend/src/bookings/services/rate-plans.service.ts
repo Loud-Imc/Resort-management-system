@@ -11,6 +11,7 @@ import {
   QueryRateRestrictionLogsDto,
 } from '../dto/rate-plan.dto';
 import { MealPlan, RatePlanPricingType, PricingAdjustmentType } from '@prisma/client';
+import { DateUtils } from '../../common/utils/date.utils';
 
 @Injectable()
 export class RatePlansService {
@@ -576,7 +577,10 @@ export class RatePlansService {
     // 6. Fetch Event Markers
     const eventMarkers = await this.getCalendarEventMarkers(propertyId, startDateStr, endDateStr);
 
-    // 7. Fetch active bookings
+    const allPhysicalRooms = roomTypes.flatMap((rt) => rt.rooms);
+    const allPhysicalRoomIds = allPhysicalRooms.map((r) => r.id);
+
+    // 7. Fetch active bookings with physical room allocations (bookingRooms)
     const bookings = await this.prisma.booking.findMany({
       where: {
         propertyId,
@@ -596,6 +600,21 @@ export class RatePlansService {
             roomId: true,
           },
         },
+      },
+    });
+
+    // 7.1 Fetch active room blocks (manual holds, maintenance blocks, legacy blocks)
+    const roomBlocks = await this.prisma.roomBlock.findMany({
+      where: {
+        roomId: { in: allPhysicalRoomIds },
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+      select: {
+        id: true,
+        roomId: true,
+        startDate: true,
+        endDate: true,
       },
     });
 
@@ -631,18 +650,62 @@ export class RatePlansService {
     for (const rt of roomTypes) {
       inventory[rt.id] = {};
       restrictions[rt.id] = {};
+      const rtPhysicalRoomIds = new Set(rt.rooms.map((r) => r.id));
       const totalPhysical = rt.rooms.filter((r) => r.status !== 'MAINTENANCE').length;
 
       for (const dateStr of days) {
-        // Bookings occupying this roomType on this date
-        const activeBookings = bookings.filter((b) => {
-          if (b.roomTypeId !== rt.id) return false;
-          const bInStr = new Date(b.checkInDate).toISOString().split('T')[0];
-          const bOutStr = new Date(b.checkOutDate).toISOString().split('T')[0];
-          return dateStr >= bInStr && dateStr < bOutStr;
-        });
+        // Collect unique unavailable physical room IDs for this room type on this date
+        const unavailableRoomIds = new Set<string>();
+        let unassignedCount = 0;
 
-        const bookedCount = activeBookings.reduce((sum, b) => sum + (b.bookingRooms?.length || 1), 0);
+        // A. Process active bookings occupying physical rooms of this roomType on dateStr
+        for (const b of bookings) {
+          const bInStr = DateUtils.toCalendarDateStr(b.checkInDate);
+          const bOutStr = DateUtils.toCalendarDateStr(b.checkOutDate);
+
+          if (dateStr >= bInStr && dateStr < bOutStr) {
+            let hasAssignedDoors = false;
+
+            // 1. Multi-room booking allocations via bookingRooms
+            if (b.bookingRooms && b.bookingRooms.length > 0) {
+              for (const br of b.bookingRooms) {
+                if (br.roomId) {
+                  hasAssignedDoors = true;
+                  if (rtPhysicalRoomIds.has(br.roomId)) {
+                    unavailableRoomIds.add(br.roomId);
+                  }
+                }
+              }
+            }
+
+            // 2. Direct single-room booking allocation via b.roomId
+            if (b.roomId) {
+              hasAssignedDoors = true;
+              if (rtPhysicalRoomIds.has(b.roomId)) {
+                unavailableRoomIds.add(b.roomId);
+              }
+            }
+
+            // 3. Fallback for unallocated booking (no physical door assigned yet) booked under this roomTypeId
+            if (!hasAssignedDoors && b.roomTypeId === rt.id) {
+              unassignedCount++;
+            }
+          }
+        }
+
+        // B. Process manual room blocks occupying physical rooms of this roomType on dateStr
+        for (const rb of roomBlocks) {
+          const rbStartStr = DateUtils.toCalendarDateStr(rb.startDate);
+          const rbEndStr = DateUtils.toCalendarDateStr(rb.endDate);
+
+          if (dateStr >= rbStartStr && dateStr < rbEndStr) {
+            if (rb.roomId && rtPhysicalRoomIds.has(rb.roomId)) {
+              unavailableRoomIds.add(rb.roomId);
+            }
+          }
+        }
+
+        const bookedCount = unavailableRoomIds.size + unassignedCount;
         const naturalAvailable = Math.max(0, totalPhysical - bookedCount);
 
         // Check manual override
@@ -730,32 +793,61 @@ export class RatePlansService {
       if (rt) propertyId = rt.propertyId;
     }
 
+    // Resolve concrete internal and external channel targets
+    const internalTargets: string[] = [];
+    const externalOtaTargets: string[] = [];
+
+    if (dto.channelTargets && dto.channelTargets.length > 0) {
+      for (const t of dto.channelTargets) {
+        if (t === 'ALL') {
+          internalTargets.push('OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL');
+        } else if (['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'].includes(t)) {
+          internalTargets.push(t);
+        } else {
+          externalOtaTargets.push(t);
+        }
+      }
+    } else if (dto.channelId === 'PMS_ONLY') {
+      internalTargets.push('OREEDU_PMS');
+    } else if (dto.channelId && dto.channelId !== 'ALL') {
+      externalOtaTargets.push(dto.channelId);
+    } else {
+      // Default: All internal platforms
+      internalTargets.push('OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL');
+    }
+
+    const uniqueInternalTargets = Array.from(new Set(internalTargets));
+    const createdRules: any[] = [];
     let createdPricingRule: any = null;
 
-    // 1. If price is specified, create PricingRule
-    if (dto.price !== undefined && dto.price !== null) {
-      const name = dto.isFestivalRule
-        ? `Festival Override: ${dto.festivalName || 'Special Event'}`
-        : dto.daysOfWeek && dto.daysOfWeek.length > 0
-        ? `Bulk Day Rule (${dto.daysOfWeek.join(',')})`
-        : `Date Range Rule (${dto.startDate} to ${dto.endDate})`;
+    // 1. If price is specified, create explicit PricingRule per internal channel target
+    if (dto.price !== undefined && dto.price !== null && uniqueInternalTargets.length > 0) {
+      for (const target of uniqueInternalTargets) {
+        const name = dto.isFestivalRule
+          ? `Festival Override [${target}]: ${dto.festivalName || 'Special Event'}`
+          : dto.daysOfWeek && dto.daysOfWeek.length > 0
+          ? `Bulk Day Rule [${target}] (${dto.daysOfWeek.join(',')})`
+          : `Date Range Rule [${target}] (${dto.startDate} to ${dto.endDate})`;
 
-      createdPricingRule = await this.prisma.pricingRule.create({
-        data: {
-          name,
-          startDate: start,
-          endDate: end,
-          daysOfWeek: dto.daysOfWeek || [],
-          adjustmentType: PricingAdjustmentType.SET_FIXED_PRICE,
-          adjustmentValue: dto.price,
-          roomTypeId: targetRoomTypeId || null,
-          ratePlanId: targetRatePlanId || null,
-          isFestivalRule: dto.isFestivalRule || false,
-          festivalName: dto.festivalName || null,
-        },
-      });
-
-      this.logger.log(`Created PricingRule '${name}' (${createdPricingRule.id})`);
+        const rule = await this.prisma.pricingRule.create({
+          data: {
+            name,
+            startDate: start,
+            endDate: end,
+            daysOfWeek: dto.daysOfWeek || [],
+            adjustmentType: PricingAdjustmentType.SET_FIXED_PRICE,
+            adjustmentValue: dto.price,
+            roomTypeId: targetRoomTypeId || null,
+            ratePlanId: targetRatePlanId || null,
+            channelTarget: target,
+            isFestivalRule: dto.isFestivalRule || false,
+            festivalName: dto.festivalName || null,
+          },
+        });
+        createdRules.push(rule);
+        this.logger.log(`Created PricingRule '${name}' (${rule.id}) for target '${target}'`);
+      }
+      createdPricingRule = createdRules[0] || null;
     }
 
     // 2. If restrictions are provided (minStay, maxStay, CTA, CTD)
@@ -856,8 +948,29 @@ export class RatePlansService {
 
     if (propertyId && this.channelsService) {
       const channelsService = this.channelsService;
-      if (dto.channelId === 'PMS_ONLY') {
-        this.logger.log(`[Pricing Update] channelId is PMS_ONLY, skipping external OTA sync.`);
+      if (externalOtaTargets.length > 0) {
+        this.prisma.channelRoomTypeMapping.findFirst({
+          where: { roomTypeId: targetRoomTypeId },
+        }).then(async (roomMapping) => {
+          if (roomMapping && dto.price !== undefined) {
+            const updates = externalOtaTargets.map((otaId) => ({
+              date: dto.startDate,
+              dateTo: dto.endDate,
+              roomTypeId: targetRoomTypeId || '',
+              externalRoomTypeId: roomMapping.externalRoomTypeId,
+              externalRatePlanId: roomMapping.externalRatePlanId || undefined,
+              price: dto.price,
+              channelId: otaId,
+            }));
+            await channelsService.pushDeltaAri(propertyId, [], updates as any);
+          } else {
+            await channelsService.pushAriForProperty(propertyId, 60);
+          }
+        }).catch((err) => {
+          this.logger.warn(`Failed targeted channel rate sync: ${err.message}`);
+        });
+      } else if (dto.channelId === 'PMS_ONLY' || (dto.channelTargets && externalOtaTargets.length === 0 && !dto.channelTargets.includes('ALL'))) {
+        this.logger.log(`[Pricing Update] Target is purely internal portals, skipping external OTA sync.`);
       } else if (dto.channelId && dto.channelId !== 'ALL') {
         // Specific OTA targeted update
         this.prisma.channelRoomTypeMapping.findFirst({

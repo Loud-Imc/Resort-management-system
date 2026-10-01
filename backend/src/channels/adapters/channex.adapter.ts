@@ -404,16 +404,25 @@ export class ChannexAdapter implements IChannelAdapter {
    */
   private async fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const response = await fetch(url, options);
-      if (response.status === 429 || response.status >= 500) {
-        if (attempt === maxRetries) return response;
-        const retryAfterHeader = response.headers.get('retry-after');
-        const delayMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : Math.pow(2, attempt) * 1000;
-        this.logger.warn(`[Channex Rate Limit/Error] HTTP ${response.status} from ${url}. Retrying attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
+      try {
+        const response = await fetch(url, options);
+        if (response.status === 429 || response.status >= 500) {
+          if (attempt === maxRetries) return response;
+          const retryAfterHeader = response.headers.get('retry-after');
+          const delayMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : Math.pow(2, attempt) * 1000;
+          this.logger.warn(`[Channex Rate Limit/Error] HTTP ${response.status} from ${url}. Retrying attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+        return response;
+      } catch (err: any) {
+        const cause = err?.cause?.code || err?.cause?.message || err?.message || 'Socket/Network error';
+        this.logger.warn(`[Channex Network Error] Attempt ${attempt}/${maxRetries} to ${url} failed (${cause}).`);
+        if (attempt === maxRetries) {
+          throw new Error(`Failed to reach Channex API (${url}): ${cause}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
       }
-      return response;
     }
     throw new Error(`Max retries exceeded for ${url}`);
   }
@@ -525,18 +534,28 @@ export class ChannexAdapter implements IChannelAdapter {
     apiKey: string,
     externalPropertyId: string,
     externalRoomTypeId: string,
-    ratePlan: { name: string; mealPlan?: string; currency?: string; basePrice?: number }
+    ratePlan: { name: string; mealPlan?: string; currency?: string; basePrice?: number; occupancy?: number }
   ): Promise<{ externalRatePlanId: string }> {
+    let channexMealType = 'none';
+    if (ratePlan.mealPlan === 'CP') channexMealType = 'breakfast';
+    else if (ratePlan.mealPlan === 'MAP') channexMealType = 'half_board';
+    else if (ratePlan.mealPlan === 'AP') channexMealType = 'full_board';
+
     const payload = {
       rate_plan: {
         title: ratePlan.name,
         property_id: externalPropertyId,
         room_type_id: externalRoomTypeId,
         currency: ratePlan.currency || 'INR',
+        meal_type: channexMealType,
         sell_mode: 'per_room',
         rate_mode: 'manual',
         options: [
-          { occupancy: 2, is_primary: true }
+          {
+            occupancy: ratePlan.occupancy || 2,
+            is_primary: true,
+            ...(ratePlan.basePrice ? { rate: Math.round(Number(ratePlan.basePrice) * 100) } : {}),
+          }
         ],
       },
     };

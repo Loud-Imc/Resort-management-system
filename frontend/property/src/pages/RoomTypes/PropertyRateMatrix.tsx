@@ -38,8 +38,10 @@ import { QuickStopSellModal } from '../../components/QuickStopSellModal';
 import { RateChangeLogDrawer } from '../../components/RateChangeLogDrawer';
 import { 
   UpdateConfirmationModal, 
-  type UpdateConfirmationDetails 
+  type UpdateConfirmationDetails,
+  type UpdateConfirmationConfirmPayload 
 } from '../../components/UpdateConfirmationModal';
+import { FullSyncAuditModal } from '../../components/FullSyncAuditModal';
 import toast from 'react-hot-toast';
 
 interface PropertyRateMatrixProps {
@@ -72,7 +74,6 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   const [restrictionsMap, setRestrictionsMap] = useState<Record<string, Record<string, DailyRestrictionData>>>({});
   const [eventMarkers, setEventMarkers] = useState<CalendarEventMarker[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [syncingOtas, setSyncingOtas] = useState<boolean>(false);
   const [expandedRoomTypes, setExpandedRoomTypes] = useState<Record<string, boolean>>({});
 
   // Connected OTAs list from Channex
@@ -96,6 +97,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
   const [isRestrictionsModalOpen, setIsRestrictionsModalOpen] = useState<boolean>(false);
   const [isStopSellModalOpen, setIsStopSellModalOpen] = useState<boolean>(false);
   const [isChangeLogOpen, setIsChangeLogOpen] = useState<boolean>(false);
+  const [isFullSyncModalOpen, setIsFullSyncModalOpen] = useState<boolean>(false);
   const [selectedRoomForBulk, setSelectedRoomForBulk] = useState<RoomType | undefined>(undefined);
 
   // Inline Price Editing
@@ -147,6 +149,9 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
   // 3-Dot Action Menu state
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+
+  // Channel view filter for rate matrix display
+  const [selectedChannelView, setSelectedChannelView] = useState<string>('OREEDU_PMS');
 
   // Today's date string for highlight matching (YYYY-MM-DD)
   const today = new Date();
@@ -288,6 +293,12 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
     if (plan.pricingRules && plan.pricingRules.length > 0) {
       const matchingRules = plan.pricingRules.filter((rule: any) => {
+        // Strict channel filtering:
+        // Must match currently selected channel view.
+        // Legacy rules without channelTarget default to 'OREEDU_PMS'.
+        const target = rule.channelTarget || 'OREEDU_PMS';
+        if (target !== selectedChannelView) return false;
+
         if (rule.roomTypeId && rt && rule.roomTypeId !== rt.id) return false;
         const s = rule.startDate.split('T')[0];
         const e = rule.endDate.split('T')[0];
@@ -409,47 +420,60 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     setQuickEditInv(null);
   };
 
-  const handleConfirmUpdate = async (target: {
-    syncMode: 'ALL' | 'SPECIFIC' | 'PMS_ONLY';
-    selectedChannelIds: string[];
-  }) => {
+  const handleConfirmUpdate = async (target: UpdateConfirmationConfirmPayload) => {
     if (!confirmModalDetails) return;
 
-    const channelId = target.syncMode === 'PMS_ONLY' 
+    // Filter real OTAs vs simulated/dummy OTAs
+    const realSelectedOtaIds = (target.selectedChannelDetails?.selectedOtas || [])
+      .filter((o) => !o.isSimulated)
+      .map((o) => o.id);
+
+    const hasSimulatedOtas = (target.selectedChannelDetails?.selectedOtas || []).some(
+      (o) => o.isSimulated
+    );
+
+    // Build explicit channel targets list
+    const channelTargets: string[] = [];
+    if (target.selectedChannelDetails?.oreeduPms) channelTargets.push('OREEDU_PMS');
+    if (target.selectedChannelDetails?.oreeduOtaPortal) channelTargets.push('OREEDU_OTA_PORTAL');
+    if (target.selectedChannelDetails?.oreeduCpPortal) channelTargets.push('OREEDU_CP_PORTAL');
+    for (const otaId of realSelectedOtaIds) {
+      channelTargets.push(otaId);
+    }
+
+    // Determine channel target for Channex/PMS:
+    // If no real OTAs selected (e.g. only internal portals or simulated OTAs): PMS_ONLY
+    const channelId = realSelectedOtaIds.length === 0
       ? 'PMS_ONLY' 
-      : target.syncMode === 'SPECIFIC' && target.selectedChannelIds.length === 1
-      ? target.selectedChannelIds[0]
+      : realSelectedOtaIds.length === 1
+      ? realSelectedOtaIds[0]
       : 'ALL';
 
     try {
       if (confirmModalDetails.type === 'PRICE') {
-        if (target.syncMode === 'SPECIFIC' && target.selectedChannelIds.length > 0) {
-          for (const chId of target.selectedChannelIds) {
-            await ratePlansService.applyBulkPricingRule({
-              propertyId,
-              roomTypeId: confirmModalDetails.roomTypeId,
-              ratePlanId: confirmModalDetails.ratePlanId,
-              startDate: confirmModalDetails.dateStr,
-              endDate: confirmModalDetails.dateStr,
-              price: confirmModalDetails.newValue,
-              channelId: chId,
-            });
-          }
-        } else {
-          await ratePlansService.applyBulkPricingRule({
-            propertyId,
-            roomTypeId: confirmModalDetails.roomTypeId,
-            ratePlanId: confirmModalDetails.ratePlanId,
-            startDate: confirmModalDetails.dateStr,
-            endDate: confirmModalDetails.dateStr,
-            price: confirmModalDetails.newValue,
-            channelId,
-          });
+        await ratePlansService.applyBulkPricingRule({
+          propertyId,
+          roomTypeId: confirmModalDetails.roomTypeId,
+          ratePlanId: confirmModalDetails.ratePlanId,
+          startDate: confirmModalDetails.dateStr,
+          endDate: confirmModalDetails.dateStr,
+          price: confirmModalDetails.newValue,
+          channelId,
+          channelTargets: channelTargets.length > 0 ? channelTargets : ['OREEDU_PMS'],
+        });
+
+        const channelNames: string[] = [];
+        if (target.selectedChannelDetails?.oreeduPms) channelNames.push('Oreedu PMS');
+        if (target.selectedChannelDetails?.oreeduOtaPortal) channelNames.push('Oreedu OTA portal');
+        if (target.selectedChannelDetails?.oreeduCpPortal) channelNames.push('Oreedu CP portal');
+        if (realSelectedOtaIds.length > 0) {
+          channelNames.push(`${realSelectedOtaIds.length} live OTA(s)`);
+        } else if (hasSimulatedOtas) {
+          channelNames.push('Simulated OTAs');
         }
+
         toast.success(
-          target.syncMode === 'PMS_ONLY'
-            ? 'Price updated in PMS (Direct only)'
-            : 'Price updated & synced to OTAs!'
+          `Price updated for: ${channelNames.join(', ')}`
         );
       } else {
         await ratePlansService.setInventoryOverride({
@@ -459,10 +483,11 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
           allocatedQuantity: confirmModalDetails.newValue,
           channelId,
         });
+
         toast.success(
-          target.syncMode === 'PMS_ONLY'
-            ? 'Room inventory updated in PMS (Direct only)'
-            : 'Room inventory override saved & synced to OTAs!'
+          realSelectedOtaIds.length > 0
+            ? `Inventory updated & synced to ${realSelectedOtaIds.length} OTA(s) and PMS!`
+            : 'Inventory updated in PMS!'
         );
       }
       setEditingCell(null);
@@ -471,18 +496,6 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     } catch (err: any) {
       console.error('Update error:', err);
       toast.error(`Failed to apply ${confirmModalDetails.type === 'PRICE' ? 'price' : 'inventory'} update`);
-    }
-  };
-
-  const handleFullSyncToOtas = async () => {
-    setSyncingOtas(true);
-    try {
-      await channelsService.pushAri(propertyId, 365);
-      toast.success('🚀 Full 365-day ARI synced to Channex and all connected OTAs!');
-    } catch (err: any) {
-      toast.error('Failed to push full sync to OTAs');
-    } finally {
-      setSyncingOtas(false);
     }
   };
 
@@ -535,6 +548,26 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
             ))}
           </select>
 
+          {/* Channel View Filter Selector */}
+          <div className="flex items-center gap-1.5 bg-muted/60 px-2.5 py-1.5 rounded-xl border border-border">
+            <span className="text-[11px] font-extrabold text-muted-foreground whitespace-nowrap">Channel:</span>
+            <select
+              value={selectedChannelView}
+              onChange={(e) => setSelectedChannelView(e.target.value)}
+              className="bg-background text-xs font-bold rounded-lg px-2.5 py-1 border border-border focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer text-foreground max-w-[180px] truncate shadow-2xs"
+              title="Filter matrix rates by platform or OTA channel"
+            >
+              <option value="OREEDU_PMS">🖥️ Oreedu PMS</option>
+              <option value="OREEDU_OTA_PORTAL">🌐 Oreedu OTA Portal</option>
+              <option value="OREEDU_CP_PORTAL">🤝 Oreedu CP Portal</option>
+              {activeOtas.map((ota) => (
+                <option key={ota.id} value={ota.id}>
+                  📡 {ota.title || ota.channel}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {showRatePlans && (
             <span className="hidden xl:flex px-2 py-1 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 items-center gap-1 shrink-0">
               <Utensils className="h-3 w-3" /> Meals ON
@@ -583,13 +616,12 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
           {/* Full Sync to OTAs Button */}
           <button
-            onClick={handleFullSyncToOtas}
-            disabled={syncingOtas}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
-            title="Push 365-day full ARI update to Channex and all connected OTAs"
+            onClick={() => setIsFullSyncModalOpen(true)}
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0"
+            title="Audit and push full ARI update to Channex and connected OTAs"
           >
-            <Globe className={`h-3.5 w-3.5 ${syncingOtas ? 'animate-spin' : ''}`} />
-            {syncingOtas ? 'Syncing...' : '🔄 Full Sync to OTAs'}
+            <Globe className="h-3.5 w-3.5" />
+            🔄 Full Sync to OTAs
           </button>
 
           {/* Refresh Button */}
@@ -1768,6 +1800,17 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         onClose={() => setIsChangeLogOpen(false)}
         propertyId={propertyId}
         roomTypes={roomTypes}
+      />
+
+      {/* Full Sync Audit & Pre-Check Modal */}
+      <FullSyncAuditModal
+        isOpen={isFullSyncModalOpen}
+        onClose={() => setIsFullSyncModalOpen(false)}
+        propertyId={propertyId}
+        onSuccess={() => {
+          fetchMatrixData();
+          if (onRefresh) onRefresh();
+        }}
       />
 
       {/* Add Physical Room Modal */}

@@ -16,8 +16,10 @@ import {
     Calendar,
     Users,
     BedDouble,
+    Globe,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { channelsService } from '../../services/channels';
 import { useProperty } from '../../context/PropertyContext';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -43,6 +45,9 @@ export default function RoomTypesList() {
     // Bulk Pricing Modal State
     const [bulkPricingModalTarget, setBulkPricingModalTarget] = useState<RoomType | null>(null);
 
+    // Single Room Card Sync State
+    const [syncingRoomTypeId, setSyncingRoomTypeId] = useState<string | null>(null);
+
     // Rate & Restriction Change Log Drawer State
     const [isChangeLogOpen, setIsChangeLogOpen] = useState(false);
 
@@ -66,6 +71,20 @@ export default function RoomTypesList() {
 
     const handleDelete = (type: RoomType) => {
         setDeletingType(type);
+    };
+
+    const handleSyncSingleRoom = async (type: RoomType) => {
+        if (!propertyId) return;
+        setSyncingRoomTypeId(type.id);
+        try {
+            toast.loading(`Syncing ${type.name} to OTAs...`, { id: `sync-${type.id}` });
+            await channelsService.pushRoomAri(propertyId, type.id, 90);
+            toast.success(`🚀 ${type.name} availability & rates synced to connected OTAs (90 Days)!`, { id: `sync-${type.id}` });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || `Failed to sync ${type.name} to OTAs`, { id: `sync-${type.id}` });
+        } finally {
+            setSyncingRoomTypeId(null);
+        }
     };
 
     if (isLoading) {
@@ -304,6 +323,17 @@ export default function RoomTypesList() {
                                         >
                                             <DollarSign className="h-3.5 w-3.5" />
                                             Seasonal Rates
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSyncSingleRoom(type)}
+                                            disabled={syncingRoomTypeId === type.id}
+                                            className="px-2.5 py-1.5 bg-sky-500/10 hover:bg-sky-600 text-sky-600 hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                            title="Sync this category availability & rates to connected OTAs"
+                                        >
+                                            <Globe className={`h-3.5 w-3.5 ${syncingRoomTypeId === type.id ? 'animate-spin' : ''}`} />
+                                            {syncingRoomTypeId === type.id ? 'Syncing...' : 'Sync OTAs'}
                                         </button>
                                     </div>
 

@@ -121,6 +121,7 @@ export class BookingsService {
                     alloc.ratePlanId || dto.ratePlanId,
                     alloc.isAcSelected !== undefined ? alloc.isAcSelected : dto.isAcSelected,
                     alloc.mealPlan || dto.mealPlan,
+                    dto.platform || 'OREEDU_PMS',
                 );
 
                 const singleBreakdown = [{
@@ -175,6 +176,7 @@ export class BookingsService {
                     alloc.ratePlanId || dto.ratePlanId,
                     alloc.isAcSelected !== undefined ? alloc.isAcSelected : dto.isAcSelected,
                     alloc.mealPlan || dto.mealPlan,
+                    dto.platform || 'OREEDU_PMS',
                 );
                 rawAllocPrices.push(rawPrice);
                 accumulatedBaseAmount += rawPrice.baseAmount;
@@ -724,6 +726,7 @@ export class BookingsService {
                         alloc.ratePlanId || createBookingDto.ratePlanId,
                         alloc.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected,
                         alloc.mealPlan || createBookingDto.mealPlan,
+                        createBookingDto.platform || 'OREEDU_PMS',
                     );
                     allocationPricingList.push(pricing);
                 } else {
@@ -760,6 +763,7 @@ export class BookingsService {
                             alloc.ratePlanId || createBookingDto.ratePlanId,
                             alloc.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected,
                             alloc.mealPlan || createBookingDto.mealPlan,
+                            createBookingDto.platform || 'OREEDU_PMS',
                         );
                         rawAllocPrices.push(rawPrice);
                         accumulatedBaseAmount += rawPrice.baseAmount;
@@ -970,6 +974,7 @@ export class BookingsService {
                     createBookingDto.ratePlanId,
                     createBookingDto.isAcSelected,
                     createBookingDto.mealPlan,
+                    createBookingDto.platform || 'OREEDU_PMS',
                 );
             }
         }

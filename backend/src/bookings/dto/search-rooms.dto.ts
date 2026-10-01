@@ -55,9 +55,12 @@ export class SearchRoomsDto {
     type?: string;
 
     @ApiProperty({ example: 'uuid-of-category', required: false })
+    categoryId?: string;
+
+    @ApiProperty({ example: 'OREEDU_PMS', required: false, enum: ['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'] })
     @IsOptional()
     @IsString()
-    categoryId?: string;
+    platform?: 'OREEDU_PMS' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL';
 
     @ApiProperty({ example: false, required: false })
     @IsOptional()

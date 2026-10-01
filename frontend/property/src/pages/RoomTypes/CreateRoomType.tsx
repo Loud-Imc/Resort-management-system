@@ -6,11 +6,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../services/roomTypes';
 import { useProperty } from '../../context/PropertyContext';
 import ImageUpload from '../../components/ImageUpload';
-import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby, ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby, ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, AlertTriangle, Globe, RefreshCw } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../types/room';
 import { cancellationPoliciesService, type CancellationPolicy } from '../../services/cancellationPolicies';
+import { channelsService } from '../../services/channels';
 import CancellationPolicyModal from '../../components/CancellationPolicyModal';
 
 const FALLBACK_HIGHLIGHTS = [
@@ -485,6 +486,21 @@ export default function CreateRoomType() {
     const [hasCustomAcExtraPricing, setHasCustomAcExtraPricing] = useState(false);
     const extraGuestSectionRef = useRef<HTMLDivElement>(null);
 
+    const [syncPrompt, setSyncPrompt] = useState<{
+        isOpen: boolean;
+        roomTypeId: string;
+        roomTypeName: string;
+        diffs: Array<{ label: string; oldVal: any; newVal: any }>;
+    } | null>(null);
+    const [isSyncingToOtas, setIsSyncingToOtas] = useState(false);
+
+    const { data: channelMappings = [] } = useQuery({
+        queryKey: ['channelMappings', selectedProperty?.id],
+        queryFn: () => (selectedProperty?.id ? channelsService.getMappings(selectedProperty.id) : Promise.resolve([])),
+        enabled: !!selectedProperty?.id,
+    });
+    const hasActiveChannels = (channelMappings as any[]).some((m: any) => m.isActive);
+
     const { data: existingRoomType, isLoading: loadingExisting } = useQuery<RoomType>({
         queryKey: ['roomType', id],
         queryFn: () => roomTypesService.getById(id!),
@@ -795,19 +811,61 @@ export default function CreateRoomType() {
             };
             return isEdit ? roomTypesService.update(id!, payload as any) : roomTypesService.create(payload as any);
         },
-        onSuccess: () => {
-            toast.success(isEdit ? 'Room type updated!' : 'Room type created!');
+        onSuccess: (_savedResult: any, variables: any) => {
             queryClient.invalidateQueries({ queryKey: ['roomTypes'] });
             if (id) {
                 queryClient.invalidateQueries({ queryKey: ['roomType', id] });
                 queryClient.removeQueries({ queryKey: ['roomType', id] });
             }
-            navigate('/room-types');
+
+            const basePriceChanged = existingRoomType && Number(existingRoomType.basePrice) !== Number(variables.basePrice);
+            const basePriceAcChanged = existingRoomType && (Number(existingRoomType.basePriceAc || 0) !== Number(variables.basePriceAc || 0));
+            const occupancyChanged = existingRoomType && (
+                Number(existingRoomType.totalMaxOccupancy ?? existingRoomType.maxAdults) !== Number(variables.totalMaxOccupancy ?? variables.maxAdults)
+            );
+
+            if (isEdit && hasActiveChannels && (basePriceChanged || basePriceAcChanged || occupancyChanged)) {
+                toast.success('Room type saved in PMS!');
+                setSyncPrompt({
+                    isOpen: true,
+                    roomTypeId: id!,
+                    roomTypeName: variables.name || existingRoomType?.name || 'Room Category',
+                    diffs: [
+                        ...(basePriceChanged ? [{ label: 'Base / Non-AC Rate', oldVal: `₹${Number(existingRoomType.basePrice).toLocaleString()}`, newVal: `₹${Number(variables.basePrice).toLocaleString()}` }] : []),
+                        ...(basePriceAcChanged ? [{ label: 'AC Rate', oldVal: `₹${Number(existingRoomType.basePriceAc || 0).toLocaleString()}`, newVal: `₹${Number(variables.basePriceAc || 0).toLocaleString()}` }] : []),
+                        ...(occupancyChanged ? [{ label: 'Max Occupancy', oldVal: existingRoomType.totalMaxOccupancy ?? existingRoomType.maxAdults, newVal: variables.totalMaxOccupancy ?? variables.maxAdults }] : []),
+                    ],
+                });
+            } else {
+                toast.success(isEdit ? 'Room type updated!' : 'Room type created!');
+                navigate('/room-types');
+            }
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || 'Failed to save room type');
         },
     });
+
+    const handleSyncToOtas = async () => {
+        if (!syncPrompt?.roomTypeId || !selectedProperty?.id) return;
+        setIsSyncingToOtas(true);
+        try {
+            await channelsService.pushRoomAri(selectedProperty.id, syncPrompt.roomTypeId, 90);
+            toast.success(`⚡ Successfully pushed 90-day rates & availability for ${syncPrompt.roomTypeName} to OTAs!`);
+            setSyncPrompt(null);
+            navigate('/room-types');
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to sync with OTAs');
+        } finally {
+            setIsSyncingToOtas(false);
+        }
+    };
+
+    const handleSkipSync = () => {
+        toast.success('Room type saved in PMS Direct only.');
+        setSyncPrompt(null);
+        navigate('/room-types');
+    };
 
     const onSubmit = (data: any) => saveMutation.mutate(data);
 
@@ -2113,6 +2171,67 @@ export default function CreateRoomType() {
                         queryClient.invalidateQueries({ queryKey: ['cancellationPolicies', selectedProperty.id] });
                     }}
                 />
+            )}
+
+            {/* Post-Update OTA Sync Confirmation Modal */}
+            {syncPrompt?.isOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-2xl">
+                                <Globe className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-extrabold text-gray-900 dark:text-white">
+                                    Sync Updated Rates to OTAs?
+                                </h3>
+                                <p className="text-xs text-gray-500 font-medium">
+                                    {syncPrompt.roomTypeName}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-3.5 bg-gray-50 dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-gray-700/60 space-y-2 text-xs">
+                            <div className="font-bold text-gray-700 dark:text-gray-300 uppercase text-[10px] tracking-wider">
+                                Modified Parameters
+                            </div>
+                            {syncPrompt.diffs.map((d, i) => (
+                                <div key={i} className="flex items-center justify-between font-medium">
+                                    <span className="text-gray-500">{d.label}:</span>
+                                    <span className="flex items-center gap-1.5 font-bold">
+                                        <span className="text-red-500 line-through">{String(d.oldVal)}</span>
+                                        <span className="text-gray-400">→</span>
+                                        <span className="text-emerald-600 dark:text-emerald-400">{String(d.newVal)}</span>
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                            Room type pricing is saved in PMS direct. Would you like to push this updated rate & occupancy to connected OTAs (Booking.com, Agoda, MMT) via Channex right now?
+                        </p>
+
+                        <div className="flex flex-col gap-2 pt-2">
+                            <button
+                                type="button"
+                                disabled={isSyncingToOtas}
+                                onClick={handleSyncToOtas}
+                                className="w-full py-2.5 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                {isSyncingToOtas ? <Loader2 className="animate-spin h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+                                <span>⚡ Sync to OTAs Now (90 Days)</span>
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSyncingToOtas}
+                                onClick={handleSkipSync}
+                                className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                            >
+                                Keep in PMS Direct Only
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

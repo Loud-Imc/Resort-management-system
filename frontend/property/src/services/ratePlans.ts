@@ -83,6 +83,7 @@ export interface BulkPricingRuleDto {
   roomTypeId?: string;
   ratePlanId?: string;
   channelId?: string;
+  channelTargets?: string[];
   startDate: string;
   endDate: string;
   daysOfWeek?: number[]; // [1,2,3,4] for Mon-Thu, [5,6,0] for Fri-Sun
