@@ -156,5 +156,20 @@ export const channelsService = {
     const response = await api.post(`/channels/properties/${propertyId}/sync-messages`);
     return response.data;
   },
+
+  getRatePlanMappings: async (propertyId: string): Promise<any> => {
+    const response = await api.get(`/channels/rate-plan-mappings/${propertyId}`);
+    return response.data;
+  },
+
+  autoProvisionRatePlans: async (propertyId: string): Promise<any> => {
+    const response = await api.post(`/channels/rate-plan-mappings/auto-provision/${propertyId}`);
+    return response.data;
+  },
+
+  pushRoomAri: async (propertyId: string, roomTypeId: string, days = 90): Promise<any> => {
+    const response = await api.post(`/channels/push-room/${propertyId}/${roomTypeId}?days=${days}`);
+    return response.data;
+  },
 };
 

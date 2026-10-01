@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, BadGatewayException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityService } from '../bookings/availability.service';
 import { PricingService } from '../bookings/pricing.service';
@@ -8,6 +8,7 @@ import { MockAdapter } from './adapters/mock.adapter';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { DateUtils } from '../common/utils/date.utils';
 import { CurrenciesService } from '../currencies/currencies.service';
+import { AcType } from '@prisma/client';
 
 @Injectable()
 export class ChannelsService {
@@ -365,12 +366,17 @@ export class ChannelsService {
       throw new BadRequestException('Iframe token generation not supported.');
     }
 
-    const token = await adapter.getIframeSessionToken(mapping.externalPropertyId);
-    const channexDomain = (process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1')
-      .replace('/api/v1', '')
-      .replace('/api/v2', '');
-    const iframeUrl = `${channexDomain}/auth/exchange?oauth_session_key=${token}&app_mode=headless&redirect_to=/channels&property_id=${mapping.externalPropertyId}`;
-    return { url: iframeUrl };
+    try {
+      const token = await adapter.getIframeSessionToken(mapping.externalPropertyId);
+      const channexDomain = (process.env.CHANNEX_BASE_URL || 'https://staging.channex.io/api/v1')
+        .replace('/api/v1', '')
+        .replace('/api/v2', '');
+      const iframeUrl = `${channexDomain}/auth/exchange?oauth_session_key=${token}&app_mode=headless&redirect_to=/channels&property_id=${mapping.externalPropertyId}`;
+      return { url: iframeUrl };
+    } catch (err: any) {
+      this.logger.error(`[Channex Iframe Error] ${err.message}`);
+      throw new BadGatewayException(`Channex Iframe generation failed: ${err.message}`);
+    }
   }
 
   /**
@@ -388,13 +394,18 @@ export class ChannelsService {
   /**
    * Calculate and push full Availability & Inventory for a property across all active mapped channels
    */
-  async pushAriForProperty(propertyId: string, daysToSync = 60): Promise<void> {
+  /**
+   * Calculate and push full Availability & Inventory for a property across all active mapped channels.
+   * Supports optional targetRoomTypeId to push targeted ARI for a specific room type only (e.g. from Room Card).
+   */
+  async pushAriForProperty(propertyId: string, daysToSync = 60, targetRoomTypeId?: string): Promise<void> {
     const mappings = await this.prisma.channelPropertyMapping.findMany({
       where: { propertyId, isActive: true },
       include: {
         roomMappings: {
           include: { roomType: true },
         },
+        ratePlanMappings: true,
       },
     });
 
@@ -411,14 +422,22 @@ export class ChannelsService {
       const rateUpdates: RateUpdateDto[] = [];
 
       let currentRoomMappings = mapping.roomMappings;
+      if (targetRoomTypeId) {
+        currentRoomMappings = currentRoomMappings.filter((rm) => rm.roomTypeId === targetRoomTypeId);
+      }
+
       if (currentRoomMappings.length === 0 && adapter.createRemoteRoomType) {
-        this.logger.log(`[Self-Healing] No room mappings found for property ${propertyId} on ${mapping.channelName}. Auto-creating missing remote room types...`);
+        this.logger.log(`[Self-Healing] Resolving remote room types for property ${propertyId} on ${mapping.channelName}...`);
         const fullProp = await this.prisma.property.findUnique({
           where: { id: propertyId },
           include: { roomTypes: { include: { rooms: true } } },
         });
         if (fullProp?.roomTypes) {
-          for (const roomType of fullProp.roomTypes) {
+          const roomTypesToSync = targetRoomTypeId
+            ? fullProp.roomTypes.filter((rt) => rt.id === targetRoomTypeId)
+            : fullProp.roomTypes;
+
+          for (const roomType of roomTypesToSync) {
             const existingRmMap = await this.prisma.channelRoomTypeMapping.findUnique({
               where: { propertyMappingId_roomTypeId: { propertyMappingId: mapping.id, roomTypeId: roomType.id } },
             });
@@ -439,7 +458,10 @@ export class ChannelsService {
           }
         }
         currentRoomMappings = await this.prisma.channelRoomTypeMapping.findMany({
-          where: { propertyMappingId: mapping.id },
+          where: {
+            propertyMappingId: mapping.id,
+            ...(targetRoomTypeId ? { roomTypeId: targetRoomTypeId } : {}),
+          },
           include: { roomType: true },
         });
       }
@@ -523,100 +545,173 @@ export class ChannelsService {
             isActive: true,
             roomTypePrices: { some: { roomTypeId: roomMapping.roomTypeId } },
           },
+          include: {
+            roomTypePrices: { where: { roomTypeId: roomMapping.roomTypeId } },
+          },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
         });
 
-        // Ensure each rate plan has an external rate plan ID on remote channel
-        const planExternalIdMap = new Map<string, string>();
+        // Load existing saved mappings for this room type from channelRatePlanMapping
+        const savedRatePlanMappings = await this.prisma.channelRatePlanMapping.findMany({
+          where: {
+            propertyMappingId: mapping.id,
+            roomTypeId: roomMapping.roomTypeId,
+          },
+        });
 
-        for (const plan of ratePlans) {
-          let externalPlanId = '';
-          const existingRemotePlan = remoteRatePlans.find(rp => {
-            if (rp.room_type_id !== roomMapping.externalRoomTypeId) return false;
-            if (plan.isPrimary && roomMapping.externalRatePlanId && rp.id === roomMapping.externalRatePlanId) {
-              return true;
-            }
-
-            const remoteTitle = rp.title.toLowerCase();
-            const localName = plan.name.toLowerCase();
-            if (remoteTitle === localName || remoteTitle.includes(localName) || localName.includes(remoteTitle)) {
-              return true;
-            }
-
-            // Match by meal plan code / name keywords
-            if (plan.mealPlan === 'CP' && (remoteTitle.includes(' cp') || remoteTitle.includes('(cp)') || remoteTitle.includes('breakfast'))) {
-              return true;
-            }
-            if (plan.mealPlan === 'MAP' && (remoteTitle.includes(' map') || remoteTitle.includes('(map)') || remoteTitle.includes('half board'))) {
-              return true;
-            }
-            if (plan.mealPlan === 'AP' && (remoteTitle.includes(' ap') || remoteTitle.includes('(ap)') || remoteTitle.includes('full board'))) {
-              return true;
-            }
-            if (plan.isPrimary && (remoteTitle.includes('standard') || remoteTitle.includes('ep') || remoteTitle.includes('room only'))) {
-              return true;
-            }
-
-            return false;
-          });
-
-          if (existingRemotePlan) {
-            externalPlanId = existingRemotePlan.id;
-          } else if (plan.isPrimary && roomMapping.externalRatePlanId) {
-            externalPlanId = roomMapping.externalRatePlanId;
-          } else if (adapter.createRemoteRatePlan && mapping.apiKey) {
-            const created = await adapter.createRemoteRatePlan(
-              mapping.apiKey,
-              mapping.externalPropertyId,
-              roomMapping.externalRoomTypeId,
-              {
-                name: plan.name,
-                mealPlan: plan.mealPlan,
-                currency: 'INR',
-                basePrice: Number(plan.basePrice),
-              }
-            );
-            if (created?.externalRatePlanId) {
-              externalPlanId = created.externalRatePlanId;
-              remoteRatePlans.push({
-                id: externalPlanId,
-                title: plan.name,
-                room_type_id: roomMapping.externalRoomTypeId,
-              });
-            }
-          }
-
-          if (externalPlanId) {
-            planExternalIdMap.set(plan.id, externalPlanId);
-            if (plan.isPrimary && roomMapping.externalRatePlanId !== externalPlanId) {
-              await this.prisma.channelRoomTypeMapping.update({
-                where: { id: roomMapping.id },
-                data: { externalRatePlanId: externalPlanId },
-              });
-            }
-          }
+        interface ResolvedVariant {
+          planId: string;
+          acType: AcType;
+          externalRatePlanId: string;
+          ratesMap: Map<string, number>;
         }
 
-        // Fetch published daily rates for EACH rate plan
-        const planRatesMap = new Map<string, Map<string, number>>();
-        if (ratePlans.length > 0) {
-          for (const plan of ratePlans) {
-            const planRates = await this.pricingService.getPublishedDailyRates(
-              roomMapping.roomTypeId,
-              checkInStart,
-              checkOutEnd,
-              undefined,
-              plan.id
+        const resolvedVariants: ResolvedVariant[] = [];
+
+        for (const plan of ratePlans) {
+          const isBoth = roomMapping.roomType?.acOption === 'BOTH';
+          const priceRecord = plan.roomTypePrices?.[0];
+
+          const variantDefs: Array<{
+            acType: AcType;
+            title: string;
+            isAc?: boolean;
+            basePrice?: number;
+          }> = isBoth
+            ? [
+                {
+                  acType: AcType.NON_AC,
+                  title: `${roomMapping.roomType?.name || 'Room'} - ${plan.name} (Non-AC)`,
+                  isAc: false,
+                  basePrice: Number(priceRecord?.basePrice || roomMapping.roomType?.basePrice || plan.basePrice || 0),
+                },
+                {
+                  acType: AcType.AC,
+                  title: `${roomMapping.roomType?.name || 'Room'} - ${plan.name} (AC)`,
+                  isAc: true,
+                  basePrice: Number(priceRecord?.basePriceAc || roomMapping.roomType?.basePriceAc || priceRecord?.basePrice || plan.basePrice || 0),
+                },
+              ]
+            : [
+                {
+                  acType: AcType.DEFAULT,
+                  title: `${roomMapping.roomType?.name || 'Room'} - ${plan.name}`,
+                  isAc: undefined,
+                  basePrice: Number(priceRecord?.basePrice || roomMapping.roomType?.basePrice || plan.basePrice || 0),
+                },
+              ];
+
+          for (const vDef of variantDefs) {
+            let externalPlanId = '';
+            const existingSaved = savedRatePlanMappings.find(
+              (m) => m.ratePlanId === plan.id && m.acType === vDef.acType
             );
-            planRatesMap.set(plan.id, new Map(planRates.map(r => [r.date, r.publishedPrice])));
+
+            if (existingSaved?.externalRatePlanId) {
+              externalPlanId = existingSaved.externalRatePlanId;
+            } else {
+              // Try to find on remote channel
+              const existingRemotePlan = remoteRatePlans.find((rp) => {
+                if (rp.room_type_id !== roomMapping.externalRoomTypeId) return false;
+                if (plan.isPrimary && vDef.acType === AcType.DEFAULT && roomMapping.externalRatePlanId && rp.id === roomMapping.externalRatePlanId) {
+                  return true;
+                }
+                const remoteTitle = rp.title.toLowerCase();
+                const targetTitle = vDef.title.toLowerCase();
+                if (remoteTitle === targetTitle || remoteTitle.includes(targetTitle) || targetTitle.includes(remoteTitle)) {
+                  return true;
+                }
+                if (plan.mealPlan === 'CP' && (remoteTitle.includes(' cp') || remoteTitle.includes('(cp)') || remoteTitle.includes('breakfast'))) {
+                  return true;
+                }
+                if (plan.mealPlan === 'MAP' && (remoteTitle.includes(' map') || remoteTitle.includes('(map)') || remoteTitle.includes('half board'))) {
+                  return true;
+                }
+                if (plan.mealPlan === 'AP' && (remoteTitle.includes(' ap') || remoteTitle.includes('(ap)') || remoteTitle.includes('full board'))) {
+                  return true;
+                }
+                if (plan.isPrimary && (remoteTitle.includes('standard') || remoteTitle.includes('ep') || remoteTitle.includes('room only'))) {
+                  return true;
+                }
+                return false;
+              });
+
+              if (existingRemotePlan) {
+                externalPlanId = existingRemotePlan.id;
+              } else if (plan.isPrimary && vDef.acType === AcType.DEFAULT && roomMapping.externalRatePlanId) {
+                externalPlanId = roomMapping.externalRatePlanId;
+              } else if (adapter.createRemoteRatePlan && mapping.apiKey) {
+                const created = await adapter.createRemoteRatePlan(
+                  mapping.apiKey,
+                  mapping.externalPropertyId,
+                  roomMapping.externalRoomTypeId,
+                  {
+                    name: vDef.title,
+                    mealPlan: plan.mealPlan,
+                    currency: 'INR',
+                    basePrice: vDef.basePrice,
+                  }
+                );
+                if (created?.externalRatePlanId) {
+                  externalPlanId = created.externalRatePlanId;
+                  remoteRatePlans.push({
+                    id: externalPlanId,
+                    title: vDef.title,
+                    room_type_id: roomMapping.externalRoomTypeId,
+                  });
+                }
+              }
+
+              // Persist mapping in DB if resolved
+              if (externalPlanId) {
+                try {
+                  await this.prisma.channelRatePlanMapping.upsert({
+                    where: {
+                      propertyMappingId_roomTypeId_ratePlanId_acType: {
+                        propertyMappingId: mapping.id,
+                        roomTypeId: roomMapping.roomTypeId,
+                        ratePlanId: plan.id,
+                        acType: vDef.acType,
+                      },
+                    },
+                    update: { externalRatePlanId: externalPlanId },
+                    create: {
+                      propertyMappingId: mapping.id,
+                      roomTypeId: roomMapping.roomTypeId,
+                      ratePlanId: plan.id,
+                      acType: vDef.acType,
+                      externalRatePlanId: externalPlanId,
+                    },
+                  });
+                } catch (e: any) {
+                  this.logger.warn(`Could not save channelRatePlanMapping: ${e.message}`);
+                }
+                if (plan.isPrimary && roomMapping.externalRatePlanId !== externalPlanId) {
+                  await this.prisma.channelRoomTypeMapping.update({
+                    where: { id: roomMapping.id },
+                    data: { externalRatePlanId: externalPlanId },
+                  });
+                }
+              }
+            }
+
+            if (externalPlanId) {
+              const planRates = await this.pricingService.getPublishedDailyRates(
+                roomMapping.roomTypeId,
+                checkInStart,
+                checkOutEnd,
+                undefined,
+                plan.id,
+                vDef.isAc
+              );
+              resolvedVariants.push({
+                planId: plan.id,
+                acType: vDef.acType,
+                externalRatePlanId: externalPlanId,
+                ratesMap: new Map(planRates.map((r) => [r.date, r.publishedPrice])),
+              });
+            }
           }
-        } else {
-          const defaultRates = await this.pricingService.getPublishedDailyRates(
-            roomMapping.roomTypeId,
-            checkInStart,
-            checkOutEnd
-          );
-          planRatesMap.set('DEFAULT', new Map(defaultRates.map(r => [r.date, r.publishedPrice])));
         }
 
         const totalRooms = roomsMap.get(roomMapping.roomTypeId) || 0;
@@ -681,10 +776,19 @@ export class ChannelsService {
           const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
           const naturalAvailable = Math.max(0, totalRooms - bookedCount);
 
-          // Check manual inventory override
-          const override = manualOverrides.find((mo) => {
+          // Check manual inventory override: prefer channelTarget === mapping.id / channelId / channelName, fallback to ALL
+          const override = manualOverrides.find((mo: any) => {
             const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
-            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr;
+            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr && (
+              mo.channelTarget === mapping.id ||
+              mo.channelTarget === (mapping as any).channelId ||
+              mo.channelTarget === mapping.channelName
+            );
+          }) || manualOverrides.find((mo: any) => {
+            const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
+            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr && (
+              mo.channelTarget === 'ALL' || !mo.channelTarget
+            );
           });
           const finalAvailable = override !== undefined
             ? Math.min(override.allocatedQuantity, naturalAvailable)
@@ -697,27 +801,26 @@ export class ChannelsService {
             availableRooms: hasStopSell ? 0 : finalAvailable,
           });
 
-          // Push rate and stopSell restriction for each rate plan
-          if (ratePlans.length > 0) {
-            for (const plan of ratePlans) {
-              const ratesMap = planRatesMap.get(plan.id);
-              const dailyPrice = ratesMap?.get(dateStr);
-              const externalRatePlanId = planExternalIdMap.get(plan.id) || (plan.isPrimary ? roomMapping.externalRatePlanId || undefined : undefined);
-
-              if (externalRatePlanId) {
-                rateUpdates.push({
-                  date: dateStr,
-                  roomTypeId: roomMapping.roomTypeId,
-                  externalRoomTypeId: roomMapping.externalRoomTypeId,
-                  externalRatePlanId,
-                  price: dailyPrice,
-                  stopSell: hasStopSell,
-                });
-              }
+          // Push rate and stopSell restriction for each resolved variant rate plan
+          if (resolvedVariants.length > 0) {
+            for (const variant of resolvedVariants) {
+              const dailyPrice = variant.ratesMap.get(dateStr);
+              rateUpdates.push({
+                date: dateStr,
+                roomTypeId: roomMapping.roomTypeId,
+                externalRoomTypeId: roomMapping.externalRoomTypeId,
+                externalRatePlanId: variant.externalRatePlanId,
+                price: dailyPrice,
+                stopSell: hasStopSell,
+              });
             }
           } else {
-            const ratesMap = planRatesMap.get('DEFAULT');
-            const dailyPrice = ratesMap?.get(dateStr);
+            const defaultRates = await this.pricingService.getPublishedDailyRates(
+              roomMapping.roomTypeId,
+              dateStr,
+              dateStr
+            );
+            const dailyPrice = defaultRates?.[0]?.publishedPrice;
             rateUpdates.push({
               date: dateStr,
               roomTypeId: roomMapping.roomTypeId,
@@ -737,6 +840,131 @@ export class ChannelsService {
         await adapter.pushRates(mapping, rateUpdates);
       }
     }
+  }
+
+  /**
+   * Pushes targeted ARI for a single room type across the specified number of days (default 90).
+   * Powers the quick "Sync Room to OTAs" button on individual room cards.
+   */
+  async pushAriForRoomType(propertyId: string, roomTypeId: string, daysToSync = 90): Promise<{ success: boolean; message: string }> {
+    await this.pushAriForProperty(propertyId, daysToSync, roomTypeId);
+    return {
+      success: true,
+      message: `Successfully synced room availability & rates to OTAs for next ${daysToSync} days.`,
+    };
+  }
+
+  /**
+   * Returns a complete audit report of mapped vs unmapped rate plans (EP, CP, MAP, AP)
+   * and AC variants for every room type under the property.
+   */
+  async getRatePlanMappings(propertyId: string) {
+    const propertyMapping = await this.prisma.channelPropertyMapping.findFirst({
+      where: { propertyId, channelName: 'CHANNEX' },
+      include: {
+        roomMappings: {
+          include: { roomType: true },
+        },
+        ratePlanMappings: true,
+      },
+    });
+
+    const activeOtas = await this.getActiveOtas(propertyId);
+    if (!propertyMapping) {
+      return { isEnabled: false, activeOtas, roomTypes: [] };
+    }
+
+    const roomTypes = await this.prisma.roomType.findMany({
+      where: { propertyId },
+      include: {
+        ratePlanPrices: {
+          include: { ratePlan: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const ratePlans = await this.prisma.ratePlan.findMany({
+      where: { propertyId, isActive: true },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    const mappedRoomTypes = roomTypes.map((rt) => {
+      const roomMap = propertyMapping.roomMappings.find((rm) => rm.roomTypeId === rt.id);
+      const isBoth = rt.acOption === 'BOTH';
+
+      const plansForRoom = ratePlans.map((rp) => {
+        const priceRecord = rt.ratePlanPrices.find((rpp) => rpp.ratePlanId === rp.id);
+
+        const variants = isBoth
+          ? [
+              {
+                acType: 'NON_AC',
+                title: `${rp.name} (Non-AC)`,
+                basePrice: Number(priceRecord?.basePrice || rt.basePrice || 0),
+                mapping: propertyMapping.ratePlanMappings.find(
+                  (rpm) => rpm.roomTypeId === rt.id && rpm.ratePlanId === rp.id && rpm.acType === 'NON_AC'
+                ),
+              },
+              {
+                acType: 'AC',
+                title: `${rp.name} (AC)`,
+                basePrice: Number(priceRecord?.basePriceAc || rt.basePriceAc || priceRecord?.basePrice || rt.basePrice || 0),
+                mapping: propertyMapping.ratePlanMappings.find(
+                  (rpm) => rpm.roomTypeId === rt.id && rpm.ratePlanId === rp.id && rpm.acType === 'AC'
+                ),
+              },
+            ]
+          : [
+              {
+                acType: 'DEFAULT',
+                title: rp.name,
+                basePrice: Number(priceRecord?.basePrice || rt.basePrice || 0),
+                mapping: propertyMapping.ratePlanMappings.find(
+                  (rpm) => rpm.roomTypeId === rt.id && rpm.ratePlanId === rp.id && rpm.acType === 'DEFAULT'
+                ) || (rp.isPrimary && roomMap?.externalRatePlanId ? { externalRatePlanId: roomMap.externalRatePlanId } : null),
+              },
+            ];
+
+        return {
+          id: rp.id,
+          name: rp.name,
+          mealPlan: rp.mealPlan,
+          isPrimary: rp.isPrimary,
+          variants: variants.map((v) => ({
+            acType: v.acType,
+            title: v.title,
+            basePrice: v.basePrice,
+            isMapped: Boolean(v.mapping?.externalRatePlanId),
+            externalRatePlanId: v.mapping?.externalRatePlanId || null,
+          })),
+        };
+      });
+
+      return {
+        id: rt.id,
+        name: rt.name,
+        acOption: rt.acOption,
+        isMapped: Boolean(roomMap?.externalRoomTypeId),
+        externalRoomTypeId: roomMap?.externalRoomTypeId || null,
+        ratePlans: plansForRoom,
+      };
+    });
+
+    return {
+      isEnabled: propertyMapping.isActive,
+      externalPropertyId: propertyMapping.externalPropertyId,
+      activeOtas,
+      roomTypes: mappedRoomTypes,
+    };
+  }
+
+  /**
+   * Auto-provisions any missing remote rate plans on Channex for all local PMS meal plans & variants.
+   */
+  async autoProvisionRatePlans(propertyId: string) {
+    await this.pushAriForProperty(propertyId, 1);
+    return this.getRatePlanMappings(propertyId);
   }
 
   async pushAvailabilityForDates(
@@ -910,10 +1138,19 @@ export class ChannelsService {
           const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
           const naturalAvailable = Math.max(0, totalRooms - bookedCount);
 
-          // Check manual inventory override
-          const override = manualOverrides.find((mo) => {
+          // Check manual inventory override: prefer channelTarget === mapping.id / channelId / channelName, fallback to ALL
+          const override = manualOverrides.find((mo: any) => {
             const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
-            return mo.roomTypeId === rtId && moDateStr === dateStr;
+            return mo.roomTypeId === rtId && moDateStr === dateStr && (
+              mo.channelTarget === mapping.id ||
+              mo.channelTarget === (mapping as any).channelId ||
+              mo.channelTarget === mapping.channelName
+            );
+          }) || manualOverrides.find((mo: any) => {
+            const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
+            return mo.roomTypeId === rtId && moDateStr === dateStr && (
+              mo.channelTarget === 'ALL' || !mo.channelTarget
+            );
           });
           const finalAvailable = override !== undefined
             ? Math.min(override.allocatedQuantity, naturalAvailable)

@@ -244,6 +244,7 @@ export class BookingsController {
             dto.includeFlexibleDates,
             roomTypeIds,
             roomIds,
+            dto.platform || 'OREEDU_PMS',
         );
 
         return {
@@ -310,6 +311,9 @@ export class BookingsController {
     @Post('public')
     @ApiOperation({ summary: 'Create public booking (No Auth). Invalid referral codes are rate-limited per IP.' })
     async createPublic(@Body() createBookingDto: CreateBookingDto, @Ip() ip: string) {
+        if (!createBookingDto.platform) {
+            createBookingDto.platform = 'OREEDU_OTA_PORTAL';
+        }
         // Track invalid referral codes submitted during booking creation
         if (createBookingDto.referralCode) {
             const isBlocked = await this.referralAbuseService.isBlocked(ip);
@@ -343,6 +347,11 @@ export class BookingsController {
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create booking' })
     create(@Body() createBookingDto: CreateBookingDto, @Request() req) {
+        if (!createBookingDto.platform) {
+            const roleName = req.user?.role?.name || req.user?.role || '';
+            const isPartner = req.user?.isPartner || (typeof roleName === 'string' && roleName.toLowerCase().includes('partner'));
+            createBookingDto.platform = isPartner ? 'OREEDU_CP_PORTAL' : 'OREEDU_PMS';
+        }
         return this.bookingsService.create(createBookingDto, req.user);
     }
 

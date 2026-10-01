@@ -74,6 +74,11 @@ export class CreateBookingDto {
     @IsOptional()
     propertyId?: string;
 
+    @ApiProperty({ example: 'OREEDU_PMS', required: false, enum: ['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'] })
+    @IsString()
+    @IsOptional()
+    platform?: 'OREEDU_PMS' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL';
+
     @ApiProperty({ example: 'room-uuid', required: false })
     @IsString()
     @IsOptional()

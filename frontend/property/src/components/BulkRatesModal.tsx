@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, DollarSign, Globe, Calendar, Layers } from 'lucide-react';
+import { X, Sparkles, DollarSign, Globe, Calendar, Layers, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 import { ratePlansService, type RatePlan } from '../services/ratePlans';
 import { channelsService } from '../services/channels';
 import type { RoomType } from '../types/room';
@@ -47,6 +47,7 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
   const [festivalName, setFestivalName] = useState<string>('');
 
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [isConfirming, setIsConfirming] = useState<boolean>(false);
 
   useEffect(() => {
     if (roomTypeId) {
@@ -112,7 +113,12 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
     { num: 0, label: 'Sun' },
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCloseModal = () => {
+    setIsConfirming(false);
+    onClose();
+  };
+
+  const handleValidateAndReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoomTypeId || selectedRoomTypeId === 'ALL') {
       toast.error('Please select a specific room category.');
@@ -139,12 +145,15 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
       return;
     }
 
+    setIsConfirming(true);
+  };
+
+  const handleExecuteSubmit = async () => {
     setSubmitting(true);
     try {
       const targetRtId = selectedRoomTypeId;
       const targetChannel = selectedChannelId === 'ALL' ? undefined : selectedChannelId;
 
-      // Primary tariff submission
       await ratePlansService.applyBulkPricingRule({
         propertyId,
         roomTypeId: targetRtId,
@@ -157,7 +166,12 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
         festivalName: isFestivalRule ? festivalName : undefined,
       });
 
-      toast.success('💰 Seasonal base rates applied & synced to channels!');
+      toast.success(
+        selectedChannelId === 'PMS_ONLY'
+          ? '💰 Seasonal base rates applied to PMS Direct!'
+          : '💰 Seasonal base rates applied & synced to channels!'
+      );
+      setIsConfirming(false);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -189,15 +203,97 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        {/* Confirmation Review View */}
+        {isConfirming ? (
+          <div className="p-6 space-y-6">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-extrabold text-sm">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <span>Confirm Seasonal Pricing & OTA Sync</span>
+              </div>
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                Review the tariff adjustments and target channels below before dispatching.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs bg-muted/40 p-4 rounded-2xl border border-border">
+              <div className="flex justify-between items-center py-1.5 border-b border-border/50">
+                <span className="text-muted-foreground font-semibold">Target Category:</span>
+                <span className="font-extrabold text-foreground">🏨 {targetRoomType?.name}</span>
+              </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-border/50">
+                <span className="text-muted-foreground font-semibold">Distribution Target:</span>
+                <span className="font-extrabold px-2.5 py-0.5 rounded text-[11px] bg-primary/10 text-primary border border-primary/20">
+                  {selectedChannelId === 'ALL'
+                    ? '🌐 All Channels (Direct + OTAs)'
+                    : selectedChannelId === 'PMS_ONLY'
+                    ? '🔒 Direct PMS Only (No OTA Push)'
+                    : (activeOtas.find((o) => o.id === selectedChannelId)?.title || selectedChannelId)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-border/50">
+                <span className="text-muted-foreground font-semibold">Date Horizon:</span>
+                <span className="font-bold text-foreground">
+                  {startDate} to {endDate} ({selectedDays.length} days/week)
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-border/50">
+                <span className="text-muted-foreground font-semibold">Tariffs:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {isAcOnly
+                    ? `AC: ₹${Number(acPrice).toLocaleString()}`
+                    : isDualAc
+                    ? `Non-AC: ₹${Number(nonAcPrice).toLocaleString()} | AC: ₹${Number(acPrice).toLocaleString()}`
+                    : `₹${Number(nonAcPrice).toLocaleString()}`}
+                </span>
+              </div>
+              {isFestivalRule && (
+                <div className="flex justify-between items-center py-1.5">
+                  <span className="text-muted-foreground font-semibold">Special Event:</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">✨ {festivalName || 'Special Event'}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => setIsConfirming(false)}
+                className="px-4 py-2.5 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                ← Back to Edit
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleExecuteSubmit}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="animate-spin h-4 w-4" />
+                    <span>Syncing Channels...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Confirm & Dispatch Sync</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Form */
+          <form onSubmit={handleValidateAndReview} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
           {/* Target Room Type & Target Channel */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -409,7 +505,7 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
           <div className="pt-2 border-t border-border flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               Cancel
@@ -419,10 +515,11 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
               disabled={submitting}
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
             >
-              {submitting ? 'Applying Rates...' : 'Apply Seasonal Rates'}
+              Review & Confirm Sync →
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

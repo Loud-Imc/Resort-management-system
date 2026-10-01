@@ -121,6 +121,7 @@ export class BookingsService {
                     alloc.ratePlanId || dto.ratePlanId,
                     alloc.isAcSelected !== undefined ? alloc.isAcSelected : dto.isAcSelected,
                     alloc.mealPlan || dto.mealPlan,
+                    dto.platform || 'OREEDU_PMS',
                 );
 
                 const singleBreakdown = [{
@@ -175,6 +176,7 @@ export class BookingsService {
                     alloc.ratePlanId || dto.ratePlanId,
                     alloc.isAcSelected !== undefined ? alloc.isAcSelected : dto.isAcSelected,
                     alloc.mealPlan || dto.mealPlan,
+                    dto.platform || 'OREEDU_PMS',
                 );
                 rawAllocPrices.push(rawPrice);
                 accumulatedBaseAmount += rawPrice.baseAmount;
@@ -658,17 +660,31 @@ export class BookingsService {
                     rtCounts[alloc.roomTypeId] = (rtCounts[alloc.roomTypeId] || 0) + 1;
                 }
                 for (const [rtId, neededCount] of Object.entries(rtCounts)) {
-                    const availableCount = await this.availabilityService.getAvailableRoomCount(rtId, checkIn, checkOut);
+                    const availableCount = await this.availabilityService.getAvailableRoomCount(
+                        rtId,
+                        checkIn,
+                        checkOut,
+                        false,
+                        undefined,
+                        createBookingDto.platform || 'OREEDU_PMS',
+                    );
                     if (availableCount < neededCount) {
-                        throw new BadRequestException(`Not enough rooms available for room type ${rtId}. Required: ${neededCount}, Available: ${availableCount}`);
+                        throw new BadRequestException(`Not enough rooms available for room type ${rtId} on ${createBookingDto.platform || 'OREEDU_PMS'}. Required: ${neededCount}, Available: ${availableCount}`);
                     }
                 }
             } else {
                 // For historical entries, we still check availability for *those dates* to prevent internal double booking, 
                 // but we don't care about "Today's" status.
-                const availableCount = await this.availabilityService.getAvailableRoomCount(roomTypeId!, checkIn, checkOut);
+                const availableCount = await this.availabilityService.getAvailableRoomCount(
+                    roomTypeId!,
+                    checkIn,
+                    checkOut,
+                    false,
+                    undefined,
+                    createBookingDto.platform || 'OREEDU_PMS',
+                );
                 if (availableCount < requiredRooms) {
-                    throw new BadRequestException(`Not enough rooms available for the selected dates. Required: ${requiredRooms}, Available: ${availableCount}`);
+                    throw new BadRequestException(`Not enough rooms available for the selected dates on ${createBookingDto.platform || 'OREEDU_PMS'}. Required: ${requiredRooms}, Available: ${availableCount}`);
                 }
             }
         }
@@ -724,6 +740,7 @@ export class BookingsService {
                         alloc.ratePlanId || createBookingDto.ratePlanId,
                         alloc.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected,
                         alloc.mealPlan || createBookingDto.mealPlan,
+                        createBookingDto.platform || 'OREEDU_PMS',
                     );
                     allocationPricingList.push(pricing);
                 } else {
@@ -760,6 +777,7 @@ export class BookingsService {
                             alloc.ratePlanId || createBookingDto.ratePlanId,
                             alloc.isAcSelected !== undefined ? alloc.isAcSelected : createBookingDto.isAcSelected,
                             alloc.mealPlan || createBookingDto.mealPlan,
+                            createBookingDto.platform || 'OREEDU_PMS',
                         );
                         rawAllocPrices.push(rawPrice);
                         accumulatedBaseAmount += rawPrice.baseAmount;
@@ -970,6 +988,7 @@ export class BookingsService {
                     createBookingDto.ratePlanId,
                     createBookingDto.isAcSelected,
                     createBookingDto.mealPlan,
+                    createBookingDto.platform || 'OREEDU_PMS',
                 );
             }
         }

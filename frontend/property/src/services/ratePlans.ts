@@ -83,6 +83,8 @@ export interface BulkPricingRuleDto {
   roomTypeId?: string;
   ratePlanId?: string;
   channelId?: string;
+  channelTargets?: string[];
+  isAc?: boolean;
   startDate: string;
   endDate: string;
   daysOfWeek?: number[]; // [1,2,3,4] for Mon-Thu, [5,6,0] for Fri-Sun
@@ -125,6 +127,63 @@ export interface DailyInventoryData {
   availableCount: number;
   manualOverride?: number;
   isStopSell: boolean;
+  channelOverrides?: Record<string, number>;
+}
+
+export interface ChannelAllotmentItem {
+  channelTarget: string;
+  allocatedQuantity: number;
+}
+
+export interface ChannelPriceItem {
+  channelTarget: string;
+  price: number;
+}
+
+export interface SetMultiChannelPriceOverrideDto {
+  propertyId: string;
+  roomTypeId: string;
+  ratePlanId?: string;
+  date: string;
+  isAc?: boolean;
+  prices: ChannelPriceItem[];
+}
+
+export interface MultiChannelPriceOverrideResponse {
+  success: boolean;
+  propertyId: string;
+  roomTypeId: string;
+  date: string;
+  isAc?: boolean;
+  appliedPrices: any[];
+  channexSync?: {
+    synced: boolean;
+    details: Array<{ channelId: string; channelName?: string; status: string; price: number }>;
+  };
+}
+
+export interface SetMultiChannelInventoryOverrideDto {
+  propertyId: string;
+  roomTypeId: string;
+  date: string;
+  allocations: ChannelAllotmentItem[];
+}
+
+export interface ChannexSyncAck {
+  channelId: string;
+  channelName: string;
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+}
+
+export interface MultiChannelInventoryOverrideResponse {
+  success: boolean;
+  date: string;
+  roomTypeId: string;
+  appliedAllocations: { channelTarget: string; allocatedQuantity: number }[];
+  channexSyncResults?: ChannexSyncAck[];
+  timestamp: string;
 }
 
 export interface DailyRestrictionData {
@@ -212,6 +271,16 @@ export const ratePlansService = {
 
   setInventoryOverride: async (dto: SetInventoryOverrideDto) => {
     const res = await api.post('/rate-plans/inventory-override', dto);
+    return res.data;
+  },
+
+  setMultiChannelInventoryOverride: async (dto: SetMultiChannelInventoryOverrideDto): Promise<MultiChannelInventoryOverrideResponse> => {
+    const res = await api.post('/rate-plans/multi-channel-inventory-override', dto);
+    return res.data;
+  },
+
+  setMultiChannelPriceOverride: async (dto: SetMultiChannelPriceOverrideDto): Promise<MultiChannelPriceOverrideResponse> => {
+    const res = await api.post('/rate-plans/multi-channel-price-override', dto);
     return res.data;
   },
 

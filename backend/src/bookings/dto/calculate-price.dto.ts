@@ -91,6 +91,11 @@ export class CalculatePriceDto {
     @IsOptional()
     currency?: string;
 
+    @ApiProperty({ example: 'OREEDU_PMS', required: false, enum: ['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'] })
+    @IsString()
+    @IsOptional()
+    platform?: 'OREEDU_PMS' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL';
+
     @ApiProperty({ example: false, required: false })
     @IsBoolean()
     @IsOptional()
