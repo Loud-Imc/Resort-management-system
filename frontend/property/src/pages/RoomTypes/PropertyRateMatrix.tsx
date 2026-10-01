@@ -42,6 +42,8 @@ import {
   type UpdateConfirmationConfirmPayload 
 } from '../../components/UpdateConfirmationModal';
 import { FullSyncAuditModal } from '../../components/FullSyncAuditModal';
+import { ChannelInventoryEditorModal } from '../../components/ChannelInventoryEditorModal';
+import { ChannelPriceEditorModal } from '../../components/ChannelPriceEditorModal';
 import toast from 'react-hot-toast';
 
 interface PropertyRateMatrixProps {
@@ -120,6 +122,26 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     isStopSell: boolean;
   } | null>(null);
   const [invOverrideInput, setInvOverrideInput] = useState<string>('');
+
+  // 3-Stage Multi-Channel Inventory Allotment Modal State
+  const [channelInvModalData, setChannelInvModalData] = useState<{
+    roomType: RoomType;
+    dateStr: string;
+    totalRooms: number;
+    bookedCount: number;
+    availableCount: number;
+    existingChannelOverrides: Record<string, number>;
+  } | null>(null);
+
+  // 3-Stage Multi-Channel Price / Tariff Allotment Modal State
+  const [channelPriceModalData, setChannelPriceModalData] = useState<{
+    roomType: RoomType;
+    ratePlanId?: string;
+    dateStr: string;
+    isAc: boolean;
+    currentPrice: number;
+    existingChannelPrices: Record<string, number>;
+  } | null>(null);
 
   // Quick Date Restriction Action Chooser State
   const [restrictionChooser, setRestrictionChooser] = useState<{
@@ -276,8 +298,14 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     });
   };
 
-  // Helper to calculate rate for a plan on a date considering pricing rules and AC mode
-  const getRateForPlanAndDate = (plan: RatePlan, dateStr: string, rt?: RoomType, isAc?: boolean) => {
+  // Helper to calculate rate for a plan on a date considering pricing rules, AC mode, and channel target
+  const getRateForPlanAndDate = (
+    plan: RatePlan, 
+    dateStr: string, 
+    rt?: RoomType, 
+    isAc?: boolean,
+    channelTarget?: string
+  ) => {
     let base = Number(plan.basePrice);
     if (rt) {
       const rtp = plan.roomTypePrices?.find((p) => p.roomTypeId === rt.id);
@@ -288,18 +316,26 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
       }
     }
 
+    const effectiveChannel = channelTarget || selectedChannelView;
     const dayDate = new Date(dateStr);
     const dayOfWeek = dayDate.getDay();
 
     if (plan.pricingRules && plan.pricingRules.length > 0) {
       const matchingRules = plan.pricingRules.filter((rule: any) => {
-        // Strict channel filtering:
-        // Must match currently selected channel view.
+        // Channel filtering:
+        // Must match effective channel view or 'ALL' fallback.
         // Legacy rules without channelTarget default to 'OREEDU_PMS'.
         const target = rule.channelTarget || 'OREEDU_PMS';
-        if (target !== selectedChannelView) return false;
+        if (target !== effectiveChannel && target !== 'ALL') return false;
 
         if (rule.roomTypeId && rt && rule.roomTypeId !== rt.id) return false;
+
+        // Strict AC / Non-AC filtering:
+        // If the rule explicitly specifies isAc (true/false), it must match the cell's isAc
+        if (rule.isAc !== undefined && rule.isAc !== null && isAc !== undefined) {
+          if (rule.isAc !== isAc) return false;
+        }
+
         const s = rule.startDate.split('T')[0];
         const e = rule.endDate.split('T')[0];
         if (dateStr < s || dateStr > e) return false;
@@ -312,11 +348,21 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
       if (matchingRules.length > 0) {
         // Sort matching rules by specificity:
-        // 1. Single-day rule (startDate === endDate) takes highest priority
-        // 2. Narrower duration takes priority
-        // 3. Festival rule
-        // 4. Newest createdAt
+        // 1. Exact channel target match over 'ALL' fallback rule
+        // 2. Explicit isAc match over general fallback rule
+        // 3. Single-day rule (startDate === endDate) takes highest priority
+        // 4. Narrower duration takes priority
+        // 5. Festival rule
+        // 6. Newest createdAt
         matchingRules.sort((a: any, b: any) => {
+          const aExactChannel = (a.channelTarget || 'OREEDU_PMS') === effectiveChannel ? 1 : 0;
+          const bExactChannel = (b.channelTarget || 'OREEDU_PMS') === effectiveChannel ? 1 : 0;
+          if (aExactChannel !== bExactChannel) return bExactChannel - aExactChannel;
+
+          const aHasAc = a.isAc !== undefined && a.isAc !== null ? 1 : 0;
+          const bHasAc = b.isAc !== undefined && b.isAc !== null ? 1 : 0;
+          if (aHasAc !== bHasAc) return bHasAc - aHasAc;
+
           const aS = a.startDate.split('T')[0];
           const aE = a.endDate.split('T')[0];
           const bS = b.startDate.split('T')[0];
@@ -339,6 +385,53 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     }
 
     return Number(base);
+  };
+
+  const handleOpenPriceModal = (
+    roomType: RoomType,
+    dateStr: string,
+    isAc: boolean,
+    currentPrice: number,
+    ratePlanId?: string,
+  ) => {
+    const primaryPlan = ratePlanId 
+      ? ratePlans.find((p) => p.id === ratePlanId) 
+      : ratePlans.find((p) => p.isPrimary) || ratePlans[0];
+    const existingPrices: Record<string, number> = {};
+
+    if (primaryPlan) {
+      existingPrices['OREEDU_PMS'] = getRateForPlanAndDate(primaryPlan, dateStr, roomType, isAc, 'OREEDU_PMS');
+      existingPrices['OREEDU_OTA_PORTAL'] = getRateForPlanAndDate(primaryPlan, dateStr, roomType, isAc, 'OREEDU_OTA_PORTAL');
+      existingPrices['OREEDU_CP_PORTAL'] = getRateForPlanAndDate(primaryPlan, dateStr, roomType, isAc, 'OREEDU_CP_PORTAL');
+      activeOtas.forEach((ota) => {
+        const targetKey = ota.id || ota.channelId || ota.channelName;
+        existingPrices[targetKey] = getRateForPlanAndDate(primaryPlan, dateStr, roomType, isAc, targetKey);
+      });
+
+      const allRule = primaryPlan.pricingRules?.find((r: any) => {
+        const s = r.startDate.split('T')[0];
+        const e = r.endDate.split('T')[0];
+        return (
+          r.channelTarget === 'ALL' &&
+          r.roomTypeId === roomType.id &&
+          dateStr >= s &&
+          dateStr <= e &&
+          (r.isAc === undefined || r.isAc === null || r.isAc === isAc)
+        );
+      });
+      if (allRule) {
+        existingPrices['ALL'] = Number(allRule.adjustmentValue);
+      }
+    }
+
+    setChannelPriceModalData({
+      roomType,
+      ratePlanId: primaryPlan?.id,
+      dateStr,
+      isAc,
+      currentPrice,
+      existingChannelPrices: existingPrices,
+    });
   };
 
   const handleRequestPriceChange = () => {
@@ -878,32 +971,14 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                               {rt.acOption === 'BOTH' ? (
                                 <div className="flex flex-col items-center gap-1">
                                   <span
-                                    onClick={() => {
-                                      setEditingCell({
-                                        ratePlanId: primaryPlan?.id || '',
-                                        roomTypeId: rt.id,
-                                        dateStr: d.dateStr,
-                                        currentPrice: nonAcRate,
-                                        isAc: false,
-                                      });
-                                      setInlinePriceInput(String(nonAcRate));
-                                    }}
+                                    onClick={() => handleOpenPriceModal(rt, d.dateStr, false, nonAcRate)}
                                     className="px-2 py-0.5 rounded-md text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 cursor-pointer font-mono transition-colors shadow-2xs"
                                     title="Click to edit Non-AC tariff for this date"
                                   >
                                     🍃 ₹{nonAcRate.toLocaleString()}
                                   </span>
                                   <span
-                                    onClick={() => {
-                                      setEditingCell({
-                                        ratePlanId: primaryPlan?.id || '',
-                                        roomTypeId: rt.id,
-                                        dateStr: d.dateStr,
-                                        currentPrice: acRate!,
-                                        isAc: true,
-                                      });
-                                      setInlinePriceInput(String(acRate));
-                                    }}
+                                    onClick={() => handleOpenPriceModal(rt, d.dateStr, true, acRate!)}
                                     className="px-2 py-0.5 rounded-md text-xs font-black text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 cursor-pointer font-mono transition-colors shadow-2xs"
                                     title="Click to edit AC tariff for this date"
                                   >
@@ -912,16 +987,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                 </div>
                               ) : rt.acOption === 'NON_AC_ONLY' ? (
                                 <span
-                                  onClick={() => {
-                                    setEditingCell({
-                                      ratePlanId: primaryPlan?.id || '',
-                                      roomTypeId: rt.id,
-                                      dateStr: d.dateStr,
-                                      currentPrice: nonAcRate,
-                                      isAc: false,
-                                    });
-                                    setInlinePriceInput(String(nonAcRate));
-                                  }}
+                                  onClick={() => handleOpenPriceModal(rt, d.dateStr, false, nonAcRate)}
                                   className="px-2.5 py-1 rounded-lg text-sm font-black text-foreground hover:bg-muted/80 hover:text-primary border border-transparent hover:border-border cursor-pointer font-mono transition-all shadow-2xs inline-block"
                                   title="Click to edit Non-AC tariff for this date"
                                 >
@@ -929,16 +995,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                 </span>
                               ) : (
                                 <span
-                                  onClick={() => {
-                                    setEditingCell({
-                                      ratePlanId: primaryPlan?.id || '',
-                                      roomTypeId: rt.id,
-                                      dateStr: d.dateStr,
-                                      currentPrice: acRate!,
-                                      isAc: true,
-                                    });
-                                    setInlinePriceInput(String(acRate));
-                                  }}
+                                  onClick={() => handleOpenPriceModal(rt, d.dateStr, true, acRate!)}
                                   className="px-2.5 py-1 rounded-lg text-sm font-black text-foreground hover:bg-muted/80 hover:text-primary border border-transparent hover:border-border cursor-pointer font-mono transition-all shadow-2xs inline-block"
                                   title="Click to edit AC tariff for this date"
                                 >
@@ -980,28 +1037,43 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
                           {visibleDaysArray.map((d) => {
                             const invData = roomInv[d.dateStr];
-                            const available = invData ? invData.availableCount : 0;
                             const total = invData ? invData.totalRooms : 0;
                             const isStop = invData ? invData.isStopSell : false;
                             const isToday = d.dateStr === todayStr;
+
+                            // Dynamic inventory display according to selected channel filter
+                            let available = invData ? invData.availableCount : 0;
+                            if (invData && selectedChannelView !== 'OREEDU_PMS') {
+                              const specificOverride = invData.channelOverrides?.[selectedChannelView];
+                              const allOverride = invData.channelOverrides?.['ALL'];
+                              const effectiveCap = specificOverride !== undefined ? specificOverride : allOverride;
+                              if (effectiveCap !== undefined) {
+                                available = Math.min(effectiveCap, invData.availableCount);
+                              }
+                            }
 
                             return (
                               <td
                                 key={d.dateStr}
                                 onClick={() => {
-                                  setQuickEditInv({
-                                    roomTypeId: rt.id,
+                                  if (total === 0) {
+                                    setSelectedRoomTypeIdForAdd(rt.id);
+                                    setIsAddRoomModalOpen(true);
+                                    return;
+                                  }
+                                  setChannelInvModalData({
+                                    roomType: rt,
                                     dateStr: d.dateStr,
-                                    currentAvailable: available,
                                     totalRooms: total,
-                                    isStopSell: isStop,
+                                    bookedCount: invData ? invData.bookedCount : 0,
+                                    availableCount: invData ? invData.availableCount : 0,
+                                    existingChannelOverrides: invData?.channelOverrides || {},
                                   });
-                                  setInvOverrideInput(String(available));
                                 }}
                                 className={`p-1.5 text-center border-r border-border/40 cursor-pointer hover:bg-emerald-100/50 dark:hover:bg-emerald-900/40 transition-colors ${
                                   isToday ? 'bg-primary/[0.08]' : ''
                                 }`}
-                                title="Click to override room allotment or stop sell"
+                                title="Click to adjust channel allotments & ceilings"
                               >
                                 {isStop ? (
                                   <span className="px-2 py-0.5 rounded-md text-xs font-black bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
@@ -1249,16 +1321,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                       </div>
                                     ) : (
                                       <div
-                                        onClick={() => {
-                                          setEditingCell({
-                                            ratePlanId: plan.id,
-                                            roomTypeId: rt.id,
-                                            dateStr: d.dateStr,
-                                            currentPrice: calculatedPrice,
-                                            isAc: variant.isAc,
-                                          });
-                                          setInlinePriceInput(String(calculatedPrice));
-                                        }}
+                                        onClick={() => handleOpenPriceModal(rt, d.dateStr, variant.isAc, calculatedPrice, plan.id)}
                                         className="cursor-pointer py-1 px-1 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
                                         title={`Click to edit ${variant.label} rate`}
                                       >
@@ -1412,83 +1475,25 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         );
       })()}
 
-      {/* Quick Daily Room Tariff Edit Modal */}
-      {editingCell && (() => {
-        const targetRoom = roomTypes.find((r) => r.id === editingCell.roomTypeId);
-        const inputNum = Number(inlinePriceInput);
-        const isInvalid = inlinePriceInput === '' || isNaN(inputNum) || inputNum < 0;
-
-        return (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                  <DollarSign className="h-4 w-4 text-emerald-500" />
-                  Edit Room Tariff ({editingCell.dateStr})
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => setEditingCell(null)}
-                  className="p-1 rounded-lg text-muted-foreground hover:bg-muted cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">
-                    {targetRoom?.name || 'Selected Room'}
-                  </span>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                    editingCell.isAc 
-                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300' 
-                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                  }`}>
-                    {editingCell.isAc ? '❄️ AC Tariff' : '🍃 Non-AC Tariff'}
-                  </span>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                    New Rate for {editingCell.dateStr} (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs font-bold text-muted-foreground">₹</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={50}
-                      value={inlinePriceInput}
-                      onChange={(e) => setInlinePriceInput(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2 rounded-xl border border-border bg-background text-sm font-black font-mono focus:ring-2 focus:ring-primary focus:outline-none"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setEditingCell(null)}
-                  className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:bg-muted cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRequestPriceChange}
-                  disabled={isInvalid}
-                  className="px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
-                >
-                  Next: Confirm & Sync →
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* 3-Stage Multi-Channel Price / Tariff Allotment Modal */}
+      {channelPriceModalData && (
+        <ChannelPriceEditorModal
+          isOpen={Boolean(channelPriceModalData)}
+          onClose={() => setChannelPriceModalData(null)}
+          propertyId={propertyId}
+          roomType={channelPriceModalData.roomType}
+          ratePlanId={channelPriceModalData.ratePlanId}
+          dateStr={channelPriceModalData.dateStr}
+          isAc={channelPriceModalData.isAc}
+          currentPrice={channelPriceModalData.currentPrice}
+          existingChannelPrices={channelPriceModalData.existingChannelPrices}
+          activeOtas={activeOtas}
+          onSuccess={() => {
+            fetchMatrixData();
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
 
       {/* Quick Date Restriction Action Chooser Modal */}
       {restrictionChooser && (
@@ -1741,6 +1746,26 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         activeOtas={activeOtas}
         onConfirm={handleConfirmUpdate}
       />
+
+      {/* 3-Stage Multi-Channel Inventory Allotment & Sync Modal */}
+      {channelInvModalData && (
+        <ChannelInventoryEditorModal
+          isOpen={Boolean(channelInvModalData)}
+          onClose={() => setChannelInvModalData(null)}
+          propertyId={propertyId}
+          roomType={channelInvModalData.roomType}
+          dateStr={channelInvModalData.dateStr}
+          totalRooms={channelInvModalData.totalRooms}
+          bookedCount={channelInvModalData.bookedCount}
+          availableCount={channelInvModalData.availableCount}
+          existingChannelOverrides={channelInvModalData.existingChannelOverrides}
+          activeOtas={activeOtas}
+          onSuccess={() => {
+            fetchMatrixData();
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
 
       {/* 3 Focused Modals */}
       <BulkRatesModal

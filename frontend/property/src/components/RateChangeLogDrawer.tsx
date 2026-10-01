@@ -199,9 +199,8 @@ export const RateChangeLogDrawer: React.FC<RateChangeLogDrawerProps> = ({
           >
             <option value="ALL">All Actions</option>
             <option value="RATE_UPDATE">💰 Rate Updates</option>
-            <option value="RESTRICTION_CHANGE">🛡️ Stay Restrictions</option>
-            <option value="STOP_SELL">🛑 Stop Sells</option>
-            <option value="STOP_SELL_REMOVED">🟢 Sales Reopened</option>
+            <option value="RESTRICTION_UPDATE">🛡️ Stay Restrictions</option>
+            <option value="STOP_SELL_TOGGLE">🛑 Stop Sells</option>
             <option value="INVENTORY_OVERRIDE">📊 Allotment Overrides</option>
           </select>
 

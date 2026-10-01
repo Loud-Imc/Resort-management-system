@@ -8,6 +8,8 @@ import {
   CreateCalendarEventMarkerDto,
   ApplyRestrictionsDto,
   SetInventoryOverrideDto,
+  SetMultiChannelInventoryOverrideDto,
+  SetMultiChannelPriceOverrideDto,
   QueryRateRestrictionLogsDto,
 } from '../dto/rate-plan.dto';
 import { MealPlan, RatePlanPricingType, PricingAdjustmentType } from '@prisma/client';
@@ -635,6 +637,7 @@ export class RatePlansService {
       bookedCount: number;
       availableCount: number;
       manualOverride?: number;
+      channelOverrides?: Record<string, number>;
       isStopSell: boolean;
     }>> = {};
 
@@ -709,10 +712,19 @@ export class RatePlansService {
         const naturalAvailable = Math.max(0, totalPhysical - bookedCount);
 
         // Check manual override
-        const override = manualOverrides.find((mo) => {
+        const override = manualOverrides.find((mo: any) => {
           const moDateStr = mo.date.toISOString().split('T')[0];
-          return mo.roomTypeId === rt.id && moDateStr === dateStr;
+          return mo.roomTypeId === rt.id && moDateStr === dateStr && (mo.channelTarget === 'ALL' || !mo.channelTarget);
         });
+
+        // Collect all channel overrides for this room type and date
+        const channelOverridesMap: Record<string, number> = {};
+        for (const mo of manualOverrides) {
+          const moDateStr = mo.date.toISOString().split('T')[0];
+          if (mo.roomTypeId === rt.id && moDateStr === dateStr) {
+            channelOverridesMap[(mo as any).channelTarget || 'ALL'] = mo.allocatedQuantity;
+          }
+        }
 
         // Restrictions evaluation
         const hasStopSell = stopSells.some((ss) => {
@@ -737,6 +749,7 @@ export class RatePlansService {
           bookedCount,
           availableCount: isStop ? 0 : finalAvailable,
           manualOverride: override ? override.allocatedQuantity : undefined,
+          channelOverrides: channelOverridesMap,
           isStopSell: isStop,
         };
 
@@ -829,7 +842,7 @@ export class RatePlansService {
           ? `Bulk Day Rule [${target}] (${dto.daysOfWeek.join(',')})`
           : `Date Range Rule [${target}] (${dto.startDate} to ${dto.endDate})`;
 
-        const rule = await this.prisma.pricingRule.create({
+        const rule = await (this.prisma.pricingRule as any).create({
           data: {
             name,
             startDate: start,
@@ -840,6 +853,7 @@ export class RatePlansService {
             roomTypeId: targetRoomTypeId || null,
             ratePlanId: targetRatePlanId || null,
             channelTarget: target,
+            isAc: dto.isAc !== undefined ? dto.isAc : null,
             isFestivalRule: dto.isFestivalRule || false,
             festivalName: dto.festivalName || null,
           },
@@ -1030,11 +1044,14 @@ export class RatePlansService {
       );
     }
 
-    const result = await this.prisma.connectivityAvailabilityOverride.upsert({
+    const channelTarget = dto.channelTarget || dto.channelId || 'ALL';
+
+    const result = await (this.prisma.connectivityAvailabilityOverride as any).upsert({
       where: {
-        propertyId_roomTypeId_date: {
+        propertyId_roomTypeId_channelTarget_date: {
           propertyId: dto.propertyId,
           roomTypeId: dto.roomTypeId,
+          channelTarget,
           date: targetDate,
         },
       },
@@ -1044,6 +1061,7 @@ export class RatePlansService {
       create: {
         propertyId: dto.propertyId,
         roomTypeId: dto.roomTypeId,
+        channelTarget,
         date: targetDate,
         allocatedQuantity: dto.allocatedQuantity,
       },
@@ -1056,17 +1074,17 @@ export class RatePlansService {
         actionType: 'INVENTORY_OVERRIDE',
         roomTypeId: dto.roomTypeId,
         channelId: dto.channelId || null,
-        channelName: dto.channelId === 'PMS_ONLY' ? 'Direct PMS Only' : 'All Channels',
+        channelName: channelTarget === 'PMS_ONLY' ? 'Direct PMS Only' : channelTarget,
         startDate: targetDate,
         endDate: targetDate,
-        summary: `Inventory override: ${dto.allocatedQuantity} rooms on ${dto.date}`,
-        details: { allocatedQuantity: dto.allocatedQuantity, date: dto.date },
+        summary: `Inventory override [${channelTarget}]: ${dto.allocatedQuantity} rooms on ${dto.date}`,
+        details: { allocatedQuantity: dto.allocatedQuantity, date: dto.date, channelTarget },
       });
     }
 
     if (dto.propertyId && this.channelsService) {
-      if (dto.channelId === 'PMS_ONLY') {
-        this.logger.log(`[Inventory Override] channelId is PMS_ONLY, skipping external OTA sync.`);
+      if (channelTarget === 'PMS_ONLY' || channelTarget === 'OREEDU_PMS') {
+        this.logger.log(`[Inventory Override] channelTarget is PMS, skipping external OTA sync.`);
       } else {
         this.channelsService.pushAriForProperty(dto.propertyId, 60).catch((err) => {
           this.logger.warn(`Failed to auto-sync Channex after inventory override: ${err.message}`);
@@ -1075,6 +1093,272 @@ export class RatePlansService {
     }
 
     return result;
+  }
+
+  /**
+   * Set Multi-Channel Inventory Overrides (Channel Allotment Caps)
+   */
+  async setMultiChannelInventoryOverride(dto: SetMultiChannelInventoryOverrideDto, user?: any) {
+    const targetDate = new Date(`${dto.date}T00:00:00.000Z`);
+
+    const physicalRoomsCount = await this.prisma.room.count({
+      where: {
+        roomTypeId: dto.roomTypeId,
+        isEnabled: true,
+        status: { not: 'MAINTENANCE' },
+      },
+    });
+
+    for (const alloc of dto.allocations) {
+      if (alloc.allocatedQuantity < 0) {
+        throw new BadRequestException(`Allocated quantity cannot be negative for target ${alloc.channelTarget}.`);
+      }
+      if (alloc.allocatedQuantity > physicalRoomsCount) {
+        throw new BadRequestException(
+          `Cannot set inventory count to ${alloc.allocatedQuantity} for ${alloc.channelTarget}. Total physical rooms is ${physicalRoomsCount}.`,
+        );
+      }
+    }
+
+    const savedRecords: any[] = [];
+    const externalOtaUpdates: Array<{ otaId: string; quantity: number }> = [];
+
+    for (const alloc of dto.allocations) {
+      const rec = await (this.prisma.connectivityAvailabilityOverride as any).upsert({
+        where: {
+          propertyId_roomTypeId_channelTarget_date: {
+            propertyId: dto.propertyId,
+            roomTypeId: dto.roomTypeId,
+            channelTarget: alloc.channelTarget,
+            date: targetDate,
+          },
+        },
+        update: {
+          allocatedQuantity: alloc.allocatedQuantity,
+        },
+        create: {
+          propertyId: dto.propertyId,
+          roomTypeId: dto.roomTypeId,
+          channelTarget: alloc.channelTarget,
+          date: targetDate,
+          allocatedQuantity: alloc.allocatedQuantity,
+        },
+      });
+      savedRecords.push(rec);
+
+      if (!['ALL', 'OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'].includes(alloc.channelTarget)) {
+        externalOtaUpdates.push({ otaId: alloc.channelTarget, quantity: alloc.allocatedQuantity });
+      }
+    }
+
+    // Record audit log
+    if (dto.propertyId) {
+      await this.recordRateRestrictionLog({
+        propertyId: dto.propertyId,
+        user,
+        actionType: 'INVENTORY_OVERRIDE',
+        roomTypeId: dto.roomTypeId,
+        channelId: null,
+        channelName: dto.allocations.map((a) => a.channelTarget).join(', '),
+        startDate: targetDate,
+        endDate: targetDate,
+        summary: `Multi-channel inventory override for ${dto.allocations.length} channels on ${dto.date}`,
+        details: { allocations: dto.allocations, date: dto.date },
+      });
+    }
+
+    // Sync to Channex if external OTAs are present or if ALL is present
+    let otaSyncResults: Array<{ channelId: string; channelName?: string; status: string; rooms: number }> = [];
+    if (dto.propertyId && this.channelsService) {
+      const hasAll = dto.allocations.some((a) => a.channelTarget === 'ALL');
+      if (externalOtaUpdates.length > 0 || hasAll) {
+        try {
+          const roomMapping = await this.prisma.channelRoomTypeMapping.findFirst({
+            where: { roomTypeId: dto.roomTypeId },
+          });
+          if (roomMapping) {
+            const updates = (externalOtaUpdates.length > 0
+              ? externalOtaUpdates
+              : [{ otaId: 'ALL', quantity: dto.allocations.find((a) => a.channelTarget === 'ALL')?.allocatedQuantity || 0 }]
+            ).map((u) => ({
+              date: dto.date,
+              roomTypeId: dto.roomTypeId,
+              externalRoomTypeId: roomMapping.externalRoomTypeId,
+              availableRooms: u.quantity,
+              channelId: u.otaId !== 'ALL' ? u.otaId : undefined,
+              stopSell: u.quantity === 0,
+            }));
+            await this.channelsService.pushDeltaAri(dto.propertyId, updates, []);
+            otaSyncResults = updates.map((u) => ({
+              channelId: u.channelId || 'ALL',
+              status: 'SUCCESS',
+              rooms: u.availableRooms,
+            }));
+          } else {
+            await this.channelsService.pushAriForProperty(dto.propertyId, 60);
+            otaSyncResults = [{ channelId: 'ALL', status: 'SUCCESS', rooms: dto.allocations[0]?.allocatedQuantity || 0 }];
+          }
+        } catch (err: any) {
+          this.logger.warn(`Failed Channex sync after multi-channel inventory override: ${err.message}`);
+          otaSyncResults = [{ channelId: 'ALL', status: 'FAILED', rooms: 0 }];
+        }
+      }
+    }
+
+    return {
+      success: true,
+      propertyId: dto.propertyId,
+      roomTypeId: dto.roomTypeId,
+      date: dto.date,
+      appliedAllocations: savedRecords,
+      channexSync: {
+        synced: otaSyncResults.length > 0 && otaSyncResults.every((r) => r.status === 'SUCCESS'),
+        details: otaSyncResults,
+      },
+    };
+  }
+
+  /**
+   * Set Multi-Channel Price Override with AC/Non-AC separation and Channex delta ARI push
+   */
+  async setMultiChannelPriceOverride(dto: SetMultiChannelPriceOverrideDto, user?: any) {
+    const start = new Date(`${dto.date}T00:00:00.000Z`);
+    const end = new Date(`${dto.date}T23:59:59.999Z`);
+
+    for (const item of dto.prices) {
+      if (item.price < 0) {
+        throw new BadRequestException(`Price cannot be negative for target ${item.channelTarget}.`);
+      }
+    }
+
+    const savedRules: any[] = [];
+    const externalOtaUpdates: Array<{ otaId: string; price: number }> = [];
+
+    let targetRatePlanId = dto.ratePlanId;
+    if (!targetRatePlanId) {
+      const primaryPlan = await this.prisma.ratePlan.findFirst({
+        where: { propertyId: dto.propertyId, isPrimary: true, isActive: true },
+      });
+      if (primaryPlan) targetRatePlanId = primaryPlan.id;
+    }
+
+    const isAcFilter = dto.isAc !== undefined ? dto.isAc : null;
+
+    for (const item of dto.prices) {
+      // Remove any existing single-day rule on this exact date for this room, channelTarget, and isAc mode
+      await (this.prisma.pricingRule as any).deleteMany({
+        where: {
+          roomTypeId: dto.roomTypeId,
+          channelTarget: item.channelTarget,
+          isAc: isAcFilter,
+          startDate: { gte: start },
+          endDate: { lte: end },
+        },
+      });
+
+      const variantTag = dto.isAc === true ? 'AC' : dto.isAc === false ? 'Non-AC' : 'General';
+      const name = `Daily Tariff [${item.channelTarget}] (${variantTag}) ${dto.date}`;
+
+      const rule = await (this.prisma.pricingRule as any).create({
+        data: {
+          name,
+          startDate: start,
+          endDate: end,
+          daysOfWeek: [],
+          adjustmentType: PricingAdjustmentType.SET_FIXED_PRICE,
+          adjustmentValue: item.price,
+          roomTypeId: dto.roomTypeId,
+          ratePlanId: targetRatePlanId || null,
+          channelTarget: item.channelTarget,
+          isAc: isAcFilter,
+          isActive: true,
+        },
+      });
+      savedRules.push(rule);
+
+      if (!['ALL', 'OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL'].includes(item.channelTarget)) {
+        externalOtaUpdates.push({ otaId: item.channelTarget, price: item.price });
+      }
+    }
+
+    // Record audit log
+    if (dto.propertyId) {
+      const variantTag = dto.isAc === true ? 'AC' : dto.isAc === false ? 'Non-AC' : 'All';
+      await this.recordRateRestrictionLog({
+        propertyId: dto.propertyId,
+        user,
+        actionType: 'RATE_UPDATE',
+        roomTypeId: dto.roomTypeId,
+        channelId: null,
+        channelName: dto.prices.map((p) => p.channelTarget).join(', '),
+        startDate: start,
+        endDate: end,
+        summary: `Multi-channel ${variantTag} tariff override on ${dto.date}: ${dto.prices.map((p) => `${p.channelTarget}: ₹${p.price}`).join(' | ')}`,
+        details: { prices: dto.prices, isAc: dto.isAc, date: dto.date },
+      });
+    }
+
+    // Push ARI delta to Channex if external OTAs are present or if ALL is present
+    let otaSyncResults: Array<{ channelId: string; channelName?: string; status: string; price: number }> = [];
+    if (dto.propertyId && this.channelsService) {
+      const hasAll = dto.prices.some((p) => p.channelTarget === 'ALL');
+      if (externalOtaUpdates.length > 0 || hasAll) {
+        try {
+          const roomMapping = await this.prisma.channelRoomTypeMapping.findFirst({
+            where: { roomTypeId: dto.roomTypeId },
+          });
+          if (roomMapping) {
+            const updates = (externalOtaUpdates.length > 0
+              ? externalOtaUpdates
+              : [{ otaId: 'ALL', price: dto.prices.find((p) => p.channelTarget === 'ALL')?.price || 0 }]
+            ).map((u) => ({
+              date: dto.date,
+              dateTo: dto.date,
+              roomTypeId: dto.roomTypeId,
+              externalRoomTypeId: roomMapping.externalRoomTypeId,
+              externalRatePlanId: roomMapping.externalRatePlanId || undefined,
+              price: u.price,
+              channelId: u.otaId !== 'ALL' ? u.otaId : undefined,
+            }));
+            await this.channelsService.pushDeltaAri(dto.propertyId, [], updates as any);
+            otaSyncResults = updates.map((u) => ({
+              channelId: u.channelId || 'ALL',
+              channelName: u.channelId ? `Channel ${u.channelId}` : 'All Connected OTAs',
+              status: 'SUCCESS',
+              price: u.price,
+            }));
+          } else {
+            otaSyncResults = (externalOtaUpdates.length > 0 ? externalOtaUpdates : [{ otaId: 'ALL', price: 0 }]).map((u) => ({
+              channelId: u.otaId,
+              channelName: `Channel ${u.otaId}`,
+              status: 'SKIPPED_NO_MAPPING',
+              price: u.price,
+            }));
+          }
+        } catch (err: any) {
+          this.logger.warn(`Failed targeted channel price sync: ${err.message}`);
+          otaSyncResults = (externalOtaUpdates.length > 0 ? externalOtaUpdates : [{ otaId: 'ALL', price: 0 }]).map((u) => ({
+            channelId: u.otaId,
+            channelName: `Channel ${u.otaId}`,
+            status: 'FAILED',
+            price: u.price,
+          }));
+        }
+      }
+    }
+
+    return {
+      success: true,
+      propertyId: dto.propertyId,
+      roomTypeId: dto.roomTypeId,
+      date: dto.date,
+      isAc: dto.isAc,
+      appliedPrices: savedRules,
+      channexSync: {
+        synced: otaSyncResults.length > 0 && otaSyncResults.every((r) => r.status === 'SUCCESS'),
+        details: otaSyncResults,
+      },
+    };
   }
 
   /**
@@ -1227,7 +1511,14 @@ export class RatePlansService {
     }
 
     if (query.actionType && query.actionType !== 'ALL') {
-      where.actionType = query.actionType;
+      const normalizedAction = query.actionType.toUpperCase();
+      if (normalizedAction === 'STOP_SELL' || normalizedAction === 'STOP_SELL_REMOVED' || normalizedAction === 'STOP_SELL_TOGGLE') {
+        where.actionType = 'STOP_SELL_TOGGLE';
+      } else if (normalizedAction === 'RESTRICTION_CHANGE' || normalizedAction === 'RESTRICTION_UPDATE') {
+        where.actionType = 'RESTRICTION_UPDATE';
+      } else if (['RATE_UPDATE', 'RESTRICTION_UPDATE', 'STOP_SELL_TOGGLE', 'INVENTORY_OVERRIDE'].includes(normalizedAction)) {
+        where.actionType = normalizedAction;
+      }
     }
 
     if (query.startDate) {

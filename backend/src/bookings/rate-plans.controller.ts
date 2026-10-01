@@ -9,6 +9,8 @@ import {
   CreateCalendarEventMarkerDto,
   ApplyRestrictionsDto,
   SetInventoryOverrideDto,
+  SetMultiChannelInventoryOverrideDto,
+  SetMultiChannelPriceOverrideDto,
   QueryRateRestrictionLogsDto,
 } from './dto/rate-plan.dto';
 
@@ -106,6 +108,20 @@ export class RatePlansController {
   @ApiOperation({ summary: 'Set manual physical room inventory quantity override' })
   async setInventoryOverride(@Body() dto: SetInventoryOverrideDto, @Req() req?: any) {
     return this.ratePlansService.setInventoryOverride(dto, req?.user);
+  }
+
+  @Post('multi-channel-inventory-override')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Set channel-specific inventory allotments / allotment caps with Channex sync verification' })
+  async setMultiChannelInventoryOverride(@Body() dto: SetMultiChannelInventoryOverrideDto, @Req() req?: any) {
+    return this.ratePlansService.setMultiChannelInventoryOverride(dto, req?.user);
+  }
+
+  @Post('multi-channel-price-override')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Set channel-specific daily tariffs with AC/Non-AC separation and Channex delta ARI push' })
+  async setMultiChannelPriceOverride(@Body() dto: SetMultiChannelPriceOverrideDto, @Req() req?: any) {
+    return this.ratePlansService.setMultiChannelPriceOverride(dto, req?.user);
   }
 
   @Get('events/:propertyId')

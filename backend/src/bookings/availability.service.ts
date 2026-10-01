@@ -979,6 +979,7 @@ export class AvailabilityService {
         checkOutDate: Date,
         includeAllStatus: boolean = false,
         excludeBookingId?: string,
+        platform: string = 'OREEDU_PMS',
     ): Promise<number> {
         const availableRooms = await this.getAvailableRooms(
             roomTypeId,
@@ -987,7 +988,49 @@ export class AvailabilityService {
             includeAllStatus,
             excludeBookingId,
         );
-        return availableRooms.length;
+        const physicalAvailable = availableRooms.length;
+
+        // PMS is unrestricted master — has full access to 100% of physical remaining unbooked rooms
+        if (!platform || platform === 'OREEDU_PMS') {
+            return physicalAvailable;
+        }
+
+        // For non-PMS channels (e.g. OREEDU_OTA_PORTAL, OREEDU_CP_PORTAL), apply channel allotment ceiling
+        const checkIn = new Date(checkInDate);
+        checkIn.setHours(0, 0, 0, 0);
+        const checkOut = new Date(checkOutDate);
+        checkOut.setHours(0, 0, 0, 0);
+
+        const overrides = await (this.prisma as any).connectivityAvailabilityOverride.findMany({
+            where: {
+                roomTypeId,
+                date: { gte: checkIn, lt: checkOut },
+                channelTarget: { in: [platform, 'ALL'] },
+            },
+        });
+
+        if (!overrides || overrides.length === 0) {
+            return physicalAvailable;
+        }
+
+        // Multi-night stay bottleneck principle
+        let bottleneckLimit = physicalAvailable;
+        const stayNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+        const curr = new Date(checkIn);
+
+        for (let i = 0; i < stayNights; i++) {
+            const dateStr = format(curr, 'yyyy-MM-dd');
+            const platformOverride = overrides.find((o: any) => format(new Date(o.date), 'yyyy-MM-dd') === dateStr && o.channelTarget === platform);
+            const allOverride = overrides.find((o: any) => format(new Date(o.date), 'yyyy-MM-dd') === dateStr && o.channelTarget === 'ALL');
+            const effectiveRule = platformOverride || allOverride;
+
+            if (effectiveRule !== undefined) {
+                bottleneckLimit = Math.min(bottleneckLimit, effectiveRule.allocatedQuantity);
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        return Math.min(physicalAvailable, Math.max(0, bottleneckLimit));
     }
 
     /**
@@ -1571,6 +1614,41 @@ export class AvailabilityService {
             ...selectedPhysicalRooms.map(r => r.roomTypeId)
         ]));
         const { availableCountMap, availableRoomsMap } = await this.getBatchRoomAvailability(allSuitableTypeIds, checkInDate, checkOutDate);
+
+        // Channel Allotment / Ceiling Cap Integration
+        // For non-PMS channels (Direct OTA, CP Portal), cap availableCountMap at the multi-night bottleneck limit
+        if (platform && platform !== 'OREEDU_PMS' && allSuitableTypeIds.length > 0) {
+            const stayNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+            const overrides = await (this.prisma as any).connectivityAvailabilityOverride.findMany({
+                where: {
+                    roomTypeId: { in: allSuitableTypeIds },
+                    date: { gte: checkIn, lt: checkOut },
+                    channelTarget: { in: [platform, 'ALL'] },
+                },
+            });
+
+            if (overrides && overrides.length > 0) {
+                for (const rtId of allSuitableTypeIds) {
+                    const naturalCount = availableCountMap.get(rtId) || 0;
+                    let stayLimit = naturalCount;
+                    const curr = new Date(checkIn);
+
+                    for (let i = 0; i < stayNights; i++) {
+                        const dateStr = format(curr, 'yyyy-MM-dd');
+                        const platformOverride = overrides.find((o: any) => o.roomTypeId === rtId && format(new Date(o.date), 'yyyy-MM-dd') === dateStr && o.channelTarget === platform);
+                        const allOverride = overrides.find((o: any) => o.roomTypeId === rtId && format(new Date(o.date), 'yyyy-MM-dd') === dateStr && o.channelTarget === 'ALL');
+                        const effectiveRule = platformOverride || allOverride;
+
+                        if (effectiveRule !== undefined) {
+                            stayLimit = Math.min(stayLimit, effectiveRule.allocatedQuantity);
+                        }
+                        curr.setDate(curr.getDate() + 1);
+                    }
+
+                    availableCountMap.set(rtId, Math.min(naturalCount, Math.max(0, stayLimit)));
+                }
+            }
+        }
 
         // Preload global GST tiers, offers, and pricing rules once in parallel
         const [globalGstTiers, allOffers, allPricingRules] = await Promise.all([

@@ -278,15 +278,17 @@ export class ConnectivityAvailabilityService {
           // Upsert external allocation cap override record
           const override = await this.prisma.connectivityAvailabilityOverride.upsert({
             where: {
-              propertyId_roomTypeId_date: {
+              propertyId_roomTypeId_channelTarget_date: {
                 propertyId,
                 roomTypeId: mapping.roomTypeId,
+                channelTarget: 'ALL',
                 date: dateObj,
               },
             },
             create: {
               propertyId,
               roomTypeId: mapping.roomTypeId,
+              channelTarget: 'ALL',
               date: dateObj,
               allocatedQuantity: item.sellableQuantity!,
             },

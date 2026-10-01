@@ -528,10 +528,11 @@ export class PricingService {
                     r.roomTypeId === roomTypeId &&
                     r.isActive &&
                     r.channelTarget === platform &&
+                    (r.isAc === null || r.isAc === undefined || r.isAc === authoritativeIsAc) &&
                     DateUtils.areNightIntervalsOverlapping(currentNight, nextNight, r.startDate, r.endDate) &&
                     (!targetRatePlan?.id || r.ratePlanId === targetRatePlan.id || !r.ratePlanId)
                   )
-                : await this.getApplicablePricingRule(roomTypeId, currentNight, nextNight, targetRatePlan?.id || ratePlanId, platform);
+                : await this.getApplicablePricingRule(roomTypeId, currentNight, nextNight, targetRatePlan?.id || ratePlanId, platform, authoritativeIsAc);
 
             let nightBase = effectiveBasePrice;
             if (ruleThisNight) {
@@ -834,6 +835,7 @@ export class PricingService {
         checkOutDate: Date,
         ratePlanId?: string,
         platform: string = 'OREEDU_PMS',
+        isAc?: boolean,
     ) {
         const pricingRules = await this.prisma.pricingRule.findMany({
             where: {
@@ -854,6 +856,10 @@ export class PricingService {
             const isOverlapping = DateUtils.areNightIntervalsOverlapping(checkInDate, checkOutDate, rule.startDate, rule.endDate);
             if (!isOverlapping) return false;
 
+            if (isAc !== undefined && (rule as any).isAc !== null && (rule as any).isAc !== undefined) {
+                if ((rule as any).isAc !== isAc) return false;
+            }
+
             // If rule specifies daysOfWeek (e.g. weekends [5,6,0] or weekdays [1,2,3,4]), check matching
             if (rule.daysOfWeek && rule.daysOfWeek.length > 0) {
                 return rule.daysOfWeek.includes(dayOfWeek);
@@ -865,12 +871,17 @@ export class PricingService {
         if (matchingRules.length === 0) return null;
 
         // Sort matching rules by specificity:
-        // 1. RatePlan-specific rule over generic roomType rule
-        // 2. Exact single-day rule over range rule
-        // 3. Shorter date span over broad date span
-        // 4. Festival rule
-        // 5. Newest rule
+        // 1. Explicit isAc match over generic rule
+        // 2. RatePlan-specific rule over generic roomType rule
+        // 3. Exact single-day rule over range rule
+        // 4. Shorter date span over broad date span
+        // 5. Festival rule
+        // 6. Newest rule
         matchingRules.sort((a, b) => {
+            const aHasAc = (a as any).isAc !== null && (a as any).isAc !== undefined ? 1 : 0;
+            const bHasAc = (b as any).isAc !== null && (b as any).isAc !== undefined ? 1 : 0;
+            if (aHasAc !== bHasAc) return bHasAc - aHasAc;
+
             if (ratePlanId) {
                 const aPlan = a.ratePlanId === ratePlanId ? 1 : 0;
                 const bPlan = b.ratePlanId === ratePlanId ? 1 : 0;

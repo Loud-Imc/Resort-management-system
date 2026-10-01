@@ -401,6 +401,7 @@ model PricingRule {
   isFestivalRule  Boolean               @default(false)
   festivalName    String?
   channelTarget   String                @default("OREEDU_PMS")
+  isAc            Boolean?
   isActive        Boolean               @default(true)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
@@ -408,6 +409,7 @@ model PricingRule {
   ratePlan        RatePlan?             @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
 
   @@index([roomTypeId, channelTarget, startDate, endDate])
+  @@index([roomTypeId, channelTarget, isAc, startDate, endDate])
   @@map("pricing_rules")
 }
 
@@ -1729,6 +1731,7 @@ model ConnectivityAvailabilityOverride {
   id                String   @id @default(uuid())
   propertyId        String
   roomTypeId        String
+  channelTarget     String   @default("ALL")
   date              DateTime @db.Date
   allocatedQuantity Int
   createdAt         DateTime @default(now())
@@ -1737,8 +1740,8 @@ model ConnectivityAvailabilityOverride {
   property          Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   roomType          RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
 
-  @@unique([propertyId, roomTypeId, date], name: "propertyId_roomTypeId_date")
-  @@index([propertyId, date])
+  @@unique([propertyId, roomTypeId, channelTarget, date], name: "propertyId_roomTypeId_channelTarget_date")
+  @@index([propertyId, channelTarget, date])
   @@map("connectivity_availability_overrides")
 }
 

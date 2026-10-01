@@ -776,10 +776,19 @@ export class ChannelsService {
           const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
           const naturalAvailable = Math.max(0, totalRooms - bookedCount);
 
-          // Check manual inventory override
-          const override = manualOverrides.find((mo) => {
+          // Check manual inventory override: prefer channelTarget === mapping.id / channelId / channelName, fallback to ALL
+          const override = manualOverrides.find((mo: any) => {
             const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
-            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr;
+            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr && (
+              mo.channelTarget === mapping.id ||
+              mo.channelTarget === (mapping as any).channelId ||
+              mo.channelTarget === mapping.channelName
+            );
+          }) || manualOverrides.find((mo: any) => {
+            const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
+            return mo.roomTypeId === roomMapping.roomTypeId && moDateStr === dateStr && (
+              mo.channelTarget === 'ALL' || !mo.channelTarget
+            );
           });
           const finalAvailable = override !== undefined
             ? Math.min(override.allocatedQuantity, naturalAvailable)
@@ -1129,10 +1138,19 @@ export class ChannelsService {
           const bookedCount = occupiedPhysicalRoomIds.size + unassignedCount;
           const naturalAvailable = Math.max(0, totalRooms - bookedCount);
 
-          // Check manual inventory override
-          const override = manualOverrides.find((mo) => {
+          // Check manual inventory override: prefer channelTarget === mapping.id / channelId / channelName, fallback to ALL
+          const override = manualOverrides.find((mo: any) => {
             const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
-            return mo.roomTypeId === rtId && moDateStr === dateStr;
+            return mo.roomTypeId === rtId && moDateStr === dateStr && (
+              mo.channelTarget === mapping.id ||
+              mo.channelTarget === (mapping as any).channelId ||
+              mo.channelTarget === mapping.channelName
+            );
+          }) || manualOverrides.find((mo: any) => {
+            const moDateStr = format(new Date(mo.date), 'yyyy-MM-dd');
+            return mo.roomTypeId === rtId && moDateStr === dateStr && (
+              mo.channelTarget === 'ALL' || !mo.channelTarget
+            );
           });
           const finalAvailable = override !== undefined
             ? Math.min(override.allocatedQuantity, naturalAvailable)

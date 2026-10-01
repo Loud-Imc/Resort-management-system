@@ -189,6 +189,10 @@ export class BulkPricingRuleDto {
   @IsArray()
   channelTargets?: string[]; // Explicit targets: ['OREEDU_PMS', 'OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL', or OTA ID]
 
+  @IsOptional()
+  @IsBoolean()
+  isAc?: boolean;
+
   @IsString()
   @IsNotEmpty()
   startDate: string;
@@ -283,6 +287,72 @@ export class ApplyRestrictionsDto {
   closedToDeparture?: boolean;
 }
 
+export class ChannelAllotmentItemDto {
+  @IsString()
+  @IsNotEmpty()
+  channelTarget: string; // 'ALL' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL' | '<OTA_ID>'
+
+  @IsNumber()
+  @Min(0)
+  allocatedQuantity: number;
+}
+
+export class SetMultiChannelInventoryOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  propertyId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  roomTypeId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  date: string; // YYYY-MM-DD
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChannelAllotmentItemDto)
+  allocations: ChannelAllotmentItemDto[];
+}
+
+export class ChannelPriceItemDto {
+  @IsString()
+  @IsNotEmpty()
+  channelTarget: string; // 'ALL' | 'OREEDU_PMS' | 'OREEDU_OTA_PORTAL' | 'OREEDU_CP_PORTAL' | '<OTA_ID>'
+
+  @IsNumber()
+  @Min(0)
+  price: number;
+}
+
+export class SetMultiChannelPriceOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  propertyId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  roomTypeId: string;
+
+  @IsOptional()
+  @IsString()
+  ratePlanId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  date: string; // YYYY-MM-DD
+
+  @IsOptional()
+  @IsBoolean()
+  isAc?: boolean;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChannelPriceItemDto)
+  prices: ChannelPriceItemDto[];
+}
+
 export class SetInventoryOverrideDto {
   @IsString()
   @IsNotEmpty()
@@ -303,6 +373,15 @@ export class SetInventoryOverrideDto {
   @IsOptional()
   @IsString()
   channelId?: string; // 'ALL', specific channel ID, or 'PMS_ONLY'
+
+  @IsOptional()
+  @IsString()
+  channelTarget?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  channelTargets?: string[];
 }
 
 export class CreateCalendarEventMarkerDto {

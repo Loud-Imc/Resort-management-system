@@ -127,6 +127,8 @@ export class ReportsService {
 
         const bookedToday = await this.prisma.booking.count({
             where: {
+                isDeleted: false,
+                status: { not: 'CANCELLED' },
                 checkInDate: { gte: today, lt: tomorrow },
                 room: { property: propertyFilter }
             }
@@ -211,23 +213,32 @@ export class ReportsService {
             return (a.floor || 0) - (b.floor || 0);
         });
 
-        // 5. Financial Overview
+        // 5. Financial Overview (Income received today)
         const incomeToday = await this.prisma.income.aggregate({
             where: {
-                OR: [
-                    {
-                        bookingId: { not: null },
-                        booking: { checkInDate: { gte: today, lt: tomorrow }, property: propertyFilter }
+                date: { gte: today, lt: tomorrow },
+                AND: [
+                    isGlobalAdmin ? {} : {
+                        OR: [
+                            { property: propertyFilter },
+                            { booking: { property: propertyFilter } },
+                            { booking: { room: { property: propertyFilter } } },
+                            { eventBooking: { event: { property: propertyFilter } } }
+                        ]
                     },
                     {
-                        eventBookingId: { not: null },
-                        eventBooking: { event: { date: { gte: today, lt: tomorrow }, property: propertyFilter } }
-                    },
-                    {
-                        bookingId: null,
-                        eventBookingId: null,
-                        date: { gte: today, lt: tomorrow },
-                        ...(isGlobalAdmin ? {} : { property: propertyFilter })
+                        OR: [
+                            { bookingId: null },
+                            {
+                                booking: {
+                                    isDeleted: false,
+                                    OR: [
+                                        { status: { not: 'CANCELLED' } },
+                                        { status: 'CANCELLED', paidAmount: { gt: 0 } }
+                                    ]
+                                }
+                            }
+                        ]
                     }
                 ]
             },
@@ -238,7 +249,7 @@ export class ReportsService {
             where: {
                 paymentDate: { gte: today, lt: tomorrow },
                 status: 'PAID',
-                booking: { property: propertyFilter }
+                booking: { isDeleted: false, property: propertyFilter }
             },
             _sum: { platformFee: true },
         });
@@ -343,13 +354,15 @@ export class ReportsService {
 
         const bookedToday = await this.prisma.booking.count({
             where: {
+                isDeleted: false,
+                status: { not: 'CANCELLED' },
                 checkInDate: {
                     gte: today,
                     lt: tomorrow
                 },
                 room: { property: propertyFilter }
             }
-        })
+        });
 
         // 3.5 Room Status Summary (Dynamic logic via RoomsService)
         let availableCount = 0;
@@ -381,31 +394,32 @@ export class ReportsService {
             }
         }
 
-        // 4. Today's Revenue (Income created today)
+        // 4. Today's Revenue (Income received today)
         const incomeToday = await this.prisma.income.aggregate({
             where: {
-                OR: [
-                    {
-                        bookingId: { not: null },
-                        booking: {
-                            checkInDate: { gte: today, lt: tomorrow },
-                            property: propertyFilter
-                        }
+                date: { gte: today, lt: tomorrow },
+                AND: [
+                    isGlobalAdmin ? {} : {
+                        OR: [
+                            { property: propertyFilter },
+                            { booking: { property: propertyFilter } },
+                            { booking: { room: { property: propertyFilter } } },
+                            { eventBooking: { event: { property: propertyFilter } } }
+                        ]
                     },
                     {
-                        eventBookingId: { not: null },
-                        eventBooking: {
-                            event: {
-                                date: { gte: today, lt: tomorrow },
-                                property: propertyFilter
+                        OR: [
+                            { bookingId: null },
+                            {
+                                booking: {
+                                    isDeleted: false,
+                                    OR: [
+                                        { status: { not: 'CANCELLED' } },
+                                        { status: 'CANCELLED', paidAmount: { gt: 0 } }
+                                    ]
+                                }
                             }
-                        }
-                    },
-                    {
-                        bookingId: null,
-                        eventBookingId: null,
-                        date: { gte: today, lt: tomorrow },
-                        ...(isGlobalAdmin ? {} : { property: propertyFilter })
+                        ]
                     }
                 ]
             },
@@ -422,7 +436,7 @@ export class ReportsService {
                     lt: tomorrow,
                 },
                 status: 'PAID',
-                booking: { property: propertyFilter }
+                booking: { isDeleted: false, property: propertyFilter }
             },
             _sum: {
                 platformFee: true,
@@ -522,31 +536,29 @@ export class ReportsService {
             const [income, expense, bookingsCount, occupiedNights, totalRooms, publicCount, cpCount, propertyCount, partialData, platformFees, cashPayments, generalIncome] = await Promise.all([
                 this.prisma.income.aggregate({
                     where: {
-                        OR: [
-                            // Booking income: recognized on check-in date
-                            {
-                                bookingId: { not: null },
-                                booking: {
-                                    checkInDate: { gte: start, lte: end },
-                                    property: propertyFilter
-                                }
+                        date: { gte: start, lte: end },
+                        AND: [
+                            (isGlobalAdmin && !propertyId) ? {} : {
+                                OR: [
+                                    { property: propertyFilter },
+                                    { booking: { property: propertyFilter } },
+                                    { booking: { room: { property: propertyFilter } } },
+                                    { eventBooking: { event: { property: propertyFilter } } }
+                                ]
                             },
-                            // Event booking income: recognized on event date
                             {
-                                eventBookingId: { not: null },
-                                eventBooking: {
-                                    event: {
-                                        date: { gte: start, lte: end },
-                                        property: propertyFilter
+                                OR: [
+                                    { bookingId: null },
+                                    {
+                                        booking: {
+                                            isDeleted: false,
+                                            OR: [
+                                                { status: { not: 'CANCELLED' } },
+                                                { status: 'CANCELLED', paidAmount: { gt: 0 } }
+                                            ]
+                                        }
                                     }
-                                }
-                            },
-                            // General/Manual income (no booking, no event)
-                            {
-                                bookingId: null,
-                                eventBookingId: null,
-                                date: { gte: start, lte: end },
-                                ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                                ]
                             }
                         ]
                     },
@@ -561,6 +573,8 @@ export class ReportsService {
                 }),
                 this.prisma.booking.count({
                     where: {
+                        isDeleted: false,
+                        status: { not: 'CANCELLED' },
                         checkInDate: { gte: start, lte: end },
                         room: { property: propertyFilter }
                     }
@@ -568,6 +582,7 @@ export class ReportsService {
                 // For ADR/RevPAR, we need occupied room nights in this period
                 this.prisma.booking.findMany({
                     where: {
+                        isDeleted: false,
                         status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
                         checkInDate: { lte: end },
                         checkOutDate: { gte: start },
@@ -587,6 +602,8 @@ export class ReportsService {
                 }),
                 this.prisma.booking.count({
                     where: {
+                        isDeleted: false,
+                        status: { not: 'CANCELLED' },
                         checkInDate: { gte: start, lte: end },
                         room: { property: propertyFilter },
                         isManualBooking: false,
@@ -598,6 +615,8 @@ export class ReportsService {
                 }), // Public Website (Guest-led)
                 this.prisma.booking.count({
                     where: {
+                        isDeleted: false,
+                        status: { not: 'CANCELLED' },
                         checkInDate: { gte: start, lte: end },
                         room: { property: propertyFilter },
                         isManualBooking: false,
@@ -606,29 +625,44 @@ export class ReportsService {
                     }
                 }), // CP Dashboard (Partner-led)
                 this.prisma.booking.count({
-                    where: { checkInDate: { gte: start, lte: end }, room: { property: propertyFilter }, isManualBooking: true }
+                    where: {
+                        isDeleted: false,
+                        status: { not: 'CANCELLED' },
+                        checkInDate: { gte: start, lte: end },
+                        room: { property: propertyFilter },
+                        isManualBooking: true
+                    }
                 }), // Property Dashboard
                 this.prisma.booking.aggregate({
-                    where: { checkInDate: { gte: start, lte: end }, room: { property: propertyFilter }, paymentOption: 'PARTIAL' },
+                    where: {
+                        isDeleted: false,
+                        status: { not: 'CANCELLED' },
+                        checkInDate: { gte: start, lte: end },
+                        room: { property: propertyFilter },
+                        paymentOption: 'PARTIAL'
+                    },
                     _count: true,
                     _sum: { paidAmount: true }
                 }), // Partial Payments
                 this.prisma.payment.aggregate({
                     where: {
-                        OR: [
-                            {
-                                bookingId: { not: null },
-                                booking: {
-                                    checkInDate: { gte: start, lte: end },
-                                    property: propertyFilter
-                                }
+                        paymentDate: { gte: start, lte: end },
+                        status: 'PAID',
+                        AND: [
+                            (isGlobalAdmin && !propertyId) ? {} : {
+                                OR: [
+                                    { booking: { property: propertyFilter } },
+                                    { booking: { room: { property: propertyFilter } } },
+                                    { eventBooking: { event: { property: propertyFilter } } }
+                                ]
                             },
                             {
-                                bookingId: null,
-                                paymentDate: { gte: start, lte: end }
+                                OR: [
+                                    { bookingId: null },
+                                    { booking: { isDeleted: false } }
+                                ]
                             }
-                        ],
-                        status: 'PAID'
+                        ]
                     },
                     _sum: { platformFee: true }
                 }),
@@ -636,7 +670,7 @@ export class ReportsService {
                     where: {
                         status: 'PAID',
                         paymentDate: { gte: start, lte: end },
-                        booking: { property: propertyFilter }
+                        booking: { isDeleted: false, property: propertyFilter }
                     },
                     select: {
                         amount: true,
@@ -708,31 +742,32 @@ export class ReportsService {
             revPar: calculateGrowth(currentMetrics.revPar, prevMetrics.revPar),
         };
 
-        // 3. Income by Source
+        // 3. Income by Source (recognized on payment receipt date)
         const rawIncomes = await this.prisma.income.findMany({
             where: {
-                OR: [
-                    {
-                        bookingId: { not: null },
-                        booking: {
-                            checkInDate: { gte: sDate, lte: eDate },
-                            property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
-                        }
+                date: { gte: sDate, lte: eDate },
+                AND: [
+                    (isGlobalAdmin && !propertyId) ? {} : {
+                        OR: [
+                            { property: propertyId ? { id: propertyId } : propertyFilter },
+                            { booking: { property: propertyId ? { id: propertyId } : propertyFilter } },
+                            { booking: { room: { property: propertyId ? { id: propertyId } : propertyFilter } } },
+                            { eventBooking: { event: { property: propertyId ? { id: propertyId } : propertyFilter } } }
+                        ]
                     },
                     {
-                        eventBookingId: { not: null },
-                        eventBooking: {
-                            event: {
-                                date: { gte: sDate, lte: eDate },
-                                property: propertyId ? { id: propertyId } : (isGlobalAdmin ? undefined : propertyFilter)
+                        OR: [
+                            { bookingId: null },
+                            {
+                                booking: {
+                                    isDeleted: false,
+                                    OR: [
+                                        { status: { not: 'CANCELLED' } },
+                                        { status: 'CANCELLED', paidAmount: { gt: 0 } }
+                                    ]
+                                }
                             }
-                        }
-                    },
-                    {
-                        bookingId: null,
-                        eventBookingId: null,
-                        date: { gte: sDate, lte: eDate },
-                        ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                        ]
                     }
                 ]
             },
@@ -904,6 +939,8 @@ export class ReportsService {
 
         const bookings = await this.prisma.booking.findMany({
             where: {
+                isDeleted: false,
+                status: { not: 'CANCELLED' },
                 checkInDate: { gte: sDate, lte: eDate },
                 room: { property: propertyFilter }
             },
@@ -912,54 +949,59 @@ export class ReportsService {
 
         const incomes = await this.prisma.income.findMany({
             where: {
-                OR: [
-                    {
-                        bookingId: { not: null },
-                        booking: {
-                            checkInDate: { gte: sDate, lte: eDate },
-                            property: propertyFilter
-                        }
+                date: { gte: sDate, lte: eDate },
+                AND: [
+                    (isGlobalAdmin && !propertyId) ? {} : {
+                        OR: [
+                            { property: propertyFilter },
+                            { booking: { property: propertyFilter } },
+                            { booking: { room: { property: propertyFilter } } },
+                            { eventBooking: { event: { property: propertyFilter } } }
+                        ]
                     },
                     {
-                        eventBookingId: { not: null },
-                        eventBooking: {
-                            event: {
-                                date: { gte: sDate, lte: eDate },
-                                property: propertyFilter
+                        OR: [
+                            { bookingId: null },
+                            {
+                                booking: {
+                                    isDeleted: false,
+                                    OR: [
+                                        { status: { not: 'CANCELLED' } },
+                                        { status: 'CANCELLED', paidAmount: { gt: 0 } }
+                                    ]
+                                }
                             }
-                        }
-                    },
-                    {
-                        bookingId: null,
-                        eventBookingId: null,
-                        date: { gte: sDate, lte: eDate },
-                        ...(isGlobalAdmin && !propertyId ? {} : { property: propertyFilter })
+                        ]
                     }
                 ]
             },
-            include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } }, payment: true }
+            include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } }, payment: true },
+            orderBy: { date: 'desc' }
         });
 
         const platformFeeDetails = await this.prisma.payment.findMany({
             where: {
                 status: { in: ['PAID', 'PARTIALLY_REFUNDED'] },
                 platformFee: { gt: 0 },
-                OR: [
-                    {
-                        bookingId: { not: null },
-                        booking: {
-                            checkInDate: { gte: sDate, lte: eDate },
-                            property: propertyFilter
-                        }
+                paymentDate: { gte: sDate, lte: eDate },
+                AND: [
+                    (isGlobalAdmin && !propertyId) ? {} : {
+                        OR: [
+                            { booking: { property: propertyFilter } },
+                            { booking: { room: { property: propertyFilter } } },
+                            { eventBooking: { event: { property: propertyFilter } } }
+                        ]
                     },
                     {
-                        bookingId: null,
-                        paymentDate: { gte: sDate, lte: eDate },
-                        ...(isGlobalAdmin && !propertyId ? {} : {}) // Adjust if payments without booking have property link
+                        OR: [
+                            { bookingId: null },
+                            { booking: { isDeleted: false } }
+                        ]
                     }
                 ]
             },
-            include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } } }
+            include: { booking: { include: { user: { select: { firstName: true, lastName: true } } } } },
+            orderBy: { paymentDate: 'desc' }
         });
 
         return { bookings, incomes, platformFeeDetails };
@@ -1009,6 +1051,7 @@ export class ReportsService {
 
             const activeBookings = await this.prisma.booking.findMany({
                 where: {
+                    isDeleted: false,
                     status: { in: ['CHECKED_IN', 'CONFIRMED'] }, // Include confirmed for future dates
                     checkInDate: { lte: date },
                     checkOutDate: { gt: date },
@@ -1099,6 +1142,7 @@ export class ReportsService {
         const performance = await Promise.all(roomTypes.map(async (rt) => {
             const stayingBookings = await this.prisma.booking.findMany({
                 where: {
+                    isDeleted: false,
                     roomTypeId: rt.id,
                     status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
                     checkInDate: { lte: eDate },
@@ -1109,6 +1153,7 @@ export class ReportsService {
             // Count bookings created in this range
             const bookingsCount = await this.prisma.booking.count({
                 where: {
+                    isDeleted: false,
                     roomTypeId: rt.id,
                     status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
                     checkInDate: { gte: sDate, lte: eDate }
@@ -1118,11 +1163,12 @@ export class ReportsService {
             // Sum actual incomes recorded in this range for this room type
             const incomeAggregate = await this.prisma.income.aggregate({
                 where: {
+                    date: { gte: sDate, lte: eDate },
                     bookingId: { not: null },
                     booking: {
+                        isDeleted: false,
                         roomTypeId: rt.id,
-                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
-                        checkInDate: { gte: sDate, lte: eDate }
+                        status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] }
                     }
                 },
                 _sum: { amount: true }
@@ -1752,6 +1798,7 @@ export class ReportsService {
 
         const abandonedBookings = await this.prisma.booking.findMany({
             where: {
+                isDeleted: false,
                 status: 'PENDING_PAYMENT',
                 createdAt: {
                     gte: sDate,
@@ -1808,6 +1855,7 @@ export class ReportsService {
 
         const bookings = await this.prisma.booking.findMany({
             where: {
+                isDeleted: false,
                 status: { in: ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
                 checkInDate: {
                     gte: sDate,
