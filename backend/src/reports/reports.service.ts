@@ -158,8 +158,8 @@ export class ReportsService {
             let activeBlockDetails: any = null;
             if (room.blocks && room.blocks.length > 0) {
                 const b = room.blocks.find((blk: any) => {
-                    const blkStart = new Date(blk.startDate); blkStart.setHours(0, 0, 0, 0);
-                    const blkEnd = new Date(blk.endDate); blkEnd.setHours(0, 0, 0, 0);
+                    const blkStart = DateUtils.parseCalendarDate(blk.startDate);
+                    const blkEnd = DateUtils.parseCalendarDate(blk.endDate);
                     return targetDate >= blkStart && targetDate < blkEnd;
                 });
                 if (b) {
@@ -176,13 +176,15 @@ export class ReportsService {
             // Find active booking for targetDate
             const bookingRoomsList = room.bookingRooms || [];
             const activeBookingForTarget = bookingRoomsList.find((br: any) => {
-                const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
-                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking?.status)) return false;
+                const checkIn = DateUtils.parseCalendarDate(br.booking.checkInDate);
+                const checkOut = DateUtils.parseCalendarDate(br.booking.checkOutDate);
                 return targetDate >= checkIn && targetDate < checkOut;
             })?.booking;
 
             const checkoutBookingTarget = bookingRoomsList.find((br: any) => {
-                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking?.status)) return false;
+                const checkOut = DateUtils.parseCalendarDate(br.booking.checkOutDate);
                 return targetDate.getTime() === checkOut.getTime();
             })?.booking;
 
@@ -202,6 +204,7 @@ export class ReportsService {
                 roomTypeId: room.roomTypeId,
                 status: room.status,
                 guestName: guestName || null,
+                _guestName: guestName || null,
                 blockDetails: activeBlockDetails,
                 _activeBooking: activeBookingForTarget || null,
                 _checkoutBooking: checkoutBookingTarget || null,
@@ -254,14 +257,16 @@ export class ReportsService {
             _sum: { platformFee: true },
         });
 
+        const targetOccupied = occupiedCount + reservedCount;
+
         return {
             date: targetDate,
             checkIns,
             checkOuts,
             occupancy: {
                 total: totalRooms,
-                occupied: occupiedRooms,
-                percentage: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
+                occupied: dateStr ? targetOccupied : occupiedRooms,
+                percentage: totalRooms > 0 ? Math.round(((dateStr ? targetOccupied : occupiedRooms) / totalRooms) * 100) : 0,
             },
             revenue: Number(incomeToday._sum.amount || 0),
             todayFees: Number(feesToday._sum.platformFee || 0),

@@ -414,17 +414,20 @@ model PricingRule {
 }
 
 model StopSellRestriction {
-  id           String    @id @default(uuid())
-  propertyId   String
-  roomTypeId   String?
-  startDate    DateTime
-  endDate      DateTime
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  property     Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  roomType     RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid())
+  propertyId    String
+  roomTypeId    String?
+  startDate     DateTime
+  endDate       DateTime
+  channelTarget String    @default("ALL")
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomType      RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
 
+  @@index([propertyId, channelTarget, startDate, endDate])
+  @@index([roomTypeId, channelTarget, startDate, endDate])
   @@map("stop_sell_restrictions")
 }
 
@@ -1751,6 +1754,8 @@ model RestrictionRule {
   roomTypeId        String?
   startDate         DateTime @db.Date
   endDate           DateTime @db.Date
+  daysOfWeek        Int[]    @default([])
+  channelTarget     String   @default("ALL")
   minStayArrival    Int?
   minStayThrough    Int?
   maxStay           Int?
@@ -1764,6 +1769,8 @@ model RestrictionRule {
   roomType          RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
 
   @@index([propertyId, startDate, endDate])
+  @@index([propertyId, channelTarget, startDate, endDate])
+  @@index([roomTypeId, channelTarget, startDate, endDate])
   @@map("restriction_rules")
 }
 

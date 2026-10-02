@@ -107,6 +107,7 @@ export class AvailabilityService {
             allAvailableRooms.push(...availableForType.map(r => ({
                 ...r,
                 roomType: type,
+                roomTypeId: type.id,
                 capacity: roomCapacity
             })));
         }
@@ -115,15 +116,65 @@ export class AvailabilityService {
         allAvailableRooms.sort((a, b) => b.capacity - a.capacity);
 
         let allocatedRooms: any[] = [];
-        let remainingHeadcount = groupSize;
-        for (const room of allAvailableRooms) {
-            if (remainingHeadcount <= 0) break;
-            allocatedRooms.push(room);
-            remainingHeadcount -= room.capacity;
+        const isExplicitRoomSelection = filterRoomIds && filterRoomIds.length > 0;
+
+        if (isExplicitRoomSelection) {
+            // User explicitly requested specific physical rooms
+            // 1. Verify that all requested rooms were found in the pool and are available
+            const foundRoomIds = new Set(allAvailableRooms.map(r => r.id));
+            const allRequestedAvailable = filterRoomIds.every(id => foundRoomIds.has(id));
+            if (!allRequestedAvailable) {
+                return []; // One or more requested rooms are unavailable or not in group pool
+            }
+
+            // 2. Filter down to only requested rooms
+            allocatedRooms = allAvailableRooms.filter(r => filterRoomIds.includes(r.id));
+
+            // 3. Verify total capacity of all requested rooms is sufficient for groupSize
+            const totalCapacity = allocatedRooms.reduce((sum, r) => sum + r.capacity, 0);
+            if (totalCapacity < groupSize) {
+                return []; // Selected rooms cannot accommodate the group size
+            }
+        } else {
+            // Auto-allocation: Greedy allocation filling larger rooms first until groupSize is met
+            let remainingHeadcount = groupSize;
+            for (const room of allAvailableRooms) {
+                if (remainingHeadcount <= 0) break;
+                allocatedRooms.push(room);
+                remainingHeadcount -= room.capacity;
+            }
+
+            if (remainingHeadcount > 0) {
+                return []; // Not enough capacity
+            }
         }
 
-        if (remainingHeadcount > 0) {
-            return []; // Not enough capacity
+        // Smoothly distribute groupSize guests across all allocated rooms respecting individual room capacities
+        if (allocatedRooms.length > 0) {
+            const numRooms = allocatedRooms.length;
+            const baseShare = Math.floor(groupSize / numRooms);
+            let extra = groupSize % numRooms;
+            let undistributed = groupSize;
+
+            for (const room of allocatedRooms) {
+                const assigned = Math.min(room.capacity, baseShare + (extra > 0 ? 1 : 0));
+                if (extra > 0 && assigned === baseShare + 1) {
+                    extra--;
+                }
+                (room as any).assignedGuests = assigned;
+                undistributed -= assigned;
+            }
+
+            // If any guests remain undistributed (due to lower room capacities), distribute to rooms with room left
+            if (undistributed > 0) {
+                for (const room of allocatedRooms) {
+                    const space = room.capacity - ((room as any).assignedGuests || 0);
+                    const add = Math.min(space, undistributed);
+                    (room as any).assignedGuests = ((room as any).assignedGuests || 0) + add;
+                    undistributed -= add;
+                    if (undistributed <= 0) break;
+                }
+            }
         }
 
         return allocatedRooms;
@@ -151,7 +202,8 @@ export class AvailabilityService {
         checkInDate: Date | string,
         checkOutDate: Date | string,
         excludeBookingId?: string,
-        allowedRoomIds?: string[]
+        allowedRoomIds?: string[],
+        platform?: string,
     ): Promise<{
         availableCountMap: Map<string, number>;
         availableRoomsMap: Map<string, any[]>;
@@ -256,11 +308,16 @@ export class AvailabilityService {
         const thirtyMinutesAgo = new Date();
         thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
+        const channelFilter = platform
+            ? { channelTarget: { in: [platform, 'ALL'] } }
+            : {};
+
         // 2. Batch fetch active Stop-Sell restrictions
-        const stopSells = await this.prisma.stopSellRestriction.findMany({
+        const stopSells = await (this.prisma.stopSellRestriction as any).findMany({
             where: {
                 propertyId: { in: propertyIds },
                 isActive: true,
+                ...channelFilter,
                 OR: [
                     { roomTypeId: null },
                     { roomTypeId: { in: uniqueRoomTypeIds } }
@@ -563,6 +620,7 @@ export class AvailabilityService {
         propertyId: string,
         checkInDate: Date | string,
         checkOutDate: Date | string,
+        isGroupBooking: boolean = false,
     ): Promise<{
         availableRooms: Array<{
             id: string;
@@ -579,7 +637,10 @@ export class AvailabilityService {
         }
 
         const roomTypes = await this.prisma.roomType.findMany({
-            where: { propertyId },
+            where: { 
+                propertyId,
+                ...(isGroupBooking ? { isAvailableForGroupBooking: true } : {})
+            },
             select: { id: true, name: true },
         });
 
@@ -1646,6 +1707,76 @@ export class AvailabilityService {
                     }
 
                     availableCountMap.set(rtId, Math.min(naturalCount, Math.max(0, stayLimit)));
+                }
+            }
+        }
+
+        // Room-level Stay Restrictions Integration (Min Stay, Max Stay, CTA, CTD)
+        // Ensure rooms that violate arrival/stay restrictions for this platform are not offered as available
+        if (platform && allSuitableTypeIds.length > 0) {
+            const stayNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+            const activeRestrictions = await (this.prisma as any).restrictionRule.findMany({
+                where: {
+                    roomTypeId: { in: allSuitableTypeIds },
+                    isActive: true,
+                    startDate: { lte: checkOut },
+                    endDate: { gte: checkIn },
+                    channelTarget: { in: [platform, 'ALL'] },
+                },
+            });
+
+            if (activeRestrictions && activeRestrictions.length > 0) {
+                const checkInDayOfWeek = checkIn.getDay();
+                const checkOutDayOfWeek = checkOut.getDay();
+
+                for (const rtId of allSuitableTypeIds) {
+                    const rtRestrictions = activeRestrictions.filter((r: any) => r.roomTypeId === rtId);
+                    let isRestricted = false;
+
+                    for (const rule of rtRestrictions) {
+                        const ruleStart = new Date(rule.startDate);
+                        ruleStart.setHours(0, 0, 0, 0);
+                        const ruleEnd = new Date(rule.endDate);
+                        ruleEnd.setHours(23, 59, 59, 999);
+
+                        const appliesToDay = (date: Date, daysOfWeek?: number[]) => {
+                            if (!daysOfWeek || daysOfWeek.length === 0 || daysOfWeek.length === 7) return true;
+                            return daysOfWeek.includes(date.getDay());
+                        };
+
+                        // 1. Closed To Arrival (CTA) on check-in date
+                        if (rule.closedToArrival && checkIn >= ruleStart && checkIn <= ruleEnd && appliesToDay(checkIn, rule.daysOfWeek)) {
+                            isRestricted = true;
+                            break;
+                        }
+
+                        // 2. Closed To Departure (CTD) on check-out date
+                        if (rule.closedToDeparture && checkOut >= ruleStart && checkOut <= ruleEnd && appliesToDay(checkOut, rule.daysOfWeek)) {
+                            isRestricted = true;
+                            break;
+                        }
+
+                        // 3. Min Stay on Arrival
+                        if (rule.minStayArrival && checkIn >= ruleStart && checkIn <= ruleEnd && appliesToDay(checkIn, rule.daysOfWeek)) {
+                            if (stayNights < rule.minStayArrival) {
+                                isRestricted = true;
+                                break;
+                            }
+                        }
+
+                        // 4. Max Stay
+                        if (rule.maxStay && ((checkIn >= ruleStart && checkIn <= ruleEnd) || (checkOut >= ruleStart && checkOut <= ruleEnd))) {
+                            if (stayNights > rule.maxStay) {
+                                isRestricted = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isRestricted) {
+                        availableCountMap.set(rtId, 0);
+                        availableRoomsMap.set(rtId, []);
+                    }
                 }
             }
         }
@@ -2906,26 +3037,33 @@ export class AvailabilityService {
         roomTypeId: string | null,
         checkInDate: Date | string,
         checkOutDate: Date | string,
+        platform?: string,
     ) {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
         const checkOut = new Date(checkOutDate);
         checkOut.setHours(0, 0, 0, 0);
 
-        const stopSells = await this.prisma.stopSellRestriction.findMany({
+        const channelFilter = platform
+            ? { channelTarget: { in: [platform, 'ALL'] } }
+            : {};
+
+        const stopSells = await (this.prisma.stopSellRestriction as any).findMany({
             where: {
                 propertyId,
                 isActive: true,
+                ...channelFilter,
                 ...(roomTypeId ? { OR: [{ roomTypeId: null }, { roomTypeId }] } : {}),
                 startDate: { lte: checkOut },
                 endDate: { gte: checkIn },
             },
         });
 
-        const restrictionRules = await this.prisma.restrictionRule.findMany({
+        const restrictionRules = await (this.prisma.restrictionRule as any).findMany({
             where: {
                 propertyId,
                 isActive: true,
+                ...channelFilter,
                 ...(roomTypeId ? { OR: [{ roomTypeId: null }, { roomTypeId }] } : {}),
                 startDate: { lte: checkOut },
                 endDate: { gte: checkIn },
@@ -2947,13 +3085,14 @@ export class AvailabilityService {
             const month = String(current.getMonth() + 1).padStart(2, '0');
             const day = String(current.getDate()).padStart(2, '0');
             const dateStr = `${year}-${month}-${day}`;
+            const currentDOW = current.getDay();
 
             const dayStart = new Date(current);
             dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(current);
             dayEnd.setHours(23, 59, 59, 999);
 
-            const hasStopSell = stopSells.some((ss) => {
+            const hasStopSell = stopSells.some((ss: any) => {
                 const ssStart = new Date(ss.startDate);
                 ssStart.setHours(0, 0, 0, 0);
                 const ssEnd = new Date(ss.endDate);
@@ -2966,11 +3105,25 @@ export class AvailabilityService {
                 rrStart.setHours(0, 0, 0, 0);
                 const rrEnd = new Date(rr.endDate);
                 rrEnd.setHours(23, 59, 59, 999);
-                return (!rr.roomTypeId || !roomTypeId || rr.roomTypeId === roomTypeId) && dayStart <= rrEnd && dayEnd >= rrStart;
+                const matchesDate = dayStart <= rrEnd && dayEnd >= rrStart;
+                const matchesRT = !rr.roomTypeId || !roomTypeId || rr.roomTypeId === roomTypeId;
+                const matchesDOW = !rr.daysOfWeek || rr.daysOfWeek.length === 0 || rr.daysOfWeek.includes(currentDOW);
+                return matchesDate && matchesRT && matchesDOW;
             });
 
-            const specificRules = matchingRules.filter((rr: any) => rr.roomTypeId && rr.roomTypeId === roomTypeId);
-            const rulesToEvaluate = specificRules.length > 0 ? specificRules : matchingRules;
+            // Priority: platform-specific roomType rule > 'ALL' roomType rule > platform-specific property rule > 'ALL' property rule
+            const specificPlatformRules = platform ? matchingRules.filter((rr: any) => rr.roomTypeId && rr.roomTypeId === roomTypeId && rr.channelTarget === platform) : [];
+            const specificAllRules = matchingRules.filter((rr: any) => rr.roomTypeId && rr.roomTypeId === roomTypeId && (!rr.channelTarget || rr.channelTarget === 'ALL'));
+            const propPlatformRules = platform ? matchingRules.filter((rr: any) => !rr.roomTypeId && rr.channelTarget === platform) : [];
+            const propAllRules = matchingRules.filter((rr: any) => !rr.roomTypeId && (!rr.channelTarget || rr.channelTarget === 'ALL'));
+
+            const rulesToEvaluate = specificPlatformRules.length > 0
+                ? specificPlatformRules
+                : specificAllRules.length > 0
+                ? specificAllRules
+                : propPlatformRules.length > 0
+                ? propPlatformRules
+                : propAllRules;
 
             let effMinStayArrival: number | null = null;
             let effMinStayThrough: number | null = null;
@@ -3016,6 +3169,7 @@ export class AvailabilityService {
         roomTypeId: string,
         checkInDate: Date | string,
         checkOutDate: Date | string,
+        platform?: string,
     ): Promise<void> {
         const checkIn = new Date(checkInDate);
         checkIn.setHours(0, 0, 0, 0);
@@ -3023,7 +3177,7 @@ export class AvailabilityService {
         checkOut.setHours(0, 0, 0, 0);
 
         const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-        const dailyMap = await this.evaluateRestrictions(propertyId, roomTypeId, checkInDate, checkOutDate);
+        const dailyMap = await this.evaluateRestrictions(propertyId, roomTypeId, checkInDate, checkOutDate, platform);
 
         const yearIn = checkIn.getFullYear();
         const monthIn = String(checkIn.getMonth() + 1).padStart(2, '0');

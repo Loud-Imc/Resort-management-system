@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, DollarSign, Globe, Calendar, Layers, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { X, Sparkles, DollarSign, Globe, Calendar, Layers, CheckCircle2, Loader2, RefreshCw, Building2 } from 'lucide-react';
 import { ratePlansService, type RatePlan } from '../services/ratePlans';
 import { channelsService } from '../services/channels';
 import type { RoomType } from '../types/room';
@@ -26,8 +26,13 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
   onSuccess,
 }) => {
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>(roomTypeId || 'ALL');
-  const [selectedChannelId, setSelectedChannelId] = useState<string>('ALL');
-  const [activeOtas, setActiveOtas] = useState<Array<{ id: string; title: string; otaName?: string }>>([]);
+  const [activeOtas, setActiveOtas] = useState<Array<{ id: string; title: string; otaName?: string; channel?: string }>>([]);
+
+  // Multi-Channel Checkbox Targets
+  const [targetOreeduOta, setTargetOreeduOta] = useState<boolean>(true);
+  const [targetOreeduCp, setTargetOreeduCp] = useState<boolean>(true);
+  const [targetOreeduPms, setTargetOreeduPms] = useState<boolean>(true);
+  const [selectedOtaIds, setSelectedOtaIds] = useState<string[]>([]);
 
   const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(() => {
@@ -118,10 +123,39 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
     onClose();
   };
 
+  const handleSelectAllChannels = () => {
+    setTargetOreeduOta(true);
+    setTargetOreeduCp(true);
+    setTargetOreeduPms(true);
+    setSelectedOtaIds(activeOtas.map((o) => o.id));
+  };
+
+  const handleDeselectAllChannels = () => {
+    setTargetOreeduOta(false);
+    setTargetOreeduCp(false);
+    setTargetOreeduPms(false);
+    setSelectedOtaIds([]);
+  };
+
+  const getTargetChannelsArray = (): string[] => {
+    const targets: string[] = [];
+    if (targetOreeduOta) targets.push('OREEDU_OTA_PORTAL');
+    if (targetOreeduCp) targets.push('OREEDU_CP_PORTAL');
+    if (targetOreeduPms) targets.push('OREEDU_PMS');
+    targets.push(...selectedOtaIds);
+    return targets;
+  };
+
   const handleValidateAndReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoomTypeId || selectedRoomTypeId === 'ALL') {
       toast.error('Please select a specific room category.');
+      return;
+    }
+
+    const channels = getTargetChannelsArray();
+    if (channels.length === 0) {
+      toast.error('Please select at least one target channel.');
       return;
     }
 
@@ -152,12 +186,12 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
     setSubmitting(true);
     try {
       const targetRtId = selectedRoomTypeId;
-      const targetChannel = selectedChannelId === 'ALL' ? undefined : selectedChannelId;
+      const channelTargets = getTargetChannelsArray();
 
       await ratePlansService.applyBulkPricingRule({
         propertyId,
         roomTypeId: targetRtId,
-        channelId: targetChannel,
+        channelTargets,
         startDate,
         endDate,
         daysOfWeek: selectedDays,
@@ -166,11 +200,7 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
         festivalName: isFestivalRule ? festivalName : undefined,
       });
 
-      toast.success(
-        selectedChannelId === 'PMS_ONLY'
-          ? '💰 Seasonal base rates applied to PMS Direct!'
-          : '💰 Seasonal base rates applied & synced to channels!'
-      );
+      toast.success('💰 Seasonal tariffs applied & synchronized to selected channels!');
       setIsConfirming(false);
       onSuccess();
       onClose();
@@ -179,6 +209,18 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const getTargetChannelDisplayNames = () => {
+    const names: string[] = [];
+    if (targetOreeduOta) names.push('Oreedu Direct');
+    if (targetOreeduCp) names.push('Oreedu CP');
+    if (targetOreeduPms) names.push('Front Desk PMS');
+    selectedOtaIds.forEach((id) => {
+      const ota = activeOtas.find((o) => o.id === id);
+      names.push(ota?.title || ota?.otaName || id);
+    });
+    return names;
   };
 
   return (
@@ -216,7 +258,7 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
             <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-extrabold text-sm">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                <span>Confirm Seasonal Pricing & OTA Sync</span>
+                <span>Confirm Seasonal Pricing & Multi-Channel Sync</span>
               </div>
               <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
                 Review the tariff adjustments and target channels below before dispatching.
@@ -228,15 +270,18 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
                 <span className="text-muted-foreground font-semibold">Target Category:</span>
                 <span className="font-extrabold text-foreground">🏨 {targetRoomType?.name}</span>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-border/50">
-                <span className="text-muted-foreground font-semibold">Distribution Target:</span>
-                <span className="font-extrabold px-2.5 py-0.5 rounded text-[11px] bg-primary/10 text-primary border border-primary/20">
-                  {selectedChannelId === 'ALL'
-                    ? '🌐 All Channels (Direct + OTAs)'
-                    : selectedChannelId === 'PMS_ONLY'
-                    ? '🔒 Direct PMS Only (No OTA Push)'
-                    : (activeOtas.find((o) => o.id === selectedChannelId)?.title || selectedChannelId)}
-                </span>
+              <div className="flex justify-between items-start py-1.5 border-b border-border/50">
+                <span className="text-muted-foreground font-semibold">Distribution Targets:</span>
+                <div className="flex flex-wrap gap-1 justify-end max-w-[280px]">
+                  {getTargetChannelDisplayNames().map((name) => (
+                    <span
+                      key={name}
+                      className="font-extrabold px-2 py-0.5 rounded text-[10px] bg-primary/10 text-primary border border-primary/20"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="flex justify-between items-center py-1.5 border-b border-border/50">
                 <span className="text-muted-foreground font-semibold">Date Horizon:</span>
@@ -294,49 +339,175 @@ export const BulkRatesModal: React.FC<BulkRatesModalProps> = ({
         ) : (
           /* Form */
           <form onSubmit={handleValidateAndReview} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {/* Target Room Type & Target Channel */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1 flex items-center gap-1">
-                <Layers className="h-3.5 w-3.5" /> Target Room Category
-              </label>
-              {roomTypeId ? (
-                <div className="w-full px-3.5 py-2.5 rounded-xl border border-primary/30 bg-primary/5 text-xs font-bold text-foreground flex items-center justify-between">
-                  <span className="truncate">🏨 {roomTypes.find((r) => r.id === roomTypeId)?.name || 'Selected Room'}</span>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-primary/20 text-primary shrink-0">Locked</span>
-                </div>
-              ) : (
-                <select
-                  value={selectedRoomTypeId}
-                  onChange={(e) => setSelectedRoomTypeId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
-                >
-                  {roomTypes.map((rt) => (
-                    <option key={rt.id} value={rt.id}>
-                      🏨 {rt.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1 flex items-center gap-1">
-                <Globe className="h-3.5 w-3.5 text-primary" /> Target Channels
-              </label>
+          {/* Target Room Type */}
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase mb-1 flex items-center gap-1">
+              <Layers className="h-3.5 w-3.5" /> Target Room Category
+            </label>
+            {roomTypeId ? (
+              <div className="w-full px-3.5 py-2.5 rounded-xl border border-primary/30 bg-primary/5 text-xs font-bold text-foreground flex items-center justify-between">
+                <span className="truncate">🏨 {roomTypes.find((r) => r.id === roomTypeId)?.name || 'Selected Room'}</span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-primary/20 text-primary shrink-0">Locked</span>
+              </div>
+            ) : (
               <select
-                value={selectedChannelId}
-                onChange={(e) => setSelectedChannelId(e.target.value)}
+                value={selectedRoomTypeId}
+                onChange={(e) => setSelectedRoomTypeId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
               >
-                <option value="ALL">🌐 All Channels (Direct + OTAs)</option>
-                <option value="PMS_ONLY">🔒 Direct Booking Only (PMS/Oreedu)</option>
-                {activeOtas.map((ota) => (
-                  <option key={ota.id} value={ota.id}>
-                    {ota.title || ota.otaName || ota.id}
+                {roomTypes.map((rt) => (
+                  <option key={rt.id} value={rt.id}>
+                    🏨 {rt.name}
                   </option>
                 ))}
               </select>
+            )}
+          </div>
+
+          {/* Multi-Channel Checkboxes */}
+          <div className="bg-muted/30 border border-border/80 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black text-foreground flex items-center gap-1.5 uppercase tracking-wide">
+                <Globe className="h-4 w-4 text-primary" /> Target Channels (Where Pricing Applies)
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllChannels}
+                  className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                >
+                  Select All
+                </button>
+                <span className="text-muted-foreground/40">•</span>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllChannels}
+                  className="text-[11px] font-bold text-muted-foreground hover:underline cursor-pointer"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Oreedu Internal Channels */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="h-3 w-3 text-primary" />
+                Oreedu Internal Channels
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Oreedu Direct OTA */}
+                <label className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${targetOreeduOta ? 'border-primary/50 bg-primary/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={targetOreeduOta}
+                      onChange={(e) => setTargetOreeduOta(e.target.checked)}
+                      className="rounded border-border text-primary focus:ring-primary h-4 w-4 mt-0.5 cursor-pointer shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-foreground truncate">
+                        🌐 Oreedu Direct
+                      </div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Guest booking portal
+                      </div>
+                    </div>
+                  </div>
+                </label>
+
+                {/* Oreedu CP */}
+                <label className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${targetOreeduCp ? 'border-primary/50 bg-primary/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={targetOreeduCp}
+                      onChange={(e) => setTargetOreeduCp(e.target.checked)}
+                      className="rounded border-border text-primary focus:ring-primary h-4 w-4 mt-0.5 cursor-pointer shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-foreground truncate">
+                        🤝 Oreedu CP
+                      </div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        B2B & corporate agents
+                      </div>
+                    </div>
+                  </div>
+                </label>
+
+                {/* Oreedu PMS */}
+                <label className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${targetOreeduPms ? 'border-amber-500/50 bg-amber-500/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={targetOreeduPms}
+                      onChange={(e) => setTargetOreeduPms(e.target.checked)}
+                      className="rounded border-border text-amber-600 focus:ring-amber-500 h-4 w-4 mt-0.5 cursor-pointer shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-foreground truncate">
+                        🖥️ Front Desk PMS
+                      </div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Walk-ins & desk bookings
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* External OTAs */}
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <span>🌍</span> External Connected OTAs (via Channex)
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {activeOtas.length === 0 ? (
+                  <div className="col-span-1 sm:col-span-2 p-3.5 rounded-xl border border-dashed border-border/80 bg-muted/20 text-center flex flex-col items-center justify-center gap-1">
+                    <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      🌐 No external OTAs connected
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/70">
+                      Connect external channels (like Booking.com, Agoda) in Channel Manager to push rates to them.
+                    </span>
+                  </div>
+                ) : (
+                  activeOtas.map((ota) => {
+                    const isChecked = selectedOtaIds.includes(ota.id);
+                    return (
+                      <label
+                        key={ota.id}
+                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                          isChecked
+                            ? 'border-primary/50 bg-primary/10 shadow-xs'
+                            : 'border-border bg-card hover:bg-muted/40'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedOtaIds([...selectedOtaIds, ota.id]);
+                            } else {
+                              setSelectedOtaIds(selectedOtaIds.filter((id) => id !== ota.id));
+                            }
+                          }}
+                          className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-black text-foreground flex items-center gap-1 truncate">
+                            🌍 {ota.title || ota.otaName || ota.channel || ota.id}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">External OTA via Channex</div>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 

@@ -86,46 +86,6 @@ const OREEDU_INTERNAL_CHANNELS: TargetChannelItem[] = [
   },
 ];
 
-// Fallback dummy OTAs if property does not have live Channex OTA links configured
-const FALLBACK_DUMMY_OTAS: TargetChannelItem[] = [
-  {
-    id: 'DUMMY_OTA_1',
-    name: 'Booking.com',
-    category: 'OTA',
-    channelCode: 'BOOKING_COM',
-    description: 'Connected OTA 1 — Global hotel reservations',
-    badge: 'OTA 1 (Simulated)',
-    isSimulated: true,
-  },
-  {
-    id: 'DUMMY_OTA_2',
-    name: 'Agoda',
-    category: 'OTA',
-    channelCode: 'AGODA',
-    description: 'Connected OTA 2 — Asia-Pacific booking network',
-    badge: 'OTA 2 (Simulated)',
-    isSimulated: true,
-  },
-  {
-    id: 'DUMMY_OTA_3',
-    name: 'MakeMyTrip',
-    category: 'OTA',
-    channelCode: 'MMT',
-    description: 'Connected OTA 3 — India & domestic distribution',
-    badge: 'OTA 3 (Simulated)',
-    isSimulated: true,
-  },
-  {
-    id: 'DUMMY_OTA_4',
-    name: 'Expedia',
-    category: 'OTA',
-    channelCode: 'EXPEDIA',
-    description: 'Connected OTA 4 — North America & international',
-    badge: 'OTA 4 (Simulated)',
-    isSimulated: true,
-  },
-];
-
 export const UpdateConfirmationModal: React.FC<UpdateConfirmationModalProps> = ({
   isOpen,
   onClose,
@@ -142,11 +102,11 @@ export const UpdateConfirmationModal: React.FC<UpdateConfirmationModalProps> = (
             name: ota.title || `connected OTA ${idx + 1}`,
             category: 'OTA' as const,
             channelCode: ota.channel,
-            description: `Live OTA sync via Channex (${ota.channel.toUpperCase()})`,
-            badge: `Live OTA ${idx + 1}`,
+            description: `Live OTA sync via Channex (${(ota.channel || 'OTA').toUpperCase()})`,
+            badge: `Live OTA`,
             isSimulated: false,
           }))
-        : FALLBACK_DUMMY_OTAS;
+        : [];
 
     return [...OREEDU_INTERNAL_CHANNELS, ...otaList];
   }, [activeOtas]);
@@ -454,55 +414,66 @@ export const UpdateConfirmationModal: React.FC<UpdateConfirmationModalProps> = (
                   Connected OTAs (Channex)
                 </div>
 
-                {allChannels
-                  .filter((c) => c.category === 'OTA')
-                  .map((item) => {
-                    const isChecked = selectedIds.includes(item.id);
-                    return (
-                      <label
-                        key={item.id}
-                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
-                          isChecked
-                            ? 'bg-card border-primary/40 shadow-xs'
-                            : 'bg-card/40 border-border/60 opacity-60 hover:opacity-100 hover:bg-card'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToggleChannel(item.id)}
-                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-foreground">
-                                {item.name}
-                              </span>
-                              {item.channelCode && (
-                                <span className="text-[9px] font-mono font-medium px-1.5 py-0.2 rounded bg-muted text-muted-foreground uppercase">
-                                  {item.channelCode}
+                {allChannels.filter((c) => c.category === 'OTA').length === 0 ? (
+                  <div className="p-3.5 rounded-xl border border-dashed border-border/80 bg-muted/20 text-center flex flex-col items-center justify-center gap-1">
+                    <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      🌐 No external OTAs connected
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/70">
+                      External channels will appear here once linked in Channel Manager.
+                    </span>
+                  </div>
+                ) : (
+                  allChannels
+                    .filter((c) => c.category === 'OTA')
+                    .map((item) => {
+                      const isChecked = selectedIds.includes(item.id);
+                      return (
+                        <label
+                          key={item.id}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-card border-primary/40 shadow-xs'
+                              : 'bg-card/40 border-border/60 opacity-60 hover:opacity-100 hover:bg-card'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleChannel(item.id)}
+                              className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-foreground">
+                                  {item.name}
                                 </span>
-                              )}
+                                {item.channelCode && (
+                                  <span className="text-[9px] font-mono font-medium px-1.5 py-0.2 rounded bg-muted text-muted-foreground uppercase">
+                                    {item.channelCode}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                                {item.description}
+                              </p>
                             </div>
-                            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                              {item.description}
-                            </p>
                           </div>
-                        </div>
 
-                        {item.badge && (
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 ml-2 ${
-                            item.isSimulated
-                              ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'
-                              : 'bg-primary/10 text-primary border border-primary/20'
-                          }`}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
+                          {item.badge && (
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 ml-2 ${
+                              item.isSimulated
+                                ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'
+                                : 'bg-primary/10 text-primary border border-primary/20'
+                            }`}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })
+                )}
               </div>
             </div>
           </div>

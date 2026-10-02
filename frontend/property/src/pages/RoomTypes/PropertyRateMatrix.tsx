@@ -13,9 +13,7 @@ import {
   Utensils,
   Ban,
   History,
-  Edit2,
   BedDouble,
-  CheckCircle,
   MoreVertical,
   Calendar,
   Layers,
@@ -33,6 +31,7 @@ import {
 import { channelsService } from '../../services/channels';
 import type { RoomType } from '../../types/room';
 import { BulkRatesModal } from '../../components/BulkRatesModal';
+import { BulkInventoryModal } from '../../components/BulkInventoryModal';
 import { StayRestrictionsModal } from '../../components/StayRestrictionsModal';
 import { QuickStopSellModal } from '../../components/QuickStopSellModal';
 import { RateChangeLogDrawer } from '../../components/RateChangeLogDrawer';
@@ -91,27 +90,17 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
 
   // Filter state & 10-Day Date Segment Switcher
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>('ALL');
-  const [showRatePlans, setShowRatePlans] = useState<boolean>(false);
+  const showRatePlans = false;
   const [dateChunk, setDateChunk] = useState<'PART1' | 'PART2' | 'PART3'>(() => getInitialDateChunk(new Date()));
 
   // Focused Modal States
   const [isBulkRatesModalOpen, setIsBulkRatesModalOpen] = useState<boolean>(false);
+  const [isBulkInventoryModalOpen, setIsBulkInventoryModalOpen] = useState<boolean>(false);
   const [isRestrictionsModalOpen, setIsRestrictionsModalOpen] = useState<boolean>(false);
   const [isStopSellModalOpen, setIsStopSellModalOpen] = useState<boolean>(false);
   const [isChangeLogOpen, setIsChangeLogOpen] = useState<boolean>(false);
   const [isFullSyncModalOpen, setIsFullSyncModalOpen] = useState<boolean>(false);
   const [selectedRoomForBulk, setSelectedRoomForBulk] = useState<RoomType | undefined>(undefined);
-
-  // Inline Price Editing
-  const [editingCell, setEditingCell] = useState<{
-    ratePlanId: string;
-    roomTypeId: string;
-    dateStr: string;
-    currentPrice: number;
-    isAc?: boolean;
-  } | null>(null);
-  const [inlinePriceInput, setInlinePriceInput] = useState<string>('');
-  // const [savingInline, setSavingInline] = useState<boolean>(false);
 
   // Quick Restriction / Inventory Editing Cell
   const [quickEditInv, setQuickEditInv] = useState<{
@@ -305,7 +294,48 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     rt?: RoomType, 
     isAc?: boolean,
     channelTarget?: string
-  ) => {
+  ): number => {
+    // If this is a derived non-primary rate plan, project from the primary plan's date price + meal supplement
+    if (!plan.isPrimary && rt) {
+      const primaryPlan = ratePlans.find((p) => p.isPrimary) || ratePlans[0];
+      if (primaryPlan && primaryPlan.id !== plan.id) {
+        const primaryPriceForDate = getRateForPlanAndDate(primaryPlan, dateStr, rt, isAc, channelTarget);
+
+        const adultMealRate = Number(plan.extraAdultPrice || 0);
+        const childMealRate = Number(plan.extraChildPrice || 0);
+
+        let supplement = 0;
+        if (adultMealRate > 0 || childMealRate > 0) {
+          const totalBase = rt.totalBaseOccupancy != null ? Number(rt.totalBaseOccupancy) : null;
+          const baseMaxAdults = rt.baseMaxAdults != null ? Number(rt.baseMaxAdults) : null;
+          const baseMaxChildren = rt.baseMaxChildren != null ? Number(rt.baseMaxChildren) : null;
+
+          let adultCount = 0;
+          let childCount = 0;
+
+          if (baseMaxAdults != null || baseMaxChildren != null) {
+            const breakdownSum = (baseMaxAdults || 0) + (baseMaxChildren || 0);
+            const effectiveTotal = totalBase ?? (breakdownSum > 0 ? breakdownSum : 2);
+            adultCount = baseMaxAdults != null ? baseMaxAdults : Math.max(0, effectiveTotal - (baseMaxChildren || 0));
+            childCount = baseMaxChildren != null ? baseMaxChildren : Math.max(0, effectiveTotal - adultCount);
+          } else {
+            adultCount = totalBase ?? (rt.baseAdults != null ? Number(rt.baseAdults) : 2);
+            childCount = 0;
+          }
+
+          supplement = adultCount * adultMealRate + childCount * childMealRate;
+        } else {
+          const rtp = plan.roomTypePrices?.find((p) => p.roomTypeId === rt.id);
+          const primaryRtp = primaryPlan.roomTypePrices?.find((p) => p.roomTypeId === rt.id);
+          const basePlanPrice = isAc ? Number(rtp?.basePriceAc ?? rtp?.basePrice ?? 0) : Number(rtp?.basePrice ?? 0);
+          const basePrimaryPrice = isAc ? Number(primaryRtp?.basePriceAc ?? primaryRtp?.basePrice ?? rt.basePriceAc ?? rt.basePrice) : Number(primaryRtp?.basePrice ?? rt.basePrice);
+          supplement = Math.max(0, basePlanPrice - basePrimaryPrice);
+        }
+
+        return primaryPriceForDate + supplement;
+      }
+    }
+
     let base = Number(plan.basePrice);
     if (rt) {
       const rtp = plan.roomTypePrices?.find((p) => p.roomTypeId === rt.id);
@@ -434,31 +464,6 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
     });
   };
 
-  const handleRequestPriceChange = () => {
-    if (!editingCell || !inlinePriceInput) return;
-    const newPrice = Number(inlinePriceInput);
-    if (isNaN(newPrice) || newPrice < 0) {
-      toast.error('Please enter a valid price amount');
-      return;
-    }
-
-    const targetPlan = ratePlans.find((p) => p.id === editingCell.ratePlanId);
-    const targetRoom = roomTypes.find((r) => r.id === editingCell.roomTypeId);
-    const planNameWithAc = targetPlan
-      ? `${targetPlan.name}${editingCell.isAc ? ' (❄️ AC)' : ' (🍃 Non-AC)'}`
-      : 'Selected Plan';
-
-    setConfirmModalDetails({
-      type: 'PRICE',
-      roomTypeId: editingCell.roomTypeId,
-      roomTypeName: targetRoom?.name || 'Selected Room',
-      ratePlanId: editingCell.ratePlanId,
-      ratePlanName: planNameWithAc,
-      dateStr: editingCell.dateStr,
-      oldValue: editingCell.currentPrice,
-      newValue: newPrice,
-    });
-  };
 
   const handleContinueFromChooser = () => {
     if (!restrictionChooser) return;
@@ -583,7 +588,6 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
             : 'Inventory updated in PMS!'
         );
       }
-      setEditingCell(null);
       fetchMatrixData();
       if (onRefresh) onRefresh();
     } catch (err: any) {
@@ -755,22 +759,8 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                       Matrix Actions
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowRatePlans((prev) => !prev);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center justify-between transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Utensils className="h-4 w-4 text-primary" />
-                        <span>Show Meal Packages</span>
-                      </div>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${showRatePlans ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                        {showRatePlans ? 'ON' : 'OFF'}
-                      </span>
-                    </button>
+                    {/* Meal Packages toggle button hidden from end-user view as per UX redesign.
+                        All meal package underlying codes, formulas, and backend ARI sync remain intact. */}
 
                     <button
                       type="button"
@@ -783,6 +773,19 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                     >
                       <DollarSign className="h-4 w-4 text-emerald-600" />
                       <span>💰 Bulk Rates</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRoomForBulk(undefined);
+                        setIsBulkInventoryModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-xs font-bold text-foreground hover:bg-muted flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <BedDouble className="h-4 w-4 text-blue-600" />
+                      <span>📦 Bulk Inventory</span>
                     </button>
 
                     <button
@@ -918,14 +921,27 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                           <div className="flex items-center justify-between gap-2">
                             <div
                               onClick={() => toggleExpandRoomType(rt.id)}
-                              className="flex items-center gap-1.5 cursor-pointer select-none truncate"
+                              className="flex items-start gap-1.5 cursor-pointer select-none min-w-0"
                             >
                               {isExpanded ? (
-                                <ChevronDown className="h-4 w-4 text-primary shrink-0" />
+                                <ChevronDown className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                               ) : (
-                                <ChevronRightIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <ChevronRightIcon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                               )}
-                              <span className="font-extrabold text-xs sm:text-sm text-foreground truncate">{rt.name}</span>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-extrabold text-xs sm:text-sm text-foreground truncate" title={rt.name}>
+                                  {rt.name}
+                                </span>
+                                {(() => {
+                                  const baseCount = rt.totalBaseOccupancy != null ? Number(rt.totalBaseOccupancy) : rt.baseAdults != null ? Number(rt.baseAdults) : null;
+                                  if (baseCount == null || isNaN(baseCount)) return null;
+                                  return (
+                                    <span className="text-[11px] font-medium text-muted-foreground/80 leading-tight">
+                                      {baseCount} {baseCount === 1 ? 'Guest' : 'Guests'} in base price
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               {rt.acOption === 'BOTH' ? (
@@ -941,9 +957,6 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                   ❄️ AC
                                 </span>
                               )}
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-muted text-muted-foreground border border-border font-mono">
-                                {rt.rooms?.length ?? 0} {(rt.rooms?.length ?? 0) === 1 ? 'room' : 'rooms'}
-                              </span>
                             </div>
                           </div>
                         </td>
@@ -1281,11 +1294,6 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                               {visibleDaysArray.map((d) => {
                                 const calculatedPrice = getRateForPlanAndDate(plan, d.dateStr, rt, variant.isAc);
                                 const isToday = d.dateStr === todayStr;
-                                const isEditingThis =
-                                  editingCell?.ratePlanId === plan.id &&
-                                  editingCell?.roomTypeId === rt.id &&
-                                  editingCell?.dateStr === d.dateStr &&
-                                  Boolean(editingCell?.isAc) === Boolean(variant.isAc);
 
                                 return (
                                   <td
@@ -1298,39 +1306,18 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
                                         : ''
                                     }`}
                                   >
-                                    {isEditingThis ? (
-                                      <div className="flex items-center justify-center gap-1">
-                                        <input
-                                          type="number"
-                                          autoFocus
-                                          value={inlinePriceInput}
-                                          onChange={(e) => setInlinePriceInput(e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') handleRequestPriceChange();
-                                            if (e.key === 'Escape') setEditingCell(null);
-                                          }}
-                                          className="w-16 px-1.5 py-1 text-xs font-bold text-center rounded border border-primary bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-xs"
-                                        />
-                                        <button
-                                          onClick={handleRequestPriceChange}
-                                          className="p-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors cursor-pointer"
-                                          title="Apply Rate & Sync"
-                                        >
-                                          <CheckCircle className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div
-                                        onClick={() => handleOpenPriceModal(rt, d.dateStr, variant.isAc, calculatedPrice, plan.id)}
-                                        className="cursor-pointer py-1 px-1 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
-                                        title={`Click to edit ${variant.label} rate`}
-                                      >
-                                        <span className="font-extrabold text-xs sm:text-sm text-foreground font-mono">
-                                          ₹{calculatedPrice.toLocaleString()}
-                                        </span>
-                                        <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
-                                      </div>
-                                    )}
+                                    <div
+                                      className="py-1 px-1 select-none flex items-center justify-center gap-1 opacity-90 cursor-default"
+                                      title={
+                                        isPrimaryPlan
+                                          ? `${plan.name} (${variant.label}) base tariff. Edit using the master room row above.`
+                                          : `${plan.name} (${variant.label}) is calculated from the base rate + meal supplements.`
+                                      }
+                                    >
+                                      <span className="font-bold text-xs sm:text-sm text-foreground/85 font-mono">
+                                        ₹{calculatedPrice.toLocaleString()}
+                                      </span>
+                                    </div>
                                   </td>
                                 );
                               })}
@@ -1767,7 +1754,7 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         />
       )}
 
-      {/* 3 Focused Modals */}
+      {/* 4 Focused Modals */}
       <BulkRatesModal
         isOpen={isBulkRatesModalOpen}
         onClose={() => setIsBulkRatesModalOpen(false)}
@@ -1776,6 +1763,18 @@ export const PropertyRateMatrix: React.FC<PropertyRateMatrixProps> = ({
         roomTypeName={selectedRoomForBulk?.name || 'All Rooms'}
         roomTypes={roomTypes}
         ratePlans={ratePlans}
+        onSuccess={() => {
+          fetchMatrixData();
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      <BulkInventoryModal
+        isOpen={isBulkInventoryModalOpen}
+        onClose={() => setIsBulkInventoryModalOpen(false)}
+        propertyId={propertyId}
+        roomTypeId={selectedRoomForBulk?.id}
+        roomTypes={roomTypes}
         onSuccess={() => {
           fetchMatrixData();
           if (onRefresh) onRefresh();

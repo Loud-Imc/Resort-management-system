@@ -11,6 +11,7 @@ import {
   SetInventoryOverrideDto,
   SetMultiChannelInventoryOverrideDto,
   SetMultiChannelPriceOverrideDto,
+  ApplyBulkInventoryOverrideDto,
   QueryRateRestrictionLogsDto,
 } from './dto/rate-plan.dto';
 
@@ -58,6 +59,13 @@ export class RatePlansController {
     return this.ratePlansService.resetPropertyRatePlans(propertyId);
   }
 
+  @Post('sync-property/:propertyId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Recalculate and synchronize all room type meal plan prices for a property' })
+  async syncPropertyRatePlans(@Param('propertyId') propertyId: string) {
+    return this.ratePlansService.syncAllRatePlansForProperty(propertyId);
+  }
+
   @Post()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Create a new Rate Plan (EP, CP, MAP, AP)' })
@@ -103,6 +111,26 @@ export class RatePlansController {
     return this.ratePlansService.applyRestrictions(dto, req?.user);
   }
 
+  @Get('restrictions/active/:propertyId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Get active stay restriction rules for a property' })
+  async getActiveRestrictions(
+    @Param('propertyId') propertyId: string,
+    @Query('roomTypeId') roomTypeId?: string,
+  ) {
+    return this.ratePlansService.getActiveRestrictionRules(propertyId, roomTypeId);
+  }
+
+  @Post('restrictions/clear/:id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Clear an active restriction rule and sync removal across channels' })
+  async clearRestrictionRule(
+    @Param('id') id: string,
+    @Req() req?: any,
+  ) {
+    return this.ratePlansService.clearRestrictionRule(id, req?.user);
+  }
+
   @Post('inventory-override')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Set manual physical room inventory quantity override' })
@@ -115,6 +143,13 @@ export class RatePlansController {
   @ApiOperation({ summary: 'Set channel-specific inventory allotments / allotment caps with Channex sync verification' })
   async setMultiChannelInventoryOverride(@Body() dto: SetMultiChannelInventoryOverrideDto, @Req() req?: any) {
     return this.ratePlansService.setMultiChannelInventoryOverride(dto, req?.user);
+  }
+
+  @Post('bulk-inventory-override')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Bulk apply channel inventory allotments across date ranges and days of week' })
+  async applyBulkInventoryOverride(@Body() dto: ApplyBulkInventoryOverrideDto, @Req() req?: any) {
+    return this.ratePlansService.applyBulkInventoryOverride(dto, req?.user);
   }
 
   @Post('multi-channel-price-override')

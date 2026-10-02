@@ -8,6 +8,8 @@ import { PreviewOccupancyDto } from './dto/preview-occupancy.dto';
 import { generateOccupancyCompositions, OccupancyComposition } from '../common/utils/occupancy.util';
 import { ROOM_HIGHLIGHTS, ROOM_INCLUSIONS, ROOM_AMENITIES } from './constants/room-type-options.constant';
 
+import { RatePlansService } from '../bookings/services/rate-plans.service';
+
 @Injectable()
 export class RoomTypesService {
     private readonly logger = new Logger(RoomTypesService.name);
@@ -16,6 +18,7 @@ export class RoomTypesService {
         private prisma: PrismaService,
         @Inject(forwardRef(() => ChannelsService)) private channelsService: ChannelsService,
         @Optional() @Inject(forwardRef(() => ConnectivityOutboxService)) private outboxService?: ConnectivityOutboxService,
+        @Optional() @Inject(forwardRef(() => RatePlansService)) private ratePlansService?: RatePlansService,
     ) { }
 
     /**
@@ -496,8 +499,15 @@ export class RoomTypesService {
                 await this.syncPropertyGroupCapacity(roomType.propertyId);
             }
 
-            // [PRC-01] Auto-sync with Channex in background
-            this.channelsService.pushAriForProperty(roomType.propertyId, 60).catch(err => {
+            // Auto-sync room type meal plan prices across all property rate plans
+            if (this.ratePlansService) {
+                await this.ratePlansService.syncRatePlansForRoomType(roomType.id).catch(err => {
+                    this.logger.error(`Failed to sync rate plans for room type ${roomType.id}: ${err.message}`);
+                });
+            }
+
+            // [PRC-01] Auto-sync with Channex in background (90-day window)
+            this.channelsService.pushAriForProperty(roomType.propertyId, 90).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${roomType.propertyId} after room type creation: ${err.message}`, err.stack);
             });
 
@@ -750,6 +760,13 @@ export class RoomTypesService {
                 await this.syncPropertyGroupCapacity(updated.propertyId);
             }
 
+            // Auto-sync rate plans whenever base price, AC price, or occupancy inclusions change
+            if (this.ratePlansService) {
+                await this.ratePlansService.syncRatePlansForRoomType(updated.id).catch(err => {
+                    this.logger.error(`Failed to sync rate plans for room type ${updated.id}: ${err.message}`);
+                });
+            }
+
             // Produce Connectivity Outbox Events (RATE.CHANGED / CONTENT.CHANGED)
             if (this.outboxService) {
                 if (updateRoomTypeDto.basePrice !== undefined && Number(updateRoomTypeDto.basePrice) !== Number(existing.basePrice)) {
@@ -773,8 +790,8 @@ export class RoomTypesService {
                 ).catch(err => this.logger.error(`Failed to produce CONTENT.CHANGED event: ${err.message}`));
             }
 
-            // [PRC-01] Auto-sync with Channex in background
-            this.channelsService.pushAriForProperty(updated.propertyId, 60).catch(err => {
+            // [PRC-01] Auto-sync with Channex in background (90-day window)
+            this.channelsService.pushAriForProperty(updated.propertyId, 90).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${updated.propertyId} after room type update: ${err.message}`, err.stack);
             });
 
@@ -802,8 +819,8 @@ export class RoomTypesService {
                 await this.syncPropertyGroupCapacity(existing.propertyId);
             }
 
-            // [PRC-01] Auto-sync with Channex in background
-            this.channelsService.pushAriForProperty(existing.propertyId, 60).catch(err => {
+            // [PRC-01] Auto-sync with Channex in background (90-day window)
+            this.channelsService.pushAriForProperty(existing.propertyId, 90).catch(err => {
                 this.logger.error(`Auto-sync failed for property ${existing.propertyId} after room type deletion: ${err.message}`, err.stack);
             });
 

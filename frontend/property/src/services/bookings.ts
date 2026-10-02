@@ -42,6 +42,7 @@ export const bookingsService = {
         propertyId: string;
         checkInDate: string;
         checkOutDate: string;
+        isGroupBooking?: boolean;
     }) => {
         const { data } = await api.get<{
             availableRooms: Array<{

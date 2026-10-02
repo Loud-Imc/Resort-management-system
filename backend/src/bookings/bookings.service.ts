@@ -1120,7 +1120,8 @@ export class BookingsService {
                 targetPropertyId,
                 roomTypeId,
                 checkIn,
-                checkOut
+                checkOut,
+                (createBookingDto as any).platform || 'OREEDU_PMS',
             );
         }
 

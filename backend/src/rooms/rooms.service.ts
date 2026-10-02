@@ -122,11 +122,17 @@ export class RoomsService {
             ];
         }
 
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0);
+        const currentDate = DateUtils.parseCalendarDate(new Date());
         
-        const targetDate = filters?.date ? new Date(filters.date) : new Date();
-        targetDate.setHours(0, 0, 0, 0);
+        const targetDate = filters?.date 
+            ? DateUtils.parseCalendarDate(filters.date) 
+            : DateUtils.parseCalendarDate(new Date());
+
+        const targetDateEnd = new Date(targetDate);
+        targetDateEnd.setDate(targetDateEnd.getDate() + 1);
+
+        const isHistorical = targetDate < currentDate;
+        const comparisonDate = isHistorical ? targetDate : currentDate;
 
         const rooms = await this.prisma.room.findMany({
             where: {
@@ -142,8 +148,9 @@ export class RoomsService {
                 bookingRooms: {
                     where: {
                         booking: {
-                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED'] },
-                            checkOutDate: { gte: currentDate },
+                            status: { in: ['CONFIRMED', 'CHECKED_IN', 'RESERVED', 'CHECKED_OUT'] },
+                            checkOutDate: { gte: comparisonDate },
+                            ...(isHistorical ? { checkInDate: { lt: targetDateEnd } } : {}),
                         }
                     },
                     include: {
@@ -162,7 +169,8 @@ export class RoomsService {
                                     select: {
                                         firstName: true,
                                         lastName: true,
-                                        phone: true
+                                        phone: true,
+                                        email: true,
                                     }
                                 },
                                 guests: true
@@ -172,7 +180,8 @@ export class RoomsService {
                 },
                 blocks: {
                     where: {
-                        endDate: { gte: currentDate }
+                        endDate: { gte: comparisonDate },
+                        ...(isHistorical ? { startDate: { lt: targetDateEnd } } : {}),
                     }
                 },
                 _count: {
@@ -203,15 +212,15 @@ export class RoomsService {
             // Find active booking for targetDate
             const activeBookingForTarget = bookingRoomsList.find((br: any) => {
                 if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking.status)) return false;
-                const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
-                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                const checkIn = DateUtils.parseCalendarDate(br.booking.checkInDate);
+                const checkOut = DateUtils.parseCalendarDate(br.booking.checkOutDate);
                 return targetDate >= checkIn && targetDate < checkOut;
             })?.booking;
 
             // Find checkout on targetDate
             const checkoutBookingTarget = bookingRoomsList.find((br: any) => {
                 if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking.status)) return false;
-                const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
+                const checkOut = DateUtils.parseCalendarDate(br.booking.checkOutDate);
                 return targetDate.getTime() === checkOut.getTime();
             })?.booking;
 
@@ -221,10 +230,10 @@ export class RoomsService {
                     // Check if this block overlaps with any active booking in bookingRoomsList
                     const overlapsWithActiveBooking = bookingRoomsList.some((br: any) => {
                         if (['CANCELLED', 'NO_SHOW', 'PENDING_PAYMENT'].includes(br.booking.status)) return false;
-                        const checkIn = new Date(br.booking.checkInDate); checkIn.setHours(0, 0, 0, 0);
-                        const checkOut = new Date(br.booking.checkOutDate); checkOut.setHours(0, 0, 0, 0);
-                        const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
-                        const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+                        const checkIn = DateUtils.parseCalendarDate(br.booking.checkInDate);
+                        const checkOut = DateUtils.parseCalendarDate(br.booking.checkOutDate);
+                        const blockStart = DateUtils.parseCalendarDate(b.startDate);
+                        const blockEnd = DateUtils.parseCalendarDate(b.endDate);
                         // Check overlap: checkIn < blockEnd && checkOut > blockStart
                         return checkIn < blockEnd && checkOut > blockStart;
                     });
@@ -234,8 +243,8 @@ export class RoomsService {
 
             // Determine if there is actually an active block on targetDate
             const hasActiveBlock = room.blocks && room.blocks.some((b: any) => {
-                const blockStart = new Date(b.startDate); blockStart.setHours(0, 0, 0, 0);
-                const blockEnd = new Date(b.endDate); blockEnd.setHours(0, 0, 0, 0);
+                const blockStart = DateUtils.parseCalendarDate(b.startDate);
+                const blockEnd = DateUtils.parseCalendarDate(b.endDate);
                 return targetDate >= blockStart && targetDate < blockEnd && !b.bookingId;
             });
 

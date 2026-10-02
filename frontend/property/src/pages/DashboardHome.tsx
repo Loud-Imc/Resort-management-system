@@ -807,9 +807,9 @@ export default function DashboardHome() {
 
                                             <div className="font-bold text-lg">{room.roomNumber}</div>
                                             <div className="mt-1 flex flex-col items-center w-full">
-                                                {(room as any)._guestName && (
+                                                {((room as any)._guestName || (room as any).guestName) && (
                                                     <span className="font-semibold text-xs truncate w-full px-1 text-center">
-                                                        {(room as any)._guestName}
+                                                        {(room as any)._guestName || (room as any).guestName}
                                                     </span>
                                                 )}
                                                 <span className="text-[10px] uppercase font-bold tracking-wider mt-0.5 opacity-80">
