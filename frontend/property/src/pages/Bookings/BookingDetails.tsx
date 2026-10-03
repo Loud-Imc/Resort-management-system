@@ -653,13 +653,35 @@ const BookingDetails = () => {
                                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount</span>
                                             {booking.isPriceOverridden && (
                                                 <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mt-1 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 w-fit">
-                                                    <Sparkles className="w-3 h-3 text-amber-500 inline" /> Custom Price Override
+                                                    <Sparkles className="w-3 h-3 text-amber-500 inline" /> Price Override
                                                     {booking.overrideReason ? ` • ${booking.overrideReason}` : ''}
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="text-2xl font-black text-foreground">₹{displayTotalAmount.toLocaleString()}</span>
+                                        <div className="flex flex-col items-end">
+                                            {booking.isPriceOverridden && booking.originalTotalAmount && Number(booking.originalTotalAmount) !== displayTotalAmount && (
+                                                <span className="text-xs font-bold text-muted-foreground line-through">
+                                                    ₹{Number(booking.originalTotalAmount).toLocaleString()}
+                                                </span>
+                                            )}
+                                            <span className="text-2xl font-black text-foreground">₹{displayTotalAmount.toLocaleString()}</span>
+                                        </div>
                                     </div>
+                                    {booking.isPriceOverridden && booking.originalTotalAmount && Number(booking.originalTotalAmount) !== displayTotalAmount && (
+                                        <div className="mt-3 pt-2.5 border-t border-border/50 flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground font-medium">Original Calculated Total:</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-muted-foreground line-through">
+                                                    ₹{Number(booking.originalTotalAmount).toLocaleString()}
+                                                </span>
+                                                {Number(booking.originalTotalAmount) > displayTotalAmount && (
+                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                                        Saved ₹{(Number(booking.originalTotalAmount) - displayTotalAmount).toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {isCancelled ? (

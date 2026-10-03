@@ -28,6 +28,7 @@ export interface PricingBreakdown {
     discountAmount: number;
     totalAmount: number;
     originalTotal: number;
+    originalTotalAmount?: number;
     numberOfNights: number;
     pricePerNight: number;
     taxRate: number;
@@ -757,6 +758,7 @@ export class PricingService {
 
         // 13. If Price Override was provided by admin/desk
         if (overrideTotal !== undefined && overrideTotal !== null) {
+            result.originalTotalAmount = result.totalAmount;
             let finalOverrideBreakdown: { baseAmount: number; taxAmount: number; taxRate: number };
             if (isOverrideInclusive) {
                 finalOverrideBreakdown = await this.calculateReverseGST(
