@@ -1704,50 +1704,56 @@ const InlineBookingPage: React.FC = () => {
                                                         </div>
 
                                                         {/* Interactive Meal Plan Selector Tabs */}
-                                                        {sol.ratesByMealPlan && Object.keys(sol.ratesByMealPlan).length > 0 && (
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                                                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                                    Meal Package Entitlement
+                                                        {sol.ratesByMealPlan && Object.keys(sol.ratesByMealPlan).length > 0 && (() => {
+                                                            const availablePlans = [
+                                                                { code: 'EP' as const, label: 'Room Only', icon: '☕' },
+                                                                { code: 'CP' as const, label: 'Breakfast', icon: '🍳' },
+                                                                { code: 'MAP' as const, label: 'Half Board', icon: '🍽️' },
+                                                                { code: 'AP' as const, label: 'Full Board', icon: '👑' },
+                                                            ].filter(mp => Boolean(sol.ratesByMealPlan?.[mp.code]));
+
+                                                            if (availablePlans.length === 0) return null;
+
+                                                            return (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                        Meal Package Entitlement
+                                                                    </div>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${availablePlans.length}, 1fr)`, gap: '0.5rem' }}>
+                                                                        {availablePlans.map(mp => {
+                                                                            const isActive = selectedMealPlan === mp.code;
+                                                                            const mpData = sol.ratesByMealPlan?.[mp.code];
+                                                                            return (
+                                                                                <button
+                                                                                    key={mp.code}
+                                                                                    type="button"
+                                                                                    onClick={() => setSelectedMealPlan(mp.code)}
+                                                                                    style={{
+                                                                                        padding: '0.4rem 0.5rem',
+                                                                                        borderRadius: '0.5rem',
+                                                                                        border: isActive ? '2px solid #0d9488' : '1px solid #e5e7eb',
+                                                                                        background: isActive ? '#f0fdfa' : '#fff',
+                                                                                        color: isActive ? '#0f766e' : '#374151',
+                                                                                        fontWeight: 700,
+                                                                                        fontSize: '0.75rem',
+                                                                                        textAlign: 'left',
+                                                                                        cursor: 'pointer'
+                                                                                    }}
+                                                                                >
+                                                                                    <div>{mp.icon} {mp.code}</div>
+                                                                                    <div style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 500 }}>{mp.label}</div>
+                                                                                    {mpData && (
+                                                                                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#111827', marginTop: '0.15rem' }}>
+                                                                                            ₹{mpData.totalPrice.toLocaleString()}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
                                                                 </div>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-                                                                    {[
-                                                                        { code: 'EP' as const, label: 'Room Only', icon: '☕' },
-                                                                        { code: 'CP' as const, label: 'Breakfast', icon: '🍳' },
-                                                                        { code: 'MAP' as const, label: 'Half Board', icon: '🍽️' },
-                                                                        { code: 'AP' as const, label: 'Full Board', icon: '👑' },
-                                                                    ].map(mp => {
-                                                                        const isActive = selectedMealPlan === mp.code;
-                                                                        const mpData = sol.ratesByMealPlan?.[mp.code];
-                                                                        return (
-                                                                            <button
-                                                                                key={mp.code}
-                                                                                type="button"
-                                                                                onClick={() => setSelectedMealPlan(mp.code)}
-                                                                                style={{
-                                                                                    padding: '0.4rem 0.5rem',
-                                                                                    borderRadius: '0.5rem',
-                                                                                    border: isActive ? '2px solid #0d9488' : '1px solid #e5e7eb',
-                                                                                    background: isActive ? '#f0fdfa' : '#fff',
-                                                                                    color: isActive ? '#0f766e' : '#374151',
-                                                                                    fontWeight: 700,
-                                                                                    fontSize: '0.75rem',
-                                                                                    textAlign: 'left',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                            >
-                                                                                <div>{mp.icon} {mp.code}</div>
-                                                                                <div style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 500 }}>{mp.label}</div>
-                                                                                {mpData && (
-                                                                                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#111827', marginTop: '0.15rem' }}>
-                                                                                        ₹{mpData.totalPrice.toLocaleString()}
-                                                                                    </div>
-                                                                                )}
-                                                                            </button>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            </div>
-                                                        )}
+                                                            );
+                                                        })()}
 
                                                         <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                                                             <button

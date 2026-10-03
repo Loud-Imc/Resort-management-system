@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck, AlertTriangle, CheckCircle, XCircle, RotateCcw, Globe, Navigation, ExternalLink, AlertCircle } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+    ArrowLeft, Loader2, Save, Building2, MapPin, Image, FileText, ShieldCheck,
+    AlertTriangle, CheckCircle, XCircle, RotateCcw, Globe, Navigation,
+    ExternalLink, AlertCircle, BedDouble, Clock, FilePlus, Layers
+} from 'lucide-react';
 import propertyService from '../../services/properties';
 import { usersService } from '../../services/users';
 import categoryService from '../../services/category';
@@ -10,6 +14,9 @@ import { useAuth } from '../../context/AuthContext';
 import ImageUpload from '../../components/ImageUpload';
 import DocumentViewerUpload, { MultiDocumentViewerUpload } from '../../components/DocumentViewerUpload';
 import { parseMapUrl, isShortOrExpandableMapLink } from '../../utils/mapsLinkParser';
+import AdminRoomTypesTab from './tabs/AdminRoomTypesTab';
+import AdminRoomsTab from './tabs/AdminRoomsTab';
+import AdminRegisterProperty from './AdminRegisterProperty';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
@@ -34,8 +41,18 @@ const defaultAmenities = [
 export default function PropertyForm() {
     const navigate = useNavigate();
     const { id } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = (searchParams.get('tab') as 'details' | 'room-types' | 'rooms') || 'details';
     const { user } = useAuth();
     const isEdit = Boolean(id);
+
+    const updateTab = (tab: 'details' | 'room-types' | 'rooms') => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('tab', tab);
+            return next;
+        });
+    };
 
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -95,7 +112,9 @@ export default function PropertyForm() {
         ownerAadhaarNumber: '',
         isGstApplicable: false,
         gstNumber: '',
-    });
+        defaultCheckInTime: '14:00',
+        defaultCheckOutTime: '11:00',
+    } as any);
 
     useEffect(() => {
         if (isEdit && id) {
@@ -205,7 +224,9 @@ export default function PropertyForm() {
                 ownerAadhaarNumber: property.ownerAadhaarNumber || '',
                 isGstApplicable: (property as any).isGstApplicable ?? (Boolean(property.gstNumber && property.gstNumber.trim())),
                 gstNumber: property.gstNumber || '',
-            });
+                defaultCheckInTime: (property as any).defaultCheckInTime || '14:00',
+                defaultCheckOutTime: (property as any).defaultCheckOutTime || '11:00',
+            } as any);
         } catch (err: any) {
             setError(err.message || 'Failed to load property');
         } finally {
@@ -261,6 +282,8 @@ export default function PropertyForm() {
                 longitude: formData.longitude ? Number(formData.longitude) : undefined,
                 isGstApplicable: Boolean(formData.isGstApplicable),
                 gstNumber: formData.gstNumber ? formData.gstNumber.trim().toUpperCase() : null,
+                defaultCheckInTime: (formData as any).defaultCheckInTime || '14:00',
+                defaultCheckOutTime: (formData as any).defaultCheckOutTime || '11:00',
             };
 
             if (isEdit && id) {
@@ -282,6 +305,53 @@ export default function PropertyForm() {
             }
         } catch (err: any) {
             setError(err.response?.data?.message || err.message || 'Failed to save property');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveDraft = async () => {
+        if (!formData.name?.trim()) {
+            toast.error('Property Name is required to save a draft');
+            return;
+        }
+        if (!formData.phone?.trim()) {
+            toast.error('Contact Phone is required to save a draft');
+            return;
+        }
+        if (!formData.city?.trim()) {
+            toast.error('City is required to save a draft');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            const draftPayload: any = {
+                ...formData,
+                name: formData.name.trim(),
+                phone: formData.phone.trim(),
+                city: formData.city.trim(),
+                state: formData.state?.trim() || 'Kerala',
+                country: formData.country || 'India',
+                address: formData.address?.trim() || formData.city.trim(),
+                email: formData.email?.trim() || `${formData.name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'property'}@draft.oreedu.com`,
+                status: 'INACTIVE',
+                isVerified: false,
+                isActive: false,
+                isDraft: true,
+                ownerId: formData.ownerId || user?.id,
+                marketingCommission: Number(formData.marketingCommission || 0),
+                platformCommission: Number(formData.platformCommission || 10),
+                defaultCheckInTime: (formData as any).defaultCheckInTime || '14:00',
+                defaultCheckOutTime: (formData as any).defaultCheckOutTime || '11:00',
+            };
+
+            await propertyService.createRequest(draftPayload);
+            toast.success('Property onboarding draft saved successfully!');
+            navigate('/properties/requests');
+        } catch (err: any) {
+            console.error('Failed to save draft:', err);
+            toast.error(err.response?.data?.message || err.message || 'Failed to save draft');
         } finally {
             setSaving(false);
         }
@@ -321,40 +391,101 @@ export default function PropertyForm() {
         );
     }
 
+    if (!isEdit) {
+        return <AdminRegisterProperty />;
+    }
+
     return (
         <div className="max-w-4xl mx-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                    >
-                        <ArrowLeft className="h-5 w-5 text-foreground" />
-                    </button>
-                    <div>
-                        <h1 className="text-2xl font-bold text-foreground">
-                            {isEdit ? 'Edit Property' : (isAdmin || isMarketing ? 'New Onboarding Request' : 'Add New Property')}
-                        </h1>
-                        <p className="text-muted-foreground">
-                            {isEdit ? 'Update property details & verify documents' : (isAdmin || isMarketing ? 'Initiate property vetting & onboarding' : 'Create a new property listing')}
-                        </p>
+            {/* Sticky Top Header Bar */}
+            <div className="sticky top-16 md:top-0 z-30 bg-background/95 backdrop-blur-md pt-3 pb-2 mb-6 border-b border-border shadow-xs -mx-4 px-4 sm:-mx-6 sm:px-6 transition-all">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <button
+                            type="button"
+                            onClick={() => navigate(-1)}
+                            className="p-2 hover:bg-muted rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Go Back"
+                        >
+                            <ArrowLeft className="h-5 w-5 text-foreground" />
+                        </button>
+                        <div className="min-w-0">
+                            <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center flex-wrap gap-2 leading-tight">
+                                <span>{isEdit ? 'Edit Property' : (isAdmin || isMarketing ? 'New Onboarding Request' : 'Add New Property')}</span>
+                                {isEdit && formData.name && (
+                                    <>
+                                        <span className="text-muted-foreground/60 font-light">—</span>
+                                        <span className="text-primary font-black tracking-tight truncate max-w-sm sm:max-w-md" title={formData.name}>
+                                            {formData.name}
+                                        </span>
+                                    </>
+                                )}
+                            </h1>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                                {isEdit ? 'Update property details & verify documents' : (isAdmin || isMarketing ? 'Initiate property vetting & onboarding' : 'Create a new property listing')}
+                            </p>
+                        </div>
                     </div>
+
+                    {/* Quick status indicator in header */}
+                    {isEdit && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-bold text-muted-foreground hidden sm:inline">Status:</span>
+                            <span className={clsx(
+                                "px-3 py-1 rounded-full text-xs font-extrabold uppercase shadow-2xs",
+                                propertyStatus === 'APPROVED' ? "bg-emerald-500 text-white" :
+                                propertyStatus === 'PENDING' ? "bg-amber-500 text-white" :
+                                propertyStatus === 'REJECTED' ? "bg-rose-500 text-white" :
+                                "bg-gray-500 text-white"
+                            )}>
+                                {propertyStatus}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
-                {/* Quick status indicator in header */}
+                {/* Navigation Tabs (Only in Edit mode) */}
                 {isEdit && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground">Status:</span>
-                        <span className={clsx(
-                            "px-3 py-1 rounded-full text-xs font-extrabold uppercase shadow-2xs",
-                            propertyStatus === 'APPROVED' ? "bg-emerald-500 text-white" :
-                            propertyStatus === 'PENDING' ? "bg-amber-500 text-white" :
-                            propertyStatus === 'REJECTED' ? "bg-rose-500 text-white" :
-                            "bg-gray-500 text-white"
-                        )}>
-                            {propertyStatus}
-                        </span>
+                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-border/60 overflow-x-auto">
+                        <button
+                            type="button"
+                            onClick={() => updateTab('details')}
+                            className={clsx(
+                                "px-4 sm:px-5 py-2.5 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap",
+                                activeTab === 'details'
+                                    ? "border-primary text-primary bg-primary/10 rounded-t-lg shadow-xs"
+                                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-t-lg"
+                            )}
+                        >
+                            <Building2 className="h-4 w-4" />
+                            Property Details
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => updateTab('room-types')}
+                            className={clsx(
+                                "px-4 sm:px-5 py-2.5 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap",
+                                activeTab === 'room-types'
+                                    ? "border-primary text-primary bg-primary/10 rounded-t-lg shadow-xs"
+                                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-t-lg"
+                            )}
+                        >
+                            <Layers className="h-4 w-4" />
+                            Room Types
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => updateTab('rooms')}
+                            className={clsx(
+                                "px-4 sm:px-5 py-2.5 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap",
+                                activeTab === 'rooms'
+                                    ? "border-primary text-primary bg-primary/10 rounded-t-lg shadow-xs"
+                                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-t-lg"
+                            )}
+                        >
+                            <BedDouble className="h-4 w-4" />
+                            Rooms
+                        </button>
                     </div>
                 )}
             </div>
@@ -458,7 +589,21 @@ export default function PropertyForm() {
                 <div className="bg-destructive/10 text-destructive p-4 rounded-lg border border-destructive/20 mb-6">{error}</div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            {isEdit && activeTab === 'room-types' && (
+                <AdminRoomTypesTab propertyId={id!} propertyName={formData.name} />
+            )}
+
+            {isEdit && activeTab === 'rooms' && (
+                <AdminRoomsTab
+                    propertyId={id!}
+                    propertyName={formData.name}
+                    defaultCheckInTime={(formData as any).defaultCheckInTime || '14:00'}
+                    defaultCheckOutTime={(formData as any).defaultCheckOutTime || '11:00'}
+                />
+            )}
+
+            {(!isEdit || activeTab === 'details') && (
+                <form onSubmit={handleSubmit} className="space-y-6">
 
                 {/* Marketing & Commission - Only visible to Admin or if Marketing adding it (commission) */}
                 <div className="bg-card rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 border border-border">
@@ -802,6 +947,40 @@ export default function PropertyForm() {
                                         </p>
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Operational Timings */}
+                            <div className="p-5 rounded-2xl border border-border bg-card mb-6 shadow-xs space-y-4">
+                                <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                    <Clock className="h-4 w-4 text-primary" />
+                                    Standard Check-In & Check-Out Timings
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground mb-1">
+                                            Default Check-In Time
+                                        </label>
+                                        <input
+                                            type="time"
+                                            name="defaultCheckInTime"
+                                            value={(formData as any).defaultCheckInTime || '14:00'}
+                                            onChange={handleChange}
+                                            className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground mb-1">
+                                            Default Check-Out Time
+                                        </label>
+                                        <input
+                                            type="time"
+                                            name="defaultCheckOutTime"
+                                            value={(formData as any).defaultCheckOutTime || '11:00'}
+                                            onChange={handleChange}
+                                            className="w-full px-3 py-2 bg-background text-foreground border border-border rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary focus:outline-none"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="flex items-center justify-between mb-4">
@@ -1283,29 +1462,45 @@ export default function PropertyForm() {
                     </div>
                 </div>
 
-                {/* Submit */}
-                <div className="flex justify-end gap-4">
-                    <button
-                        type="button"
-                        onClick={() => navigate(-1)}
-                        className="px-6 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/80 font-bold transition-all cursor-pointer"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-bold transition-all shadow-md cursor-pointer"
-                    >
-                        {saving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Save className="h-4 w-4" />
+                    {/* Submit */}
+                    <div className="flex justify-end gap-3 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => navigate(-1)}
+                            className="px-6 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/80 font-bold transition-all cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        {!isEdit && (
+                            <button
+                                type="button"
+                                onClick={handleSaveDraft}
+                                disabled={saving}
+                                className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2 font-bold transition-all shadow-sm cursor-pointer"
+                            >
+                                {saving ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <FilePlus className="h-4 w-4" />
+                                )}
+                                Save as Inactive Draft
+                            </button>
                         )}
-                        {saving ? 'Saving...' : (isEdit ? 'Save Property' : (isAdmin || isMarketing ? 'Submit For Vetting' : 'Save Property'))}
-                    </button>
-                </div>
-            </form>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-bold transition-all shadow-md cursor-pointer"
+                        >
+                            {saving ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Save className="h-4 w-4" />
+                            )}
+                            {saving ? 'Saving...' : (isEdit ? 'Save Property' : (isAdmin || isMarketing ? 'Submit For Vetting' : 'Save Property'))}
+                        </button>
+                    </div>
+                </form>
+            )}
 
             {/* Revert to Pending Confirmation Modal */}
             {showRevertModal && (

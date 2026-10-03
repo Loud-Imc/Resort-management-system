@@ -439,32 +439,65 @@ export class PropertiesService {
     }
 
     /**
-     * Update Property Request details (Owner)
+     * Update Property Request details (Admin, Marketing, or Creator)
      */
-    async updateRequest(userId: string, requestId: string, payload: any) {
+    async updateRequest(user: any, requestId: string, payload: any) {
         const request = await this.prisma.propertyRequest.findUnique({
             where: { id: requestId }
         });
 
         if (!request) throw new NotFoundException('Request not found');
-        if (request.requestedById !== userId) throw new ForbiddenException('You can only update your own requests');
-        if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Cannot update a processed request');
+        const roles = user?.roles || [];
+        const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
+        const userId = typeof user === 'string' ? user : user?.id;
+
+        if (!isAdmin && request.requestedById !== userId) {
+            throw new ForbiddenException('You can only update your own requests');
+        }
+        if (request.status !== RequestStatus.PENDING) {
+            throw new BadRequestException('Cannot update a processed request');
+        }
 
         const details = (request.details as any) || {};
-        const newDetails = { ...details, ...payload };
+        const incomingDetails = payload.details || payload;
+        const newDetails = { ...details, ...incomingDetails };
 
-        let name = request.name;
-        if (payload.name) {
-            name = payload.name;
-            delete newDetails.name;
-        }
+        const name = payload.name !== undefined ? payload.name : request.name;
+        const location = payload.location !== undefined ? payload.location : request.location;
+        const ownerEmail = payload.ownerEmail !== undefined ? payload.ownerEmail : request.ownerEmail;
+        const ownerPhone = payload.ownerPhone !== undefined ? payload.ownerPhone : request.ownerPhone;
 
         return this.prisma.propertyRequest.update({
             where: { id: requestId },
             data: {
                 name,
+                location,
+                ownerEmail,
+                ownerPhone,
                 details: newDetails
             }
+        });
+    }
+
+    /**
+     * Delete Property Request / Draft
+     */
+    async deleteRequest(user: any, requestId: string) {
+        const request = await this.prisma.propertyRequest.findUnique({
+            where: { id: requestId }
+        });
+
+        if (!request) throw new NotFoundException('Request not found');
+        const roles = user?.roles || [];
+        const isAdmin = roles.includes('SuperAdmin') || roles.includes('Admin') || roles.includes('Marketing');
+        const userId = typeof user === 'string' ? user : user?.id;
+
+        if (!isAdmin && request.requestedById !== userId) {
+            throw new ForbiddenException('You can only delete your own requests');
+        }
+
+        return this.prisma.propertyRequest.delete({
+            where: { id: requestId }
         });
     }
 

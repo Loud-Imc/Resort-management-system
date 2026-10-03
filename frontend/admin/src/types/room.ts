@@ -3,6 +3,8 @@ export const RoomStatus = {
     OCCUPIED: 'OCCUPIED',
     MAINTENANCE: 'MAINTENANCE',
     BLOCKED: 'BLOCKED',
+    RESERVED: 'RESERVED',
+    OUT_TODAY: 'OUT_TODAY',
 } as const;
 
 export type RoomStatus = typeof RoomStatus[keyof typeof RoomStatus];
@@ -10,9 +12,10 @@ export type RoomStatus = typeof RoomStatus[keyof typeof RoomStatus];
 export interface RoomType {
     id: string;
     name: string;
-    description?: string;
+    description?: string | null;
     size?: number | null;
     basePrice: number;
+    originalPrice?: number | null;
     // Legacy V1 fields
     maxAdults: number;
     maxChildren: number;
@@ -31,27 +34,49 @@ export interface RoomType {
     amenities: string[];
     highlights: string[];
     inclusions: string[];
-    cancellationPolicy?: string;
-    marketingBadgeText?: string;
-    marketingBadgeType?: string;
+    cancellationPolicy?: string | null;
+    cancellationPolicyText?: string | null;
+    cancellationPolicyId?: string | null;
+    marketingBadgeText?: string | null;
+    marketingBadgeType?: string | null;
     images: string[];
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    basePriceAc?: number | null;
+    extraAdultPriceAc?: number | null;
+    extraChildPriceAc?: number | null;
+    isAvailableForGroupBooking: boolean;
+    groupMaxOccupancy?: number | null;
+    isGstInclusive: boolean;
+    allowPayAtProperty: boolean;
     propertyId: string;
     property?: {
         id: string;
         name: string;
         city: string;
         occupancyVersion?: 'V1' | 'V2' | string | null;
+        groupPriceAdult?: number;
+        groupPriceChild?: number;
+        groupPricePerHead?: number;
     };
+    rooms?: Room[];
+    ratePlans?: any[];
+    ratePlanPrices?: any[];
+    _count?: {
+        rooms: number;
+    };
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
 }
 
 export interface CreateRoomTypeDto {
     name: string;
-    description?: string;
+    description?: string | null;
     size?: number | null;
     basePrice: number;
+    originalPrice?: number | null;
     // Legacy V1 fields
     maxAdults: number;
     maxChildren: number;
@@ -70,13 +95,22 @@ export interface CreateRoomTypeDto {
     amenities: string[];
     highlights: string[];
     inclusions: string[];
-    cancellationPolicy?: string;
-    marketingBadgeText?: string;
-    marketingBadgeType?: string;
+    cancellationPolicy?: string | null;
+    cancellationPolicyId?: string | null;
+    marketingBadgeText?: string | null;
+    marketingBadgeType?: string | null;
     images: string[];
     isPubliclyVisible: boolean;
     extraAdultPrice: number;
     extraChildPrice: number;
+    acOption?: 'AC_ONLY' | 'NON_AC_ONLY' | 'BOTH';
+    basePriceAc?: number | null;
+    extraAdultPriceAc?: number | null;
+    extraChildPriceAc?: number | null;
+    isAvailableForGroupBooking: boolean;
+    groupMaxOccupancy?: number | null;
+    isGstInclusive?: boolean;
+    allowPayAtProperty?: boolean;
     propertyId?: string;
 }
 
@@ -88,6 +122,12 @@ export interface Room {
     floor?: number;
     status: RoomStatus;
     isEnabled: boolean;
+    hasHistory?: boolean;
+    _count?: {
+        bookingRooms?: number;
+        bookings?: number;
+        blocks?: number;
+    };
     notes?: string;
     roomTypeId: string;
     roomType: RoomType;
@@ -98,7 +138,9 @@ export interface Room {
     };
     createdAt: string;
     updatedAt: string;
-    bookings?: any[]; // For dashboard reserved status
+    blocks?: RoomBlock[];
+    bookings?: any[];
+    bookingRooms?: any[];
 }
 
 export interface CreateRoomDto {
@@ -107,6 +149,7 @@ export interface CreateRoomDto {
     roomTypeId: string;
     notes?: string;
     isEnabled?: boolean;
+    status?: RoomStatus;
     propertyId?: string;
 }
 
@@ -130,7 +173,7 @@ export interface BlockRoomDto {
 export interface RoomBlock {
     id: string;
     roomId: string;
-    minDate: string;
+    startDate: string;
     endDate: string;
     reason: string;
     notes?: string;

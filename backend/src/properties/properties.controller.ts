@@ -131,6 +131,24 @@ export class PropertiesController {
         return this.propertiesService.rejectRequest(req.user, id, reason);
     }
 
+    @Patch('requests/:id')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.CREATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Update pending property request or draft' })
+    updateRequest(@Request() req, @Param('id') id: string, @Body() payload: any) {
+        return this.propertiesService.updateRequest(req.user, id, payload);
+    }
+
+    @Delete('requests/:id')
+    @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+    @Permissions(PERMISSIONS.PROPERTIES.CREATE)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Delete property request or draft' })
+    deleteRequest(@Request() req, @Param('id') id: string) {
+        return this.propertiesService.deleteRequest(req.user, id);
+    }
+
     @Get('requests/my')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
@@ -144,7 +162,7 @@ export class PropertiesController {
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Update your pending property request' })
     updateMyRequest(@Request() req, @Param('id') id: string, @Body() payload: any) {
-        return this.propertiesService.updateRequest(req.user.id, id, payload);
+        return this.propertiesService.updateRequest(req.user, id, payload);
     }
 
     @Get('expand-url')

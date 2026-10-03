@@ -108,6 +108,18 @@ export const propertyService = {
         return response.data;
     },
 
+    // Update property request / draft (Admin/Sales - Maker)
+    async updateRequest(requestId: string, data: any): Promise<any> {
+        const response = await api.patch(`/properties/requests/${requestId}`, data);
+        return response.data;
+    },
+
+    // Delete property request / draft (Admin/Sales)
+    async deleteRequest(requestId: string): Promise<any> {
+        const response = await api.delete(`/properties/requests/${requestId}`);
+        return response.data;
+    },
+
     // Super Admin: Impersonate property
     async impersonate(propertyId: string): Promise<any> {
         const response = await api.post(`/properties/${propertyId}/impersonate`);
@@ -145,6 +157,57 @@ export const propertyService = {
     // Expand a shortened Google Maps URL and extract coordinates
     async expandUrl(url: string): Promise<{ url: string; latitude?: number | null; longitude?: number | null }> {
         const response = await api.get('/properties/expand-url', { params: { url } });
+        return response.data;
+    },
+
+    // ============================================
+    // REGISTRATION & OWNER ONBOARDING
+    // ============================================
+
+    // Public register property
+    async publicRegister(data: any): Promise<any> {
+        const response = await api.post('/properties/public-register', data);
+        return response.data;
+    },
+
+    // Lookup existing owner accounts by email or phone
+    async lookupOwners(email?: string, phone?: string): Promise<any[]> {
+        const response = await api.get('/properties/public/lookup-owners', { params: { email, phone } });
+        return response.data;
+    },
+
+    // Check if an email is available for registration
+    async checkEmailAvailability(email: string, phone?: string): Promise<{ available: boolean; message?: string }> {
+        const response = await api.get('/properties/public/check-email-availability', { params: { email, phone } });
+        return response.data;
+    },
+
+    // Verify existing property owner password
+    async verifyOwnerPassword(password: string, userId?: string, email?: string, phone?: string): Promise<any> {
+        const response = await api.post('/properties/public/verify-owner-password', {
+            password,
+            userId,
+            email,
+            phone
+        });
+        return response.data;
+    },
+
+    // Lookup GST details
+    async gstLookup(gstNumber: string): Promise<any> {
+        const response = await api.post('/properties/public/gst-lookup', { gstNumber });
+        return response.data;
+    },
+
+    // Send Commission OTP
+    async sendCommissionOtp(phone: string, commission: number): Promise<any> {
+        const response = await api.post('/properties/public/send-commission-otp', { phone, commission });
+        return response.data;
+    },
+
+    // Verify Commission OTP
+    async verifyCommissionOtp(phone: string, code: string): Promise<any> {
+        const response = await api.post('/properties/public/verify-commission-otp', { phone, code });
         return response.data;
     }
 };

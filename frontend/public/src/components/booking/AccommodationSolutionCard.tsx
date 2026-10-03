@@ -179,49 +179,59 @@ export const AccommodationSolutionCard: React.FC<AccommodationSolutionCardProps>
                 </div>
 
                 {/* Interactive Meal Plan Tabs */}
-                {solution.ratesByMealPlan && Object.keys(solution.ratesByMealPlan).length > 0 && (
-                    <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/70 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-gray-700">
-                            <span>Select Meal Package Option</span>
-                            <span className="text-[10px] lowercase font-normal text-gray-500">Includes all {totalAdults + totalChildren} guests</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {[
-                                { code: 'EP' as const, label: 'Room Only', icon: '☕' },
-                                { code: 'CP' as const, label: 'Breakfast', icon: '🍳' },
-                                { code: 'MAP' as const, label: 'Half Board', icon: '🍽️' },
-                                { code: 'AP' as const, label: 'Full Board', icon: '👑' },
-                            ].map((mp) => {
-                                const rate = solution.ratesByMealPlan?.[mp.code];
-                                const isActive = selectedMealPlan === mp.code;
-                                const planTotal = rate ? Math.round(rate.totalPrice + acDelta) : null;
-                                return (
-                                    <button
-                                        key={mp.code}
-                                        type="button"
-                                        onClick={() => setSelectedMealPlan(mp.code)}
-                                        className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                                            isActive
-                                                ? 'bg-primary-50/90 border-primary-500 text-primary-900 ring-2 ring-primary-500/20 shadow-sm'
-                                                : 'bg-white border-gray-200 hover:border-primary-300 text-gray-800'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-1">
-                                            <span className="text-xs font-black">{mp.icon} {mp.code}</span>
-                                            {isActive && <CheckCircle className="h-3.5 w-3.5 text-primary-600 shrink-0" />}
-                                        </div>
-                                        <div className="text-[10px] text-gray-500 font-medium truncate mt-0.5">{mp.label}</div>
-                                        {planTotal !== null && (
-                                            <div className="text-xs font-black text-gray-900 mt-1">
-                                                {formatPrice(planTotal, selectedCurrency, rates)}
+                {solution.ratesByMealPlan && Object.keys(solution.ratesByMealPlan).length > 0 && (() => {
+                    const availableMealPlans = [
+                        { code: 'EP' as const, label: 'Room Only', icon: '☕' },
+                        { code: 'CP' as const, label: 'Breakfast', icon: '🍳' },
+                        { code: 'MAP' as const, label: 'Half Board', icon: '🍽️' },
+                        { code: 'AP' as const, label: 'Full Board', icon: '👑' },
+                    ].filter(mp => Boolean(solution.ratesByMealPlan?.[mp.code]));
+
+                    if (availableMealPlans.length === 0) return null;
+
+                    return (
+                        <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/70 space-y-2">
+                            <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-gray-700">
+                                <span>Select Meal Package Option</span>
+                                <span className="text-[10px] lowercase font-normal text-gray-500">Includes all {totalAdults + totalChildren} guests</span>
+                            </div>
+                            <div className={`grid gap-2 ${
+                                availableMealPlans.length === 1 ? 'grid-cols-1' :
+                                availableMealPlans.length === 2 ? 'grid-cols-2' :
+                                availableMealPlans.length === 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'
+                            }`}>
+                                {availableMealPlans.map((mp) => {
+                                    const rate = solution.ratesByMealPlan?.[mp.code];
+                                    const isActive = selectedMealPlan === mp.code;
+                                    const planTotal = rate ? Math.round(rate.totalPrice + acDelta) : null;
+                                    return (
+                                        <button
+                                            key={mp.code}
+                                            type="button"
+                                            onClick={() => setSelectedMealPlan(mp.code)}
+                                            className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
+                                                isActive
+                                                    ? 'bg-primary-50/90 border-primary-500 text-primary-900 ring-2 ring-primary-500/20 shadow-sm'
+                                                    : 'bg-white border-gray-200 hover:border-primary-300 text-gray-800'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-1">
+                                                <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                                {isActive && <CheckCircle className="h-3.5 w-3.5 text-primary-600 shrink-0" />}
                                             </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
+                                            <div className="text-[10px] text-gray-500 font-medium truncate mt-0.5">{mp.label}</div>
+                                            {planTotal !== null && (
+                                                <div className="text-xs font-black text-gray-900 mt-1">
+                                                    {formatPrice(planTotal, selectedCurrency, rates)}
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {/* Allocated Rooms Summary List with View Details button & AC controls */}
                 <div className="pt-2 border-t border-gray-100 space-y-3">
