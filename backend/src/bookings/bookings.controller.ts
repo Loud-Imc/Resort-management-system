@@ -57,10 +57,12 @@ export class BookingsController {
     @ApiQuery({ name: 'propertyId', required: true })
     @ApiQuery({ name: 'checkInDate', required: true })
     @ApiQuery({ name: 'checkOutDate', required: true })
+    @ApiQuery({ name: 'isGroupBooking', required: false, type: Boolean })
     async getAvailableRoomsForDateRange(
         @Query('propertyId') propertyId: string,
         @Query('checkInDate') checkInDate: string,
         @Query('checkOutDate') checkOutDate: string,
+        @Query('isGroupBooking') isGroupBooking?: string,
     ) {
         if (!propertyId || !checkInDate || !checkOutDate) {
             throw new BadRequestException('propertyId, checkInDate, and checkOutDate are required');
@@ -70,6 +72,7 @@ export class BookingsController {
             propertyId,
             checkInDate,
             checkOutDate,
+            isGroupBooking === 'true',
         );
     }
 

@@ -434,3 +434,32 @@ export class QueryRateRestrictionLogsDto {
   limit?: number;
 }
 
+export class ApplyBulkInventoryOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  propertyId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  roomTypeId: string; // Specific roomTypeId or 'ALL'
+
+  @IsString()
+  @IsNotEmpty()
+  startDate: string;
+
+  @IsString()
+  @IsNotEmpty()
+  endDate: string;
+
+  @IsOptional()
+  @IsArray()
+  daysOfWeek?: number[]; // [1,2,3,4,5,6,0]
+
+  @IsArray()
+  @IsString({ each: true })
+  channelTargets: string[]; // ['OREEDU_OTA_PORTAL', 'OREEDU_CP_PORTAL', 'OREEDU_PMS', or OTA ID]
+
+  @IsNumber()
+  @Min(0)
+  allocatedQuantity: number;
+}

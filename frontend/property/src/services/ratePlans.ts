@@ -140,6 +140,16 @@ export interface ChannelPriceItem {
   price: number;
 }
 
+export interface ApplyBulkInventoryOverrideDto {
+  propertyId: string;
+  roomTypeId: string;
+  startDate: string;
+  endDate: string;
+  daysOfWeek?: number[];
+  channelTargets: string[];
+  allocatedQuantity: number;
+}
+
 export interface SetMultiChannelPriceOverrideDto {
   propertyId: string;
   roomTypeId: string;
@@ -193,6 +203,7 @@ export interface DailyRestrictionData {
   closedToArrival: boolean;
   closedToDeparture: boolean;
   stopSell: boolean;
+  channelRestrictions?: Record<string, DailyRestrictionData>;
 }
 
 export interface PropertyMatrixData {
@@ -279,6 +290,11 @@ export const ratePlansService = {
     return res.data;
   },
 
+  applyBulkInventoryOverride: async (dto: ApplyBulkInventoryOverrideDto): Promise<any> => {
+    const res = await api.post('/rate-plans/bulk-inventory-override', dto);
+    return res.data;
+  },
+
   setMultiChannelPriceOverride: async (dto: SetMultiChannelPriceOverrideDto): Promise<MultiChannelPriceOverrideResponse> => {
     const res = await api.post('/rate-plans/multi-channel-price-override', dto);
     return res.data;
@@ -310,7 +326,40 @@ export const ratePlansService = {
     const res = await api.get(`/rate-plans/logs/${propertyId}`, { params });
     return res.data;
   },
+
+  getActiveRestrictionRules: async (
+    propertyId: string,
+    roomTypeId?: string
+  ): Promise<ActiveRestrictionRule[]> => {
+    const res = await api.get(`/rate-plans/restrictions/active/${propertyId}`, {
+      params: roomTypeId && roomTypeId !== 'ALL' ? { roomTypeId } : undefined,
+    });
+    return res.data;
+  },
+
+  clearRestrictionRule: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const res = await api.post(`/rate-plans/restrictions/clear/${id}`);
+    return res.data;
+  },
 };
+
+export interface ActiveRestrictionRule {
+  id: string;
+  propertyId: string;
+  roomTypeId?: string | null;
+  roomType?: { id: string; name: string } | null;
+  startDate: string;
+  endDate: string;
+  daysOfWeek: number[];
+  channelTarget: string;
+  minStayArrival?: number | null;
+  minStayThrough?: number | null;
+  maxStay?: number | null;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
 
 export interface RateRestrictionLog {
   id: string;

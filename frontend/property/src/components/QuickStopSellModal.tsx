@@ -22,6 +22,7 @@ interface QuickStopSellModalProps {
   roomTypeId?: string;
   roomTypeName?: string;
   roomTypes?: RoomType[];
+  activeOtas?: any[];
   initialStartDate?: string;
   initialEndDate?: string;
   onSuccess: () => void;
@@ -33,6 +34,7 @@ export const QuickStopSellModal: React.FC<QuickStopSellModalProps> = ({
   propertyId,
   roomTypeId,
   roomTypes = [],
+  activeOtas = [],
   initialStartDate,
   initialEndDate,
   onSuccess,
@@ -41,9 +43,16 @@ export const QuickStopSellModal: React.FC<QuickStopSellModalProps> = ({
 
   // Close Sales state
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>(roomTypeId || 'ALL');
-  const [channelScope, setChannelScope] = useState<'ALL' | 'OTAS_ONLY' | 'SPECIFIC'>('ALL');
-  const [selectedChannelId, setSelectedChannelId] = useState<string>('');
-  const [activeOtas, setActiveOtas] = useState<Array<{ id: string; title: string; otaName?: string }>>([]);
+  const [loadedOtas, setLoadedOtas] = useState<Array<{ id: string; title: string; otaName?: string }>>([]);
+
+  const resolvedOtas = (activeOtas && activeOtas.length > 0)
+    ? activeOtas
+    : loadedOtas;
+
+  const [targetOreeduOta, setTargetOreeduOta] = useState<boolean>(true);
+  const [targetOreeduCp, setTargetOreeduCp] = useState<boolean>(true);
+  const [targetOreeduPms, setTargetOreeduPms] = useState<boolean>(false);
+  const [selectedOtaIds, setSelectedOtaIds] = useState<string[]>([]);
 
   const [datePreset, setDatePreset] = useState<'TODAY' | 'WEEKEND' | '7DAYS' | '30DAYS' | 'CUSTOM'>('CUSTOM');
   const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -83,18 +92,37 @@ export const QuickStopSellModal: React.FC<QuickStopSellModalProps> = ({
   }, [isOpen, roomTypeId, initialStartDate, initialEndDate]);
 
   useEffect(() => {
-    if (propertyId && isOpen) {
+    if (propertyId && isOpen && (!activeOtas || activeOtas.length === 0)) {
       channelsService
         .getActiveOtas(propertyId)
         .then((data) => {
-          if (Array.isArray(data)) {
-            setActiveOtas(data);
-            if (data.length > 0) setSelectedChannelId(data[0].id);
+          if (Array.isArray(data) && data.length > 0) {
+            setLoadedOtas(data);
           }
         })
         .catch(() => {});
     }
-  }, [propertyId, isOpen]);
+  }, [propertyId, isOpen, activeOtas]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedOtaIds(resolvedOtas.map((o) => o.id));
+    }
+  }, [isOpen, resolvedOtas.length]);
+
+  const handleSelectAllChannels = () => {
+    setTargetOreeduOta(true);
+    setTargetOreeduCp(true);
+    setTargetOreeduPms(true);
+    setSelectedOtaIds(resolvedOtas.map((o) => o.id));
+  };
+
+  const handleDeselectAllChannels = () => {
+    setTargetOreeduOta(false);
+    setTargetOreeduCp(false);
+    setTargetOreeduPms(false);
+    setSelectedOtaIds([]);
+  };
 
   const fetchActiveCloseouts = async () => {
     if (!propertyId) return;
@@ -159,21 +187,25 @@ export const QuickStopSellModal: React.FC<QuickStopSellModalProps> = ({
       return;
     }
 
+    const channelTargets: string[] = [];
+    if (targetOreeduOta) channelTargets.push('OREEDU_OTA_PORTAL');
+    if (targetOreeduCp) channelTargets.push('OREEDU_CP_PORTAL');
+    if (targetOreeduPms) channelTargets.push('OREEDU_PMS');
+    channelTargets.push(...selectedOtaIds);
+
+    if (channelTargets.length === 0) {
+      toast.error('Please select at least one channel to close.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const targetRtId = selectedRoomTypeId === 'ALL' ? undefined : selectedRoomTypeId;
 
-      let targetChannel: string | undefined = undefined;
-      if (channelScope === 'OTAS_ONLY') {
-        targetChannel = 'OTAS_ONLY';
-      } else if (channelScope === 'SPECIFIC') {
-        targetChannel = selectedChannelId || undefined;
-      }
-
       await ratePlansService.applyBulkPricingRule({
         propertyId,
         roomTypeId: targetRtId,
-        channelId: targetChannel,
+        channelTargets,
         startDate,
         endDate,
         daysOfWeek: [1, 2, 3, 4, 5, 6, 0],
@@ -306,98 +338,142 @@ export const QuickStopSellModal: React.FC<QuickStopSellModalProps> = ({
               </select>
             </div>
 
-            {/* Channel Scope Selector */}
-            <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1 flex items-center gap-1">
-                <Globe className="h-3.5 w-3.5 text-primary" /> Affected Channels
-              </label>
-              <div className="space-y-2">
-                <label
-                  onClick={() => setChannelScope('ALL')}
-                  className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    channelScope === 'ALL'
-                      ? 'border-primary bg-primary/5 text-foreground'
-                      : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="channelScope"
-                    checked={channelScope === 'ALL'}
-                    onChange={() => setChannelScope('ALL')}
-                    className="mt-0.5 text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <span className="text-xs font-extrabold block text-foreground">
-                      All Channels (Direct Website + OTAs)
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      Total Blackout: Completely blocks bookings everywhere for this period.
-                    </span>
-                  </div>
+            {/* Channel Selection Multi-Checkboxes */}
+            <div className="bg-muted/30 border border-border/80 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-foreground flex items-center gap-1.5 uppercase tracking-wide">
+                  <Globe className="h-4 w-4 text-rose-600" /> Target Channels to Close
                 </label>
-
-                <label
-                  onClick={() => setChannelScope('OTAS_ONLY')}
-                  className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    channelScope === 'OTAS_ONLY'
-                      ? 'border-primary bg-primary/5 text-foreground'
-                      : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="channelScope"
-                    checked={channelScope === 'OTAS_ONLY'}
-                    onChange={() => setChannelScope('OTAS_ONLY')}
-                    className="mt-0.5 text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <span className="text-xs font-extrabold block text-foreground">
-                      External OTAs Only (Keep Direct Booking Open 🚀)
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      Commission Saver: Stops OTA sales (Booking.com, MMT, Agoda) while allowing direct bookings on your website.
-                    </span>
-                  </div>
-                </label>
-
-                {activeOtas.length > 0 && (
-                  <label
-                    onClick={() => setChannelScope('SPECIFIC')}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                      channelScope === 'SPECIFIC'
-                        ? 'border-primary bg-primary/5 text-foreground'
-                        : 'border-border bg-card hover:bg-muted/30 text-muted-foreground'
-                    }`}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllChannels}
+                    className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
                   >
-                    <input
-                      type="radio"
-                      name="channelScope"
-                      checked={channelScope === 'SPECIFIC'}
-                      onChange={() => setChannelScope('SPECIFIC')}
-                      className="mt-0.5 text-primary focus:ring-primary"
-                    />
-                    <div className="flex-1">
-                      <span className="text-xs font-extrabold block text-foreground">
-                        Specific OTA Only
-                      </span>
-                      {channelScope === 'SPECIFIC' && (
-                        <select
-                          value={selectedChannelId}
-                          onChange={(e) => setSelectedChannelId(e.target.value)}
-                          className="mt-2 w-full px-3 py-1.5 rounded-lg border border-border bg-background text-xs font-bold focus:ring-2 focus:ring-primary focus:outline-none"
-                        >
-                          {activeOtas.map((ota) => (
-                            <option key={ota.id} value={ota.id}>
-                              {ota.title || ota.otaName || ota.id}
-                            </option>
-                          ))}
-                        </select>
-                      )}
+                    Select All
+                  </button>
+                  <span className="text-muted-foreground/40">•</span>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllChannels}
+                    className="text-[11px] font-bold text-muted-foreground hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Group 1: Oreedu Internal Platforms */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🏨</span> Oreedu Platforms (Internal)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Oreedu Direct OTA */}
+                  <label className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${targetOreeduOta ? 'border-rose-500/50 bg-rose-500/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={targetOreeduOta}
+                        onChange={(e) => setTargetOreeduOta(e.target.checked)}
+                        className="rounded border-border text-rose-600 focus:ring-rose-500 h-4 w-4 mt-0.5 cursor-pointer shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-foreground truncate">
+                          🌐 Oreedu Direct
+                        </div>
+                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                          Guest booking engine
+                        </div>
+                      </div>
                     </div>
                   </label>
-                )}
+
+                  {/* Oreedu CP */}
+                  <label className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${targetOreeduCp ? 'border-rose-500/50 bg-rose-500/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={targetOreeduCp}
+                        onChange={(e) => setTargetOreeduCp(e.target.checked)}
+                        className="rounded border-border text-rose-600 focus:ring-rose-500 h-4 w-4 mt-0.5 cursor-pointer shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-foreground truncate">
+                          🏢 Oreedu CP
+                        </div>
+                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                          B2B & corporate packages
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Oreedu PMS (Front Desk) */}
+                  <label className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${targetOreeduPms ? 'border-rose-500/50 bg-rose-500/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={targetOreeduPms}
+                        onChange={(e) => setTargetOreeduPms(e.target.checked)}
+                        className="rounded border-border text-rose-600 focus:ring-rose-500 h-4 w-4 mt-0.5 cursor-pointer shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-foreground truncate">
+                          🛎️ Front Desk PMS
+                        </div>
+                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                          Staff walk-in desk
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Group 2: External OTAs Section */}
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🌍</span> External OTAs (via Channex)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {resolvedOtas.length === 0 ? (
+                    <div className="col-span-1 sm:col-span-2 p-3.5 rounded-xl border border-dashed border-border/80 bg-muted/20 text-center flex flex-col items-center justify-center gap-1">
+                      <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        🌐 No external OTAs connected
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        Connect external channels (like Booking.com, Agoda) in Channel Manager settings to apply stop-sell to them.
+                      </span>
+                    </div>
+                  ) : (
+                    resolvedOtas.map((ota) => {
+                      const isChecked = selectedOtaIds.includes(ota.id);
+                      return (
+                        <label key={ota.id} className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${isChecked ? 'border-rose-500/50 bg-rose-500/10 shadow-xs' : 'border-border bg-card hover:bg-muted/40'}`}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOtaIds([...selectedOtaIds, ota.id]);
+                              } else {
+                                setSelectedOtaIds(selectedOtaIds.filter((id) => id !== ota.id));
+                              }
+                            }}
+                            className="rounded border-border text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-black text-foreground flex items-center gap-1 truncate">
+                              🌍 {ota.title || ota.otaName || ota.id}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">Live OTA via Channex</div>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
 

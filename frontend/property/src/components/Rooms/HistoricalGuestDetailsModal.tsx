@@ -38,6 +38,13 @@ export default function HistoricalGuestDetailsModal({ booking, roomId, roomNumbe
 
     if (!isOpen) return null;
 
+    const primaryGuest = (booking?.guests && booking.guests[0]) || booking?.user;
+    const guestFullName = primaryGuest 
+        ? `${primaryGuest.firstName || ''} ${primaryGuest.lastName || ''}`.trim() 
+        : 'Guest';
+    const guestPhone = booking?.user?.phone || booking?.guests?.[0]?.phone || 'N/A';
+    const guestEmail = (booking?.user as any)?.email || booking?.guests?.[0]?.email || 'N/A';
+
     const handleViewBooking = () => {
         const targetId = booking?.id || (booking as any)?.bookingId;
         if (targetId) {
@@ -109,7 +116,7 @@ export default function HistoricalGuestDetailsModal({ booking, roomId, roomNumbe
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                                        {booking.user?.firstName} {booking.user?.lastName}
+                                        {guestFullName}
                                     </h3>
                                     <div className={clsx(
                                         "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold mt-1 uppercase tracking-wider",
@@ -136,14 +143,14 @@ export default function HistoricalGuestDetailsModal({ booking, roomId, roomNumbe
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Phone</p>
                                     <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-700">
                                         <Phone className="h-4 w-4 text-gray-400" />
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{booking.user?.phone || 'N/A'}</span>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{guestPhone}</span>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Email</p>
                                     <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
                                         <Mail className="h-4 w-4 text-gray-400 shrink-0" />
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{booking.user?.email || 'N/A'}</span>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{guestEmail}</span>
                                     </div>
                                 </div>
                             </div>

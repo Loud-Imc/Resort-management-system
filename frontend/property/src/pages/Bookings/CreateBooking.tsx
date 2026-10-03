@@ -323,6 +323,18 @@ export default function CreateBooking() {
         }
     }, [watchedCheckInDate, watchedCheckOutDate, setValue]);
 
+    const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
+        queryKey: ['roomTypes', selectedProperty?.id],
+        queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
+        enabled: !!selectedProperty?.id,
+    });
+
+    const { data: propertyRatePlans } = useQuery<RatePlan[]>({
+        queryKey: ['propertyRatePlans', selectedProperty?.id],
+        queryFn: () => ratePlansService.getRatePlansForProperty(selectedProperty!.id),
+        enabled: !!selectedProperty?.id,
+    });
+
     // Automatically pre-fetch available rooms for the selected date range using dedicated API
     // so the Room Type & Room filter chips only display rooms that are actually free.
     useEffect(() => {
@@ -344,17 +356,30 @@ export default function CreateBooking() {
                     propertyId: selectedProperty.id,
                     checkInDate: watchedCheckInDate,
                     checkOutDate: watchedCheckOutDate,
+                    isGroupBooking: isGroupMode,
                 });
                 const availableRooms = res.availableRooms || [];
                 const availableIds = availableRooms.map((r: any) => r.id).filter(Boolean);
                 setDateRangeAvailableRoomIds(availableIds);
 
                 // Prune any previously selected physical rooms that are not available in this date range
-                setFilterRoomIds(prev => prev.filter(id => availableIds.includes(id)));
+                setFilterRoomIds(prev => prev.filter(id => {
+                    if (!availableIds.includes(id)) return false;
+                    if (isGroupMode) {
+                        return roomTypes?.some((rt: any) => rt.isAvailableForGroupBooking && rt.rooms?.some((r: any) => r.id === id));
+                    }
+                    return true;
+                }));
 
                 // Prune any previously selected room types that have no available rooms in this date range
                 const availableTypeIds = new Set(availableRooms.map((r: any) => r.roomTypeId).filter(Boolean));
-                setFilterRoomTypeIds(prev => prev.filter(id => availableTypeIds.has(id)));
+                setFilterRoomTypeIds(prev => prev.filter(id => {
+                    if (!availableTypeIds.has(id)) return false;
+                    if (isGroupMode) {
+                        return roomTypes?.find((rt: any) => rt.id === id)?.isAvailableForGroupBooking;
+                    }
+                    return true;
+                }));
             } catch (err) {
                 console.error('[CreateBooking] Failed to fetch date-range available rooms:', err);
                 setDateRangeAvailableRoomIds(null);
@@ -364,7 +389,7 @@ export default function CreateBooking() {
         }, 300);
 
         return () => clearTimeout(debounceTimer);
-    }, [selectedProperty?.id, watchedCheckInDate, watchedCheckOutDate]);
+    }, [selectedProperty?.id, watchedCheckInDate, watchedCheckOutDate, isGroupMode, roomTypes]);
 
     const isBookerAlsoGuest = watch('isBookerAlsoGuest');
     const guestFirstName = watch('guestFirstName');
@@ -414,18 +439,6 @@ export default function CreateBooking() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const { data: roomTypes, isLoading: loadingRoomTypes } = useQuery<RoomType[]>({
-        queryKey: ['roomTypes', selectedProperty?.id],
-        queryFn: () => roomTypesService.getAll({ propertyId: selectedProperty?.id }),
-        enabled: !!selectedProperty?.id,
-    });
-
-    const { data: propertyRatePlans } = useQuery<RatePlan[]>({
-        queryKey: ['propertyRatePlans', selectedProperty?.id],
-        queryFn: () => ratePlansService.getRatePlansForProperty(selectedProperty!.id),
-        enabled: !!selectedProperty?.id,
-    });
-
     const selectedRoomTypeId = watch('roomTypeId');
     const selectedRoomType = useMemo(() => {
         return roomTypes?.find(rt => rt.id === selectedRoomTypeId);
@@ -443,6 +456,24 @@ export default function CreateBooking() {
 
         return Math.max(roomsByAdults, roomsByChildren, 1);
     }, [selectedRoomType, watch('adultsCount'), watch('childrenCount')]);
+
+    const selectedRoomsGroupCapacity = useMemo(() => {
+        if (!isGroupMode || filterRoomIds.length === 0 || !roomTypes) return 0;
+        let cap = 0;
+        for (const rId of filterRoomIds) {
+            for (const rt of roomTypes) {
+                const match = rt.rooms?.find((r: any) => r.id === rId);
+                if (match) {
+                    const isV2 = (rt as any).totalMaxOccupancy !== null && (rt as any).totalMaxOccupancy !== undefined;
+                    cap += isV2
+                        ? Number((rt as any).totalMaxOccupancy)
+                        : ((rt as any).groupMaxOccupancy || (rt.maxAdults + (rt.maxChildren || 0)));
+                    break;
+                }
+            }
+        }
+        return cap;
+    }, [isGroupMode, filterRoomIds, roomTypes]);
 
     // const sortedRoomTypesList = useMemo(() => {
     //     if (!availableRoomTypesList) return [];
@@ -807,7 +838,8 @@ export default function CreateBooking() {
             const gChildren = Number(watch('childrenCount')) || 0;
             const totalGroupSize = gAdults + gChildren;
             const preview = availability?.allocationPreview || [];
-            const targetRoomTypeId = preview[0]?.roomTypeId || selectedSolution?.allocatedRooms?.[0]?.roomTypeId || roomTypes?.[0]?.id || '';
+            const firstPoolRoomType = roomTypes?.find(rt => rt.isAvailableForGroupBooking)?.id || '';
+            const targetRoomTypeId = preview[0]?.roomTypeId || selectedSolution?.allocatedRooms?.[0]?.roomTypeId || firstPoolRoomType || roomTypes?.[0]?.id || '';
             const previewLength = preview.length || selectedSolution?.totalRooms || (watch('selectedRoomIds') || []).length || 1;
 
             setIsPriceLoading(true);
@@ -1060,7 +1092,8 @@ export default function CreateBooking() {
                     setValue('selectedRoomIds', suggestedIds);
                     setValue('roomId', suggestedIds[0] || '');
 
-                    const targetRoomTypeId = preview[0]?.roomTypeId || roomTypes?.[0]?.id || '';
+                    const firstPoolRoomType = roomTypes?.find(rt => rt.isAvailableForGroupBooking)?.id || '';
+                    const targetRoomTypeId = preview[0]?.roomTypeId || firstPoolRoomType || roomTypes?.[0]?.id || '';
                     const priceParams = {
                         roomTypeId: targetRoomTypeId,
                         checkInDate: watchedCheckInDate,
@@ -1106,7 +1139,7 @@ export default function CreateBooking() {
                             roomTypeId: r.roomTypeId,
                             roomTypeName: r.roomType || r.roomTypeName || 'Group Room',
                             roomId: r.id,
-                            adults: r.capacity || Math.ceil(totalGroupSize / preview.length),
+                            adults: r.assignedGuests || r.capacity || Math.ceil(totalGroupSize / preview.length),
                             children: 0,
                         })),
                         pricing: {
@@ -2054,8 +2087,8 @@ export default function CreateBooking() {
                                             </div>
                                             <p className="text-[11px] text-muted-foreground font-medium">
                                                 {filterRoomTypeIds.length === 0 && filterRoomIds.length === 0
-                                                    ? 'Searching all property room types & rooms by default'
-                                                    : `Filtering: ${filterRoomTypeIds.length > 0 ? `${filterRoomTypeIds.length} Room Type${filterRoomTypeIds.length > 1 ? 's' : ''}` : 'All Types'}${filterRoomIds.length > 0 ? `, ${filterRoomIds.length} Specific Room${filterRoomIds.length > 1 ? 's' : ''}` : ''}`}
+                                                    ? (isGroupMode ? 'Searching all Group Pool room types & rooms by default' : 'Searching all property room types & rooms by default')
+                                                    : `Filtering: ${filterRoomTypeIds.length > 0 ? `${filterRoomTypeIds.length} Room Type${filterRoomTypeIds.length > 1 ? 's' : ''}` : (isGroupMode ? 'All Group Pool Types' : 'All Types')}${filterRoomIds.length > 0 ? `, ${filterRoomIds.length} Specific Room${filterRoomIds.length > 1 ? 's' : ''}` : ''}`}
                                             </p>
                                         </div>
                                     </div>
@@ -2105,6 +2138,7 @@ export default function CreateBooking() {
 
                                             {(() => {
                                                 const visibleRoomTypes = roomTypes?.filter((rt: any) => {
+                                                    if (isGroupMode && !rt.isAvailableForGroupBooking) return false;
                                                     if (dateRangeAvailableRoomIds === null) return true; // no date filter yet — show all
                                                     const enabledRooms = rt.rooms?.filter((r: any) => r.isEnabled) || [];
                                                     return enabledRooms.some((r: any) => dateRangeAvailableRoomIds.includes(r.id));
@@ -2211,6 +2245,28 @@ export default function CreateBooking() {
                                                 )}
                                             </div>
 
+                                            {isGroupMode && filterRoomIds.length > 0 && (() => {
+                                                const currentGroupSize = Number(watch('adultsCount') || 0) + Number(watch('childrenCount') || 0);
+                                                const isCapSufficient = selectedRoomsGroupCapacity >= currentGroupSize;
+                                                return (
+                                                    <div className={clsx(
+                                                        "p-2.5 rounded-lg text-xs font-semibold flex items-center justify-between gap-2 border",
+                                                        isCapSufficient
+                                                            ? "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                                                            : "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
+                                                    )}>
+                                                        <span>
+                                                            <strong>{filterRoomIds.length}</strong> room{filterRoomIds.length > 1 ? 's' : ''} selected · Total Capacity: <strong>{selectedRoomsGroupCapacity}</strong> guests (Group Size: <strong>{currentGroupSize}</strong>)
+                                                        </span>
+                                                        {!isCapSufficient && (
+                                                            <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                                                                ⚠️ Need {currentGroupSize - selectedRoomsGroupCapacity} more capacity
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     type="button"
@@ -2235,7 +2291,7 @@ export default function CreateBooking() {
                                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-1">
                                                 {!isFetchingDateRangeAvailability && (() => {
                                                     const visiblePhysicalRooms = roomTypes
-                                                        ?.filter((rt: any) => filterRoomTypeIds.length === 0 || filterRoomTypeIds.includes(rt.id))
+                                                        ?.filter((rt: any) => (!isGroupMode || rt.isAvailableForGroupBooking) && (filterRoomTypeIds.length === 0 || filterRoomTypeIds.includes(rt.id)))
                                                         .flatMap((rt: any) => (rt.rooms || []).filter((r: any) => r.isEnabled).map((r: any) => ({ ...r, roomTypeName: rt.name, roomTypeId: rt.id })))
                                                         .filter((room: any) => dateRangeAvailableRoomIds === null || dateRangeAvailableRoomIds.includes(room.id)) || [];
 

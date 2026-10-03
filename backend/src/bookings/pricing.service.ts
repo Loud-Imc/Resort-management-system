@@ -238,24 +238,7 @@ export class PricingService {
                 include: { roomTypePrices: { where: { roomTypeId } } },
             });
             if (!targetRatePlan) {
-                const defaultSupplements: Record<string, { adult: number; child: number }> = {
-                    CP: { adult: 250, child: 150 },
-                    MAP: { adult: 700, child: 400 },
-                    AP: { adult: 1200, child: 700 },
-                };
-                if (defaultSupplements[mealPlan]) {
-                    targetRatePlan = {
-                        id: undefined,
-                        mealPlan,
-                        name: `${mealPlan} Plan`,
-                        extraAdultPrice: defaultSupplements[mealPlan].adult,
-                        extraChildPrice: defaultSupplements[mealPlan].child,
-                        isActive: true,
-                        roomTypePrices: [],
-                    };
-                } else {
-                    throw new BadRequestException(`The meal plan '${mealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
-                }
+                throw new BadRequestException(`The meal plan '${mealPlan}' is not configured or active for '${roomType.property?.name || 'this property'}'.`);
             }
             roomTypeRatePrice = targetRatePlan?.roomTypePrices?.[0];
         } else if (mealPlan === 'EP') {
@@ -298,7 +281,7 @@ export class PricingService {
         }
 
         // 4. Normalize prices if room type is GST inclusive (Only if property is GST registered)
-        const isPropertyGstApplicable = Boolean((roomType.property as any)?.isGstApplicable && (roomType.property as any)?.gstNumber);
+        const isPropertyGstApplicable = Boolean((roomType.property as any)?.isGstApplicable && (roomType.property as any)?.gstNumber && (roomType.property as any)?.gstNumber.trim());
         const isRoomGstInclusive = isPropertyGstApplicable && Boolean(roomType.isGstInclusive);
 
         let effectiveBasePrice = rawBasePrice;
@@ -372,21 +355,12 @@ export class PricingService {
             groupMealSupplement = 0;
             if (activeMealPlan !== 'EP') {
                 if (!targetRatePlan) {
-                    const defaultSupplements: Record<string, { adult: number; child: number }> = {
-                        CP: { adult: 250, child: 150 },
-                        MAP: { adult: 700, child: 400 },
-                        AP: { adult: 1200, child: 700 },
-                    };
-                    if (defaultSupplements[activeMealPlan]) {
-                        targetRatePlan = {
-                            id: undefined,
-                            mealPlan: activeMealPlan,
-                            extraAdultPrice: defaultSupplements[activeMealPlan].adult,
-                            extraChildPrice: defaultSupplements[activeMealPlan].child,
-                        };
-                    } else {
-                        throw new BadRequestException(`The meal plan '${activeMealPlan}' is not configured or offered by '${roomType.property?.name || 'this property'}'. Only room-only booking is available.`);
-                    }
+                    targetRatePlan = await this.prisma.ratePlan.findFirst({
+                        where: { propertyId: roomType.propertyId || (roomType as any).property?.id, mealPlan: activeMealPlan as any, isActive: true },
+                    });
+                }
+                if (!targetRatePlan) {
+                    throw new BadRequestException(`The meal plan '${activeMealPlan}' is not configured or active for '${roomType.property?.name || 'this property'}'.`);
                 }
                 const adultMealRate = Number(targetRatePlan.extraAdultPrice || 0);
                 const childMealRate = Number(targetRatePlan.extraChildPrice || 0);
@@ -1075,7 +1049,7 @@ export class PricingService {
             throw new BadRequestException('Room type or property configuration missing');
         }
 
-        const isPropertyGstApplicable = Boolean(roomType.property.isGstApplicable && roomType.property.gstNumber);
+        const isPropertyGstApplicable = Boolean(roomType.property.isGstApplicable && roomType.property.gstNumber && roomType.property.gstNumber.trim());
         const baseCurrency = (roomType.property as any).baseCurrency || 'INR';
         let exchangeRate = 1.0;
         const targetCurr = targetCurrency || baseCurrency;
