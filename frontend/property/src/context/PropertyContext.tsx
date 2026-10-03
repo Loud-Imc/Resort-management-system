@@ -25,38 +25,75 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
         try {
             setIsLoading(true);
 
-            // 1. Try to fetch approved properties (pass limit=5000 so full portfolio is retrieved)
-            const response = await api.get<any>('/properties/admin/all', {
-                params: { limit: 5000 }
-            });
-            let propertiesList = response.data.data || [];
+            // 1. Fetch approved / live properties (pass limit=5000 so full portfolio is retrieved)
+            let approvedList: Property[] = [];
+            try {
+                const response = await api.get<any>('/properties/admin/all', {
+                    params: { limit: 5000 }
+                });
+                approvedList = response.data?.data || [];
+            } catch (err) {
+                console.error('Failed to fetch approved properties:', err);
+            }
 
-            // 2. If no approved properties, check for pending/rejected requests
-            if (propertiesList.length === 0) {
-                try {
-                    const reqRes = await api.get<any>('/properties/requests/my');
-                    const requests = reqRes.data || [];
-                    if (requests.length > 0) {
-                        // Map requests to look like Property objects for the UI
-                        propertiesList = requests.map((req: any) => ({
+            // 2. ALWAYS fetch pending / rejected property onboarding requests for this owner
+            let requestList: Property[] = [];
+            try {
+                const reqRes = await api.get<any>('/properties/requests/my');
+                const requests = reqRes.data || [];
+
+                const approvedIds = new Set(approvedList.map((p: any) => p.id));
+                const approvedNames = new Set(approvedList.map((p: any) => p.name?.trim().toLowerCase()));
+
+                requestList = requests
+                    .filter((req: any) => {
+                        // Skip if already in approved properties list
+                        if (req.propertyId && approvedIds.has(req.propertyId)) {
+                            return false;
+                        }
+                        if (req.status === 'APPROVED' && approvedNames.has(req.name?.trim().toLowerCase())) {
+                            return false;
+                        }
+                        return true;
+                    })
+                    .map((req: any) => {
+                        const details = req.details || {};
+                        return {
                             id: req.id,
                             name: req.name,
                             slug: 'pending-request-' + req.id,
-                            status: req.status,
+                            status: req.status, // 'PENDING' | 'REJECTED'
+                            reason: req.reason || null,
                             isActive: false,
                             isVerified: false,
                             isRequest: true, // Custom UI flag
-                            details: req.details || {}
-                        }));
-                    }
-                } catch (reqErr) {
-                    console.error('Failed to fetch requests:', reqErr);
-                }
+                            type: details.propertyType || details.type || req.type || 'RESORT',
+                            city: details.city || '',
+                            state: details.state || '',
+                            country: details.country || 'India',
+                            address: details.address || req.location || '',
+                            pincode: details.pincode || '',
+                            phone: req.ownerPhone || details.propertyPhone || '',
+                            email: req.ownerEmail || details.propertyEmail || '',
+                            coverImage: details.coverImage || details.images?.[0] || '',
+                            images: details.images || [],
+                            details: details,
+                            documentDetails: details.documentDetails || {
+                                agreementAccepted: Boolean(details.agreementAccepted),
+                                agreementAcceptedAt: details.agreementAcceptedAt || null,
+                                agreementVersion: details.agreementVersion || 'v1.0',
+                            },
+                        } as unknown as Property;
+                    });
+            } catch (reqErr) {
+                console.error('Failed to fetch requests:', reqErr);
             }
 
+            let propertiesList = [...approvedList, ...requestList];
+
             const storedId = localStorage.getItem('property_selectedPropertyId');
-            let found = storedId
-                ? propertiesList.find((p: any) => p.id === storedId)
+            let found: Property | null = storedId
+                ? (propertiesList.find((p: any) => p.id === storedId) || null)
                 : null;
 
             // Direct fallback lookup: If impersonating a specific property that was not in the initial list
@@ -64,8 +101,9 @@ export const PropertyProvider = ({ children }: { children: ReactNode }) => {
                 try {
                     const singleRes = await api.get<any>(`/properties/id/${storedId}`);
                     if (singleRes.data) {
-                        found = singleRes.data;
-                        propertiesList = [found, ...propertiesList];
+                        const targetProp = singleRes.data as Property;
+                        found = targetProp;
+                        propertiesList = [targetProp, ...propertiesList];
                     }
                 } catch (singleErr) {
                     console.error('Failed to fetch target property directly:', singleErr);

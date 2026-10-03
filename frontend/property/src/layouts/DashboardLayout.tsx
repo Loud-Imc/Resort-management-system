@@ -214,7 +214,14 @@ export default function DashboardLayout() {
                                 className="w-full flex items-center justify-between p-2.5 text-sm border border-border rounded-xl hover:border-primary/50 transition-all text-left group bg-background/50 hover:bg-primary/5"
                             >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                                    <div className={clsx(
+                                        "w-2 h-2 rounded-full shrink-0",
+                                        selectedProperty?.status === 'REJECTED'
+                                            ? "bg-rose-500"
+                                            : (selectedProperty?.isRequest || selectedProperty?.status === 'PENDING')
+                                            ? "bg-amber-500 animate-pulse"
+                                            : "bg-emerald-500 animate-pulse"
+                                    )} />
                                     <div className="min-w-0 flex-1">
                                         <p className="font-bold text-foreground truncate group-hover:text-primary transition-colors leading-tight">
                                             {selectedProperty?.name || 'Select Property'}
@@ -377,7 +384,14 @@ export default function DashboardLayout() {
                                     className="w-full flex items-center justify-between p-2 text-sm border border-border rounded-xl bg-background text-foreground text-left"
                                 >
                                     <div className="flex items-center gap-2 min-w-0">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                                        <div className={clsx(
+                                            "w-1.5 h-1.5 rounded-full shrink-0",
+                                            selectedProperty?.status === 'REJECTED'
+                                                ? "bg-rose-500"
+                                                : (selectedProperty?.isRequest || selectedProperty?.status === 'PENDING')
+                                                ? "bg-amber-500 animate-pulse"
+                                                : "bg-emerald-500 animate-pulse"
+                                        )} />
                                         <span className="font-bold truncate">{selectedProperty?.name || 'Select Property'}</span>
                                     </div>
                                     <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-1" />
@@ -624,6 +638,7 @@ export default function DashboardLayout() {
                                 .map((p) => {
                                     const isSelected = selectedProperty?.id === p.id;
                                     const isPendingReq = p.isRequest || p.status === 'PENDING';
+                                    const isRejected = p.status === 'REJECTED';
                                     const coverImg = p.coverImage || p.images?.[0];
 
                                     return (
@@ -660,9 +675,17 @@ export default function DashboardLayout() {
                                                     <h3 className="text-sm font-black text-foreground truncate group-hover:text-primary transition-colors">
                                                         {p.name}
                                                     </h3>
-                                                    {isPendingReq && (
+                                                    {isRejected ? (
+                                                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                                            Rejected
+                                                        </span>
+                                                    ) : isPendingReq ? (
                                                         <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
                                                             Pending Approval
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                                            Active
                                                         </span>
                                                     )}
                                                 </div>
@@ -713,7 +736,7 @@ export default function DashboardLayout() {
                             <button 
                                 onClick={() => {
                                     setIsPropertyModalOpen(false);
-                                    navigate('/properties/requests');
+                                    navigate('/register');
                                 }}
                                 className="text-primary hover:underline font-bold flex items-center gap-1"
                             >

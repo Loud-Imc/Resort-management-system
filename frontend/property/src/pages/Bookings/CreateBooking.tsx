@@ -180,7 +180,6 @@ export default function CreateBooking() {
     // Collapsible section toggles
     const [showAdditionalGuests, setShowAdditionalGuests] = useState(false);
     const [showGstDetails, setShowGstDetails] = useState(false);
-    const [showPriceOverride, setShowPriceOverride] = useState(false);
     const [showNotes, setShowNotes] = useState(false);
 
     const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; errors: string[] | React.ReactNode }>({
@@ -1436,8 +1435,9 @@ export default function CreateBooking() {
         }
     };
 
-    const handleApplyOverride = async () => {
-        if (!overrideInputAmount || isNaN(Number(overrideInputAmount)) || Number(overrideInputAmount) <= 0) {
+    const handleApplyOverride = async (customAmount?: number, customReason?: string) => {
+        const amt = customAmount !== undefined ? customAmount : Number(overrideInputAmount);
+        if (!amt || isNaN(amt) || amt <= 0) {
             toast.error('Please enter a valid override amount.');
             return;
         }
@@ -1445,7 +1445,7 @@ export default function CreateBooking() {
         const isGroup = currentValues.isGroupBooking;
         const targetRoomTypeId = currentValues.roomTypeId;
         const roomCount = (currentValues.selectedRoomIds || []).length || 1;
-        const overrideAmountNum = Number(overrideInputAmount);
+        const overrideAmountNum = amt;
 
         setIsApplyingOverride(true);
         setIsPriceLoading(true);
@@ -1485,7 +1485,7 @@ export default function CreateBooking() {
 
             const overridePrice = await (bookingsService as any).calculatePrice(priceParams);
             setValue('overrideTotal', overrideAmountNum);
-            setValue('overrideReason', overrideInputReason || 'Custom negotiated rate');
+            setValue('overrideReason', customReason || overrideInputReason || 'Custom negotiated rate');
             setPriceDetails(overridePrice);
             toast.success(`Override of ₹${overrideAmountNum.toLocaleString()} applied`);
         } catch (e: any) {
@@ -2992,99 +2992,8 @@ export default function CreateBooking() {
                                         <CheckCircle className="h-5 w-5 text-emerald-500" /> 5. Payment & Additional Details
                                     </h2>
 
-                                    {/* Progressive Disclosure: Custom Price Override (Flipped to Top) */}
-                                    <div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPriceOverride(prev => !prev)}
-                                            className="w-full py-2.5 flex items-center justify-between text-left text-xs font-bold uppercase tracking-wider text-foreground hover:text-primary transition-colors cursor-pointer select-none"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                <Sparkles className="h-4 w-4 text-amber-500" />
-                                                Custom Price Override (Optional)
-                                            </span>
-                                            {showPriceOverride ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                        </button>
-
-                                        {showPriceOverride && (
-                                            <div className="pt-3 space-y-3 animate-in fade-in duration-200 p-4 bg-muted/30 rounded-xl border border-border mt-1">
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-muted-foreground mb-1">Override Amount (₹)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={overrideInputAmount}
-                                                            onChange={(e) => setOverrideInputAmount(e.target.value)}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') {
-                                                                    e.preventDefault();
-                                                                    handleApplyOverride();
-                                                                }
-                                                            }}
-                                                            placeholder="Custom total amount"
-                                                            className="w-full border border-input bg-background rounded-lg h-10 px-3 text-xs font-bold focus:ring-1 focus:ring-primary"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-muted-foreground mb-1">Reason for Override</label>
-                                                        <input 
-                                                            type="text" 
-                                                            value={overrideInputReason}
-                                                            onChange={(e) => setOverrideInputReason(e.target.value)}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') {
-                                                                    e.preventDefault();
-                                                                    handleApplyOverride();
-                                                                }
-                                                            }}
-                                                            placeholder="Reason for discount/custom rate"
-                                                            className="w-full border border-input bg-background rounded-lg h-10 px-3 text-xs font-medium focus:ring-1 focus:ring-primary"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
-                                                    <div className="flex items-center gap-2">
-                                                        {watch('overrideTotal') ? (
-                                                            <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                                                                <span>✓ Active: ₹{Number(watch('overrideTotal')).toLocaleString()}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={handleRemoveOverride}
-                                                                    className="text-destructive hover:underline text-xs ml-1 cursor-pointer font-bold"
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[11px] text-muted-foreground">
-                                                                Enter amount and click Apply to update total
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleApplyOverride}
-                                                        disabled={isApplyingOverride || !overrideInputAmount.trim()}
-                                                        className="px-4 py-2 bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
-                                                    >
-                                                        {isApplyingOverride ? (
-                                                            <>
-                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                Applying...
-                                                            </>
-                                                        ) : (
-                                                            'Apply Override'
-                                                        )}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Payment Option / Status & Method (Below Custom Price Override) */}
-                                    <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {/* Payment Option / Status & Method */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
                                                 Payment Option / Status
@@ -3288,6 +3197,10 @@ export default function CreateBooking() {
                         priceDetails={priceDetails}
                         originalPriceDetails={originalPriceDetails}
                         overrideTotal={watch('overrideTotal')}
+                        overrideReason={watch('overrideReason')}
+                        onApplyOverride={handleApplyOverride}
+                        onRemoveOverride={handleRemoveOverride}
+                        isApplyingOverride={isApplyingOverride}
                         isOverrideInclusive={watch('isOverrideInclusive')}
                         paymentOption={watch('paymentOption')}
                         paymentMethod={watch('paymentMethod')}
@@ -3368,6 +3281,10 @@ export default function CreateBooking() {
                             priceDetails={priceDetails}
                             originalPriceDetails={originalPriceDetails}
                             overrideTotal={watch('overrideTotal')}
+                            overrideReason={watch('overrideReason')}
+                            onApplyOverride={handleApplyOverride}
+                            onRemoveOverride={handleRemoveOverride}
+                            isApplyingOverride={isApplyingOverride}
                             isOverrideInclusive={watch('isOverrideInclusive')}
                             paymentOption={watch('paymentOption')}
                             paymentMethod={watch('paymentMethod')}

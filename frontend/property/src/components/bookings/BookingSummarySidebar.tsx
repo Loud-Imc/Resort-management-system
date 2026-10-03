@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Sparkles, CheckCircle, Loader2, Tag, X } from 'lucide-react';
 import type { PriceCalculationResult } from '../../types/booking';
 import type { RoomType } from '../../types/room';
@@ -23,6 +23,10 @@ interface BookingSummarySidebarProps {
     priceDetails: PriceCalculationResult | null;
     originalPriceDetails: PriceCalculationResult | null;
     overrideTotal?: number;
+    overrideReason?: string;
+    onApplyOverride?: (amount: number, reason?: string) => Promise<boolean | void>;
+    onRemoveOverride?: () => void;
+    isApplyingOverride?: boolean;
     isOverrideInclusive?: boolean;
     paymentOption: string;
     paymentMethod: string;
@@ -59,6 +63,10 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     priceDetails,
     originalPriceDetails,
     overrideTotal,
+    overrideReason,
+    onApplyOverride,
+    onRemoveOverride,
+    isApplyingOverride = false,
     isOverrideInclusive,
     paymentOption,
     paymentMethod,
@@ -75,6 +83,36 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     selectedMealPlan = 'EP',
 }) => {
     const [inputCode, setInputCode] = useState('');
+    const [showPriceOverride, setShowPriceOverride] = useState(Boolean(overrideTotal));
+    const [overrideAmount, setOverrideAmount] = useState<string>(overrideTotal ? String(overrideTotal) : '');
+    const [overrideReasonInput, setOverrideReasonInput] = useState<string>(overrideReason || '');
+
+    useEffect(() => {
+        if (overrideTotal) {
+            setShowPriceOverride(true);
+            setOverrideAmount(String(overrideTotal));
+        }
+    }, [overrideTotal]);
+
+    useEffect(() => {
+        if (overrideReason) {
+            setOverrideReasonInput(overrideReason);
+        }
+    }, [overrideReason]);
+
+    const handleOverrideSubmit = () => {
+        const num = Number(overrideAmount);
+        if (!overrideAmount || isNaN(num) || num <= 0) {
+            return;
+        }
+        onApplyOverride?.(num, overrideReasonInput);
+    };
+
+    const handleOverrideRemove = () => {
+        onRemoveOverride?.();
+        setOverrideAmount('');
+        setOverrideReasonInput('');
+    };
 
     const allocatedRooms = selectedSolution?.rooms || selectedSolution?.allocatedRooms || [];
     const solTitle = selectedSolution?.solutionName || (
@@ -432,6 +470,106 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                 </p>
                             )}
                         </div>
+
+                        {/* Price Override */}
+                        {onApplyOverride && (
+                            <div className="space-y-2 pt-2 border-t border-border">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={showPriceOverride}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setShowPriceOverride(checked);
+                                            if (!checked && overrideTotal) {
+                                                handleOverrideRemove();
+                                            }
+                                        }}
+                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer accent-primary"
+                                    />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                                        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                        Price Override
+                                    </span>
+                                </label>
+
+                                {showPriceOverride && (
+                                    <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-2.5 animate-in fade-in duration-200">
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                                                Override Amount (₹)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={overrideAmount}
+                                                onChange={(e) => setOverrideAmount(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleOverrideSubmit();
+                                                    }
+                                                }}
+                                                placeholder="Custom total amount"
+                                                className="w-full px-2.5 py-1.5 text-xs font-bold bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                                                Reason for Override
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={overrideReasonInput}
+                                                onChange={(e) => setOverrideReasonInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleOverrideSubmit();
+                                                    }
+                                                }}
+                                                placeholder="Reason for discount/custom rate"
+                                                className="w-full px-2.5 py-1.5 text-xs font-medium bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                                            {overrideTotal ? (
+                                                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                                    <span>✓ Active: ₹{Number(overrideTotal).toLocaleString()}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleOverrideRemove}
+                                                        className="text-destructive hover:underline text-xs ml-1 cursor-pointer font-bold"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-muted-foreground">
+                                                    Enter amount & click apply
+                                                </span>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={handleOverrideSubmit}
+                                                disabled={isApplyingOverride || !overrideAmount.trim()}
+                                                className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1 cursor-pointer transition-all ml-auto"
+                                            >
+                                                {isApplyingOverride ? (
+                                                    <>
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                        Applying...
+                                                    </>
+                                                ) : (
+                                                    'Apply'
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Manual Override Indicator */}
                         {overrideTotal ? (

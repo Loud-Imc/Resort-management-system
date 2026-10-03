@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsDateString, IsString, IsOptional, IsArray, IsInt, Min, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsDateString, IsString, IsOptional, IsArray, IsInt, Min, ValidateNested, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { GuestInfoDto, RoomAllocationItemDto } from './create-booking.dto';
@@ -16,6 +16,26 @@ export class RescheduleBookingDto {
     @ValidateNested({ each: true })
     @Type(() => RoomAllocationItemDto)
     roomAllocations?: RoomAllocationItemDto[];
+
+    @ApiProperty({ example: 'rate-plan-uuid', required: false })
+    @IsString()
+    @IsOptional()
+    ratePlanId?: string;
+
+    @ApiProperty({ example: 'EP', required: false, enum: ['EP', 'CP', 'MAP', 'AP'] })
+    @IsString()
+    @IsOptional()
+    mealPlan?: string;
+
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isAcSelected?: boolean;
+
+    @ApiProperty({ example: true, required: false })
+    @IsBoolean()
+    @IsOptional()
+    isOverrideInclusive?: boolean;
     @ApiProperty({ example: '2026-06-15' })
     @IsDateString()
     @IsNotEmpty()

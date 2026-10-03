@@ -61,6 +61,7 @@ export interface Booking {
     whatsappNumber?: string;
     isPriceOverridden?: boolean;
     overrideReason?: string;
+    originalTotalAmount?: number;
     originalRackTotal?: number;
     channelName?: string;
     isManualBooking: boolean;
@@ -70,6 +71,8 @@ export interface Booking {
     ratePlanId?: string;
     mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP' | string;
     isAcSelected?: boolean;
+    childAges?: number[];
+    infantsCount?: number;
     ratePlan?: any;
     roomType?: RoomType;
     couponCode?: string;
@@ -271,6 +274,8 @@ export interface PriceCalculationDto {
     childAges?: number[];
     infantsCount?: number;
     mealPlan?: string;
+    ratePlanId?: string;
+    isAcSelected?: boolean;
 }
 
 export interface PriceCalculationResult {
@@ -290,6 +295,7 @@ export interface PriceCalculationResult {
     discountAmount: number;
     totalAmount: number;
     originalTotal?: number;
+    originalTotalAmount?: number;
     isGstInclusive?: boolean;
     targetCurrency?: string;
     convertedTotal?: number;
