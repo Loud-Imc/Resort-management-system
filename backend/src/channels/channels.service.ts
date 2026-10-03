@@ -474,7 +474,7 @@ export class ChannelsService {
         where: {
           propertyId,
           isEnabled: true,
-          status: { in: ['AVAILABLE', 'OCCUPIED'] },
+          status: { not: 'MAINTENANCE' },
         },
         select: { id: true, roomTypeId: true },
       });
@@ -1019,7 +1019,7 @@ export class ChannelsService {
       where: {
         propertyId,
         isEnabled: true,
-        status: { in: ['AVAILABLE', 'OCCUPIED'] },
+        status: { not: 'MAINTENANCE' },
       },
       select: { id: true, roomTypeId: true },
     });

@@ -239,7 +239,7 @@ export class AvailabilityService {
                 rooms: {
                     where: {
                         isEnabled: true,
-                        status: { in: ['AVAILABLE', 'OCCUPIED'] }
+                        status: { not: 'MAINTENANCE' }
                     },
                     select: {
                         id: true,
@@ -264,7 +264,7 @@ export class AvailabilityService {
                     where: {
                         roomTypeId: rtId,
                         isEnabled: true,
-                        status: { in: ['AVAILABLE', 'OCCUPIED'] }
+                        status: { not: 'MAINTENANCE' }
                     },
                     select: {
                         id: true,

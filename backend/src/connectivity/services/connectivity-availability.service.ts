@@ -118,13 +118,13 @@ export class ConnectivityAvailabilityService {
     for (const mapping of targetMappings) {
       const roomTypeId = mapping.roomTypeId;
 
-      // Count total enabled rooms in AVAILABLE or OCCUPIED status
+      // Count total enabled rooms not under maintenance
       const totalRoomsCount = await this.prisma.room.count({
         where: {
           roomTypeId,
           propertyId,
           isEnabled: true,
-          status: { in: ['AVAILABLE', 'OCCUPIED'] },
+          status: { not: 'MAINTENANCE' },
         },
       });
 
