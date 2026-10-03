@@ -1971,7 +1971,7 @@ export class ReportsService {
         };
 
         return {
-            isGstApplicable: property ? Boolean(property.isGstApplicable && property.gstNumber) : true,
+            isGstApplicable: property ? Boolean(property.isGstApplicable && property.gstNumber && property.gstNumber.trim()) : true,
             propertyGstNumber: property?.gstNumber || null,
             propertyName: property?.name || null,
             summary,

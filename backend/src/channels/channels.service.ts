@@ -1643,12 +1643,13 @@ export class ChannelsService {
       });
     }
 
-    // Fetch property base currency
+    // Fetch property base currency and GST applicability
     const property = await this.prisma.property.findUnique({
       where: { id: propertyId },
-      select: { baseCurrency: true },
+      select: { baseCurrency: true, isGstApplicable: true, gstNumber: true },
     });
     const propCurrency = property?.baseCurrency || 'INR';
+    const isPropertyGstApplicable = Boolean(property?.isGstApplicable && property?.gstNumber && property.gstNumber.trim());
 
     // Convert booking total amount to property base currency
     const convertedTotal = await this.currenciesService.convert(
@@ -1661,7 +1662,9 @@ export class ChannelsService {
     const gstCalculation = await this.pricingService.calculateReverseGST(
       convertedTotal,
       res.numberOfNights || 1,
-      assignedRoomsList.length
+      assignedRoomsList.length,
+      undefined,
+      isPropertyGstApplicable,
     );
 
     // Calculate commission: Use exact OTA commission from payload if available, else source percentage

@@ -246,7 +246,17 @@ export class BookingsService {
                 totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
             }
 
-            const isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
+            let isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
+            const activePropId = (dto as any).propertyId || (dto.roomAllocations?.[0]?.roomTypeId ? (await this.prisma.roomType.findUnique({ where: { id: dto.roomAllocations[0].roomTypeId }, select: { propertyId: true } }))?.propertyId : undefined);
+            if (activePropId && this.prisma.property?.findUnique) {
+                const targetProperty = await this.prisma.property.findUnique({
+                    where: { id: activePropId },
+                    select: { isGstApplicable: true, gstNumber: true }
+                });
+                if (targetProperty) {
+                    isPropertyGstApplicable = Boolean(targetProperty.isGstApplicable && targetProperty.gstNumber && targetProperty.gstNumber.trim());
+                }
+            }
             const gstTiers = isPropertyGstApplicable ? (await this.systemSettings.getSetting('GST_TIERS') as any[]) : [];
             let accumulatedTaxAmount = 0;
             let accumulatedTotalAmount = 0;
@@ -847,7 +857,19 @@ export class BookingsService {
                         totalDiscount = accumulatedOfferDiscountAmount + combinedReferralDiscount + combinedCouponDiscount;
                     }
 
-                    const gstTiers = await this.systemSettings.getSetting('GST_TIERS') as any[];
+                    let isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
+                    const activePropId = (createBookingDto as any).propertyId || (roomTypeId ? (await this.prisma.roomType.findUnique({ where: { id: roomTypeId }, select: { propertyId: true } }))?.propertyId : undefined);
+                    if (activePropId && this.prisma.property?.findUnique) {
+                        const targetProperty = await this.prisma.property.findUnique({
+                            where: { id: activePropId },
+                            select: { isGstApplicable: true, gstNumber: true }
+                        });
+                        if (targetProperty) {
+                            isPropertyGstApplicable = Boolean(targetProperty.isGstApplicable && targetProperty.gstNumber && targetProperty.gstNumber.trim());
+                        }
+                    }
+
+                    const gstTiers = isPropertyGstApplicable ? (await this.systemSettings.getSetting('GST_TIERS') as any[]) : [];
                     let accumulatedTaxAmount = 0;
                     let accumulatedTotalAmount = 0;
                     let pricingRef: any = rawAllocPrices[0];
@@ -866,7 +888,10 @@ export class BookingsService {
                         const netTariffPerNight = netRoomSubtotal / numberOfNights;
 
                         let allocTax = 0;
-                        if (rawPrice.taxRate > 0 || rawPrice.isGstInclusive !== undefined) {
+                        let roomTaxRate = 0;
+                        if (isPropertyGstApplicable && gstTiers && gstTiers.length > 0) {
+                            const applicableTier = this.pricingService.getApplicableTier(netTariffPerNight, gstTiers);
+                            roomTaxRate = applicableTier ? applicableTier.rate : 0;
                             const taxPerNight = this.pricingService.calculateTaxForTariff(netTariffPerNight, gstTiers);
                             allocTax = Number((taxPerNight * numberOfNights).toFixed(2));
                         }
@@ -881,6 +906,7 @@ export class BookingsService {
                             referralDiscountAmount: allocReferralDiscount,
                             discountAmount: allocTotalDiscount,
                             taxAmount: allocTax,
+                            taxRate: roomTaxRate,
                             totalAmount: allocTotal,
                             appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
                             referralPartnerId: effectiveReferralPartnerId,
@@ -890,9 +916,9 @@ export class BookingsService {
                     }
 
                     const totalTaxable = accumulatedBaseAmount + accumulatedExtraAdultAmount + accumulatedExtraChildAmount;
-                    const effectiveTaxRate = (totalTaxable > 0 && accumulatedTaxAmount > 0)
+                    const effectiveTaxRate = (isPropertyGstApplicable && totalTaxable > 0 && accumulatedTaxAmount > 0)
                         ? Math.round((accumulatedTaxAmount / totalTaxable) * 100)
-                        : (pricingRef?.taxRate || 0);
+                        : (isPropertyGstApplicable ? (pricingRef?.taxRate || 0) : 0);
 
                     pricing = {
                         ...pricingRef,
@@ -911,13 +937,12 @@ export class BookingsService {
                         originalConvertedTotal: Number(accumulatedTotalAmount.toFixed(2)),
                         appliedCodeType: combinedCouponDiscount > 0 ? 'COUPON' : (combinedReferralDiscount > 0 ? 'REFERRAL' : 'NONE'),
                         referralPartnerId: effectiveReferralPartnerId,
-                        isGstInclusive: rawAllocPrices.length > 0 && rawAllocPrices.every(p => Boolean(p.isGstInclusive)),
+                        isGstInclusive: isPropertyGstApplicable && rawAllocPrices.length > 0 && rawAllocPrices.every(p => Boolean(p.isGstInclusive)),
                     };
 
                     if (overrideTotal !== undefined && overrideTotal !== null) {
                         const totalRooms = createBookingDto.roomAllocations.length;
                         const numberOfNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                        const isPropertyGstApplicable = Boolean(rawAllocPrices.some(p => (p.taxRate > 0 || p.taxAmount > 0 || p.isGstInclusive)));
                         let overrideBreakdown: any;
                         if (createBookingDto.isOverrideInclusive ?? true) {
                             overrideBreakdown = await this.pricingService.calculateReverseGST(

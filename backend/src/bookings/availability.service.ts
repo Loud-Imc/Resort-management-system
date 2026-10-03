@@ -2039,7 +2039,7 @@ export class AvailabilityService {
                     );
                 }
 
-                const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber);
+                const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber && property.gstNumber.trim());
                 const gstTiers = isPropertyGstApplicable ? globalGstTiers : [];
 
                 const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
@@ -2207,21 +2207,23 @@ export class AvailabilityService {
                     // Check if an explicit EP rate plan exists in the property configuration
                     const explicitEpPlan = propActiveRatePlans.find((p: any) => (p.mealPlan || p.code || '').toUpperCase() === 'EP');
 
-                    // Base EP (Room Only) tariff is ALWAYS provided as the baseline
-                    ratesByMealPlan['EP'] = {
-                        ratePlanId: explicitEpPlan ? explicitEpPlan.id : null,
-                        mealPlan: 'EP',
-                        name: explicitEpPlan?.name || 'Room Only (EP)',
-                        adultMealRate: 0,
-                        childMealRate: 0,
-                        mealSupplementPerNight: 0,
-                        baseAmount: Number(solTotalBaseAmount.toFixed(2)),
-                        taxAmount: Number(solTotalTaxAmount.toFixed(2)),
-                        totalPrice: Number(solGrandTotal.toFixed(2)),
-                        pricePerNight: Number((solGrandTotal / nights).toFixed(2)),
-                        isGstInclusive: allRoomsInclusive,
-                        currency: currency || 'INR',
-                    };
+                    // Base EP (Room Only) tariff is provided if EP plan is active in DB, or as baseline when no plans configured
+                    if (explicitEpPlan || propActiveRatePlans.length === 0) {
+                        ratesByMealPlan['EP'] = {
+                            ratePlanId: explicitEpPlan ? explicitEpPlan.id : null,
+                            mealPlan: 'EP',
+                            name: explicitEpPlan?.name || 'Room Only (EP)',
+                            adultMealRate: 0,
+                            childMealRate: 0,
+                            mealSupplementPerNight: 0,
+                            baseAmount: Number(solTotalBaseAmount.toFixed(2)),
+                            taxAmount: Number(solTotalTaxAmount.toFixed(2)),
+                            totalPrice: Number(solGrandTotal.toFixed(2)),
+                            pricePerNight: Number((solGrandTotal / nights).toFixed(2)),
+                            isGstInclusive: allRoomsInclusive,
+                            currency: currency || 'INR',
+                        };
+                    }
 
                     // For all other active rate plans configured by this property (CP, MAP, AP, etc.)
                     for (const plan of propActiveRatePlans) {
@@ -2744,7 +2746,7 @@ export class AvailabilityService {
         }
 
         const isV2Property = (property as any)?.occupancyVersion === 'V2' || propRoomTypes.some((rt: any) => rt.occupancyVersion === 'V2');
-        const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber);
+        const isPropertyGstApplicable = Boolean(property.isGstApplicable && property.gstNumber && property.gstNumber.trim());
         const gstTiers = isPropertyGstApplicable ? (preloadedPricingContext?.gstTiers || []) : [];
 
         const dateRatesPromises = offsets.map(async (offset) => {
