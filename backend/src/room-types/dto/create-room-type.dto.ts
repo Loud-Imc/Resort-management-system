@@ -254,4 +254,16 @@ export class CreateRoomTypeDto {
     @IsBoolean()
     @IsOptional()
     allowPayAtProperty?: boolean;
+
+    @ApiProperty({ example: 'EP', enum: ['EP', 'CP', 'MAP', 'AP'], required: false })
+    @IsOptional()
+    @IsEnum(['EP', 'CP', 'MAP', 'AP'])
+    baseMealPlan?: 'EP' | 'CP' | 'MAP' | 'AP';
+
+    @ApiProperty({ example: 'uuid-of-rate-plan', required: false })
+    @IsOptional()
+    @ValidateIf((o, v) => v !== null && v !== undefined)
+    @Transform(({ value }) => (value === '' ? null : value))
+    @IsString()
+    baseRatePlanId?: string | null;
 }

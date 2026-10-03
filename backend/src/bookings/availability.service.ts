@@ -2204,11 +2204,28 @@ export class AvailabilityService {
                     const propActiveRatePlans: any[] = ((property as any)?.ratePlans || []).filter((p: any) => p.isActive);
                     const ratesByMealPlan: Record<string, any> = {};
 
+                    const MEAL_PLAN_RANK: Record<string, number> = {
+                        'EP': 1,
+                        'CP': 2,
+                        'MAP': 3,
+                        'AP': 4,
+                    };
+
+                    // Determine each room's base meal plan in this solution
+                    const roomBaseMealPlans = sol.rooms.map(r => {
+                        const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
+                        return ((rt as any)?.baseMealPlan || 'EP').toUpperCase();
+                    });
+
+                    // Effective base meal plan rank for this accommodation solution
+                    const minBaseRank = Math.min(...roomBaseMealPlans.map(mp => MEAL_PLAN_RANK[mp] || 1));
+                    const solBaseMealPlan = Object.keys(MEAL_PLAN_RANK).find(k => MEAL_PLAN_RANK[k] === minBaseRank) || 'EP';
+
                     // Check if an explicit EP rate plan exists in the property configuration
                     const explicitEpPlan = propActiveRatePlans.find((p: any) => (p.mealPlan || p.code || '').toUpperCase() === 'EP');
 
-                    // Base EP (Room Only) tariff is provided if EP plan is active in DB, or as baseline when no plans configured
-                    if (explicitEpPlan || propActiveRatePlans.length === 0) {
+                    // 1. If base meal plan is EP, include EP rate plan
+                    if (minBaseRank <= 1 && (explicitEpPlan || propActiveRatePlans.length === 0)) {
                         ratesByMealPlan['EP'] = {
                             ratePlanId: explicitEpPlan ? explicitEpPlan.id : null,
                             mealPlan: 'EP',
@@ -2222,30 +2239,70 @@ export class AvailabilityService {
                             pricePerNight: Number((solGrandTotal / nights).toFixed(2)),
                             isGstInclusive: allRoomsInclusive,
                             currency: currency || 'INR',
+                            isBaseInclusion: true,
                         };
                     }
 
-                    // For all other active rate plans configured by this property (CP, MAP, AP, etc.)
+                    // 2. Loop through all active rate plans
                     for (const plan of propActiveRatePlans) {
                         const mCode = (plan.mealPlan || plan.code || '').toUpperCase();
-                        if (!mCode || mCode === 'EP') {
+                        if (!mCode) continue;
+
+                        const planRank = MEAL_PLAN_RANK[mCode] || 1;
+                        // Suppress plans below the room's base meal plan (e.g. if room includes CP, do NOT offer EP)
+                        if (planRank < minBaseRank) {
                             continue;
                         }
 
-                        const adultMealRate = Number(plan.extraAdultPrice || 0);
-                        const childMealRate = Number(plan.extraChildPrice || 0);
+                        // Case A: Plan IS the solution's base meal plan (e.g. CP for a CP room)
+                        if (mCode === solBaseMealPlan && mCode !== 'EP') {
+                            ratesByMealPlan[mCode] = {
+                                ratePlanId: plan.id,
+                                mealPlan: mCode,
+                                name: plan.name,
+                                adultMealRate: 0,
+                                childMealRate: 0,
+                                mealSupplementPerNight: 0,
+                                baseAmount: Number(solTotalBaseAmount.toFixed(2)),
+                                taxAmount: Number(solTotalTaxAmount.toFixed(2)),
+                                totalPrice: Number(solGrandTotal.toFixed(2)),
+                                pricePerNight: Number((solGrandTotal / nights).toFixed(2)),
+                                isGstInclusive: allRoomsInclusive,
+                                currency: currency || 'INR',
+                                isBaseInclusion: true,
+                            };
+                            continue;
+                        }
 
+                        // Skip EP here since it was handled above
+                        if (mCode === 'EP') continue;
+
+                        // Case B: Upgrade plan (e.g. MAP/AP when base is CP, or CP/MAP/AP when base is EP)
                         let mpBaseTotal = 0;
                         let mpTaxTotal = 0;
                         let mpGrandTotal = 0;
                         let mpSupplementPerNightTotal = 0;
 
+                        const targetAdultMealRate = Number(plan.extraAdultPrice || 0);
+                        const targetChildMealRate = Number(plan.extraChildPrice || 0);
+
                         for (const r of sol.rooms) {
                             const rt = propRoomTypes.find(t => t.id === r.roomTypeId);
                             const isRoomInclusive = isPropertyGstApplicable && Boolean((rt as any)?.isGstInclusive);
-                            
-                            // Dynamic property-level meal supplement: (Adults * adultMealRate) + (Children * childMealRate)
-                            const roomMealSupplementPerNight = (r.adults * adultMealRate) + (r.children * childMealRate);
+                            const rBasePlan = ((rt as any)?.baseMealPlan || 'EP').toUpperCase();
+
+                            // Find the base rate plan for this room type to calculate the meal delta
+                            const baseRatePlan = propActiveRatePlans.find(p => p.id === (rt as any)?.baseRatePlanId)
+                                || propActiveRatePlans.find(p => (p.mealPlan || p.code || '').toUpperCase() === rBasePlan);
+
+                            const baseAdultMealRate = Number(baseRatePlan?.extraAdultPrice || 0);
+                            const baseChildMealRate = Number(baseRatePlan?.extraChildPrice || 0);
+
+                            // Delta charge only for upgrade
+                            const adultDelta = Math.max(0, targetAdultMealRate - baseAdultMealRate);
+                            const childDelta = Math.max(0, targetChildMealRate - baseChildMealRate);
+
+                            const roomMealSupplementPerNight = (r.adults * adultDelta) + (r.children * childDelta);
                             mpSupplementPerNightTotal += roomMealSupplementPerNight;
 
                             const roomPerNightWithMeal = r.totalPricePerNight + roomMealSupplementPerNight;
@@ -2293,8 +2350,8 @@ export class AvailabilityService {
                             ratePlanId: plan.id,
                             mealPlan: mCode,
                             name: plan.name,
-                            adultMealRate,
-                            childMealRate,
+                            adultMealRate: targetAdultMealRate,
+                            childMealRate: targetChildMealRate,
                             mealSupplementPerNight: mpSupplementPerNightTotal,
                             baseAmount: Number(mpBaseTotal.toFixed(2)),
                             taxAmount: Number(mpTaxTotal.toFixed(2)),
@@ -2302,6 +2359,7 @@ export class AvailabilityService {
                             pricePerNight: Number((mpGrandTotal / nights).toFixed(2)),
                             isGstInclusive: allRoomsInclusive,
                             currency: currency || 'INR',
+                            isBaseInclusion: false,
                         };
                     }
 

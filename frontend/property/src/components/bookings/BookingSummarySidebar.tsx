@@ -1,3 +1,4 @@
+// Booking summary sidebar component with inline price override
 import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Sparkles, CheckCircle, Loader2, Tag, X } from 'lucide-react';
 import type { PriceCalculationResult } from '../../types/booking';

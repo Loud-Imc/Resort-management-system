@@ -21,9 +21,15 @@ export const AccommodationSolutionCard: React.FC<AccommodationSolutionCardProps>
     const [isExpanded, setIsExpanded] = useState(true);
 
     // Active Meal Plan state
-    const [selectedMealPlan, setSelectedMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>(
-        (solution.selectedMealPlan as any) || 'EP'
-    );
+    const [selectedMealPlan, setSelectedMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>(() => {
+        const rates = solution.ratesByMealPlan as Record<string, any> | undefined;
+        if (solution.selectedMealPlan && rates?.[solution.selectedMealPlan]) {
+            return solution.selectedMealPlan as any;
+        }
+        if (rates?.['EP']) return 'EP';
+        const available = Object.keys(rates || {}) as Array<'EP' | 'CP' | 'MAP' | 'AP'>;
+        return available[0] || 'EP';
+    });
 
     // Per-room AC selection state
     const [roomAcSelections, setRoomAcSelections] = useState<Record<number, boolean>>(() => {
@@ -216,7 +222,14 @@ export const AccommodationSolutionCard: React.FC<AccommodationSolutionCardProps>
                                             }`}
                                         >
                                             <div className="flex items-center justify-between gap-1">
-                                                <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                                <span className="text-xs font-black flex items-center gap-1">
+                                                    <span>{mp.icon}</span> {mp.code}
+                                                    {rate?.isBaseInclusion && (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-black tracking-tight">
+                                                            Included
+                                                        </span>
+                                                    )}
+                                                </span>
                                                 {isActive && <CheckCircle className="h-3.5 w-3.5 text-primary-600 shrink-0" />}
                                             </div>
                                             <div className="text-[10px] text-gray-500 font-medium truncate mt-0.5">{mp.label}</div>

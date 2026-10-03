@@ -381,3 +381,5 @@ export interface RateRestrictionLog {
   createdAt: string;
 }
 
+export const ratePlansApi = ratePlansService;
+

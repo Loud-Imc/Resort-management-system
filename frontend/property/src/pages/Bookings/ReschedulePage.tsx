@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, addDays } from 'date-fns';
@@ -7,20 +7,24 @@ import {
     Calendar,
     AlertCircle,
     User,
-    UserPlus,
     House,
     Users,
     ArrowLeft,
     ChevronRight,
-    Info,
     CheckCircle,
+    X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { bookingsService } from '../../services/bookings';
 import { roomTypesService } from '../../services/roomTypes';
+import { ratePlansService, type RatePlan } from '../../services/ratePlans';
 import { useProperty } from '../../context/PropertyContext';
 import { RescheduleCalendarModal } from '../../components/bookings/RescheduleCalendarModal';
+import AccommodationPackageCard from '../../components/bookings/AccommodationPackageCard';
+import RoomAssignmentSection from '../../components/bookings/RoomAssignmentSection';
+import CustomAccommodationModal from '../../components/bookings/CustomAccommodationModal';
+import type { PriceCalculationResult } from '../../types/booking';
 
 export default function ReschedulePage() {
     const { id } = useParams<{ id: string }>();
@@ -35,89 +39,89 @@ export default function ReschedulePage() {
         enabled: !!id,
     });
 
-    // ── Fetch room types ───────────────────────────────────────────────────────
-    const { data: roomTypes } = useQuery<any[]>({
-        queryKey: ['roomTypes', booking?.propertyId],
-        queryFn: () => roomTypesService.getAll({ propertyId: booking?.propertyId }),
-        enabled: !!booking?.propertyId,
-    });
-
     const propertyId = booking?.propertyId || selectedProperty?.id || '';
 
-    // ── Local state (matches RescheduleBookingModal) ───────────────────────────
+    // ── Fetch room types ───────────────────────────────────────────────────────
+    const { data: roomTypes } = useQuery<any[]>({
+        queryKey: ['roomTypes', propertyId],
+        queryFn: () => roomTypesService.getAll({ propertyId }),
+        enabled: !!propertyId,
+    });
+
+    // ── Fetch rate plans for property ──────────────────────────────────────────
+    const { data: propertyRatePlans } = useQuery<RatePlan[]>({
+        queryKey: ['propertyRatePlans', propertyId],
+        queryFn: () => ratePlansService.getRatePlansForProperty(propertyId),
+        enabled: !!propertyId,
+    });
+
+    const activeMealPlans = useMemo(() => {
+        const plans = (propertyRatePlans || []).filter(p => p.isActive);
+        const meta: Record<string, { label: string; icon: string }> = {
+            EP: { label: 'Room Only', icon: '☕' },
+            CP: { label: 'Breakfast', icon: '🍳' },
+            MAP: { label: 'Half Board', icon: '🍽️' },
+            AP: { label: 'Full Board', icon: '👑' },
+        };
+        return plans.map(p => ({
+            code: p.mealPlan as 'EP' | 'CP' | 'MAP' | 'AP',
+            name: p.name || meta[p.mealPlan]?.label || p.mealPlan,
+            label: meta[p.mealPlan]?.label || p.name || p.mealPlan,
+            icon: meta[p.mealPlan]?.icon || '🍴',
+            adultRate: Number(p.extraAdultPrice || 0),
+            childRate: Number(p.extraChildPrice || 0),
+            isPrimary: p.isPrimary,
+            ratePlan: p,
+        }));
+    }, [propertyRatePlans]);
+
+    // ── Local state ────────────────────────────────────────────────────────────
     const [newCheckInDate, setNewCheckInDate] = useState<string>('');
     const [newCheckOutDate, setNewCheckOutDate] = useState<string>('');
-    const [newPricePreview, setNewPricePreview] = useState<any>(null);
-    const [isCalculatingPreview, setIsCalculatingPreview] = useState<boolean>(false);
-
-    const [useRescheduleOverride, setUseRescheduleOverride] = useState<boolean>(false);
-    const [rescheduleOverrideTotal, setRescheduleOverrideTotal] = useState<string>('');
-    const [rescheduleOverrideReason, setRescheduleOverrideReason] = useState<string>('');
-    const [specialRequests, setSpecialRequests] = useState<string>('');
-    const [availableRooms, setAvailableRooms] = useState<any[]>([]);
-    const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
-    const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
-    const [groupUnavailableReason, setGroupUnavailableReason] = useState<string | null>(null);
-    const [rescheduleRoomTypeId, setRescheduleRoomTypeId] = useState<string | null>(null);
-    const [hasResolutionError, setHasResolutionError] = useState<boolean>(false);
-
-    const [keepOriginalAmount, setKeepOriginalAmount] = useState<boolean>(false);
     const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
-    const [isEditingGuestDetails, setIsEditingGuestDetails] = useState<boolean>(false);
 
-    // Booker states
+    // Guest composition states (V2 Occupancy Parity)
+    const [adultsCount, setAdultsCount] = useState<number | string>(1);
+    const [childrenCount, setChildrenCount] = useState<number | string>(0);
+    const [childAges, setChildAges] = useState<number[]>([]);
+    const [infantsCount, setInfantsCount] = useState<number | string>(0);
+
+    // Booker & Guest states
+    const [isEditingGuestDetails, setIsEditingGuestDetails] = useState<boolean>(false);
+    const [isGuestSameAsBooker, setIsGuestSameAsBooker] = useState<boolean>(true);
     const [bookerFirstName, setBookerFirstName] = useState<string>('');
     const [bookerLastName, setBookerLastName] = useState<string>('');
     const [bookerEmail, setBookerEmail] = useState<string>('');
     const [bookerPhone, setBookerPhone] = useState<string>('');
     const [bookerWhatsapp, setBookerWhatsapp] = useState<string>('');
 
-    // Guest states
     const [guestFirstName, setGuestFirstName] = useState<string>('');
     const [guestLastName, setGuestLastName] = useState<string>('');
     const [guestEmail, setGuestEmail] = useState<string>('');
     const [guestPhone, setGuestPhone] = useState<string>('');
     const [guestWhatsapp, setGuestWhatsapp] = useState<string>('');
+    const [specialRequests, setSpecialRequests] = useState<string>('');
 
-    const [adultsCount, setAdultsCount] = useState<number | string>(1);
-    const [childrenCount, setChildrenCount] = useState<number | string>(0);
-    const [extraAdultsCount, setExtraAdultsCount] = useState<number | string>(0);
-    const [extraChildrenCount, setExtraChildrenCount] = useState<number | string>(0);
-    const [isGuestSameAsBooker, setIsGuestSameAsBooker] = useState<boolean>(true);
+    // Accommodation Solutions & Rate Plans state
+    const [accommodationSolutions, setAccommodationSolutions] = useState<any[] | null>(null);
+    const [selectedSolution, setSelectedSolution] = useState<any | null>(null);
+    const [solutionRoomAssignments, setSolutionRoomAssignments] = useState<Record<number, string>>({});
+    const [roomAcSelections, setRoomAcSelections] = useState<Record<number, boolean>>({});
+    const [selectedMealPlan, setSelectedMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('EP');
+    const [isSearchingSolutions, setIsSearchingSolutions] = useState<boolean>(false);
+    const [showFullSolutionsModal, setShowFullSolutionsModal] = useState<boolean>(false);
+    const [showCustomSolutionModal, setShowCustomSolutionModal] = useState<boolean>(false);
+
+    // Price calculation & override states
+    const [newPricePreview, setNewPricePreview] = useState<PriceCalculationResult | null>(null);
+    const [isCalculatingPreview, setIsCalculatingPreview] = useState<boolean>(false);
+    const [useRescheduleOverride, setUseRescheduleOverride] = useState<boolean>(false);
+    const [rescheduleOverrideTotal, setRescheduleOverrideTotal] = useState<string>('');
+    const [rescheduleOverrideReason, setRescheduleOverrideReason] = useState<string>('');
+    const [keepOriginalAmount, setKeepOriginalAmount] = useState<boolean>(false);
+
     const [hydratedBookingId, setHydratedBookingId] = useState<string | null>(null);
-
-    const selectedRoomType = useMemo(() => {
-        return roomTypes?.find(rt => rt.id === rescheduleRoomTypeId);
-    }, [roomTypes, rescheduleRoomTypeId]);
-
-    const requiredRooms = useMemo(() => {
-        if (booking?.isGroupBooking) return 1;
-        if (!selectedRoomType) return 1;
-        const maxAdults = selectedRoomType.maxAdults || 2;
-        const maxChildren = selectedRoomType.maxChildren || 2;
-        const parsedAdults = Number(adultsCount) || 1;
-        const parsedChildren = Number(childrenCount) || 0;
-
-        const maxAdultsPerRoom = maxAdults + 1;
-        const maxChildrenPerRoom = maxChildren > 0 ? (maxChildren + 1) : 1;
-
-        const roomsByAdults = Math.ceil(parsedAdults / maxAdultsPerRoom);
-        const roomsByChildren = Math.ceil(parsedChildren / maxChildrenPerRoom);
-
-        return Math.max(roomsByAdults, roomsByChildren, 1);
-    }, [booking, selectedRoomType, adultsCount, childrenCount]);
-
-    // ── Total capacity of all rooms in the available pool (for group bookings) ─
-    const totalPoolCapacity = useMemo(() => {
-        return availableRooms.reduce((sum, r) => sum + (Number(r.capacity) || 0), 0);
-    }, [availableRooms]);
-
-    const isGroupCapacityExceeded = useMemo(() => {
-        if (!booking?.isGroupBooking) return false;
-        if (availableRooms.length === 0) return false;
-        const guestCount = (Number(adultsCount) || 0) + (Number(childrenCount) || 0);
-        return totalPoolCapacity > 0 && guestCount > totalPoolCapacity;
-    }, [booking, availableRooms, adultsCount, childrenCount, totalPoolCapacity]);
+    const searchRequestId = useRef<number>(0);
 
     // ── Hydrate state from fetched booking ────────────────────────────────────
     useEffect(() => {
@@ -137,50 +141,45 @@ export default function ReschedulePage() {
         setRescheduleOverrideTotal(booking.isPriceOverridden ? Number(booking.totalAmount).toString() : '');
         setRescheduleOverrideReason(booking.overrideReason || '');
         setSpecialRequests(booking.specialRequests || '');
-        setSelectedRoomIds(booking.bookingRooms?.map((br: any) => br.roomId) || []);
-        const resolvedType = booking.roomTypeId || booking.roomType?.id || (booking.bookingRooms?.[0]?.room?.roomType as any)?.id || '';
-        if (resolvedType) {
-            setRescheduleRoomTypeId(resolvedType);
-            setHasResolutionError(false);
-        } else {
-            setHasResolutionError(true);
+
+        setAdultsCount(booking.adultsCount || 1);
+        setChildrenCount(booking.childrenCount || 0);
+        setChildAges(booking.childAges && booking.childAges.length > 0 ? booking.childAges : Array(booking.childrenCount || 0).fill(5));
+        setInfantsCount((booking as any).infantsCount || 0);
+
+        if (booking.mealPlan) {
+            setSelectedMealPlan(booking.mealPlan as any);
         }
+
         setBookerFirstName(booking.user?.firstName || '');
         setBookerLastName(booking.user?.lastName || '');
         setBookerEmail(booking.user?.email || '');
         setBookerPhone(booking.user?.phone || '');
         setBookerWhatsapp(booking.whatsappNumber || booking.user?.whatsappNumber || '');
-        setGuestFirstName(booking.guests?.[0]?.firstName || '');
-        setGuestLastName(booking.guests?.[0]?.lastName || '');
-        setGuestEmail(booking.guests?.[0]?.email || '');
-        setGuestPhone(booking.guests?.[0]?.phone || '');
-        setGuestWhatsapp(booking.guests?.[0]?.whatsappNumber || '');
-        setAdultsCount(booking.adultsCount || 1);
-        setChildrenCount(booking.childrenCount || 0);
-        setExtraAdultsCount((booking as any).extraAdultsCount || 0);
-        setExtraChildrenCount((booking as any).extraChildrenCount || 0);
 
         const g0 = booking.guests?.[0];
         const u = booking.user;
+        if (g0) {
+            setGuestFirstName(g0.firstName || '');
+            setGuestLastName(g0.lastName || '');
+            setGuestEmail(g0.email || '');
+            setGuestPhone(g0.phone || '');
+            setGuestWhatsapp(g0.whatsappNumber || '');
+        }
+
         if (g0 && u) {
-            // Only treat as "different people" when:
-            //   - first names are clearly different, OR
-            //   - both have non-empty phones that don't match
-            // If guest phone is empty (created with "Add booker as primary guest"), default to same-as-booker.
             const differentFirstName = g0.firstName?.trim() !== u.firstName?.trim();
-            const bothHavePhone = !!(g0.phone && u.phone);
             const normalizePhone = (p?: string | null) => (p || '').replace(/\D/g, '').replace(/^0+/, '');
             const nGuest = normalizePhone(g0.phone);
             const nUser = normalizePhone(u.phone);
-            const differentPhone = bothHavePhone && !(nGuest.endsWith(nUser) || nUser.endsWith(nGuest));
+            const differentPhone = Boolean(g0.phone && u.phone && !(nGuest.endsWith(nUser) || nUser.endsWith(nGuest)));
             setIsGuestSameAsBooker(!differentFirstName && !differentPhone);
         } else {
-            // No guest record at all → booker is the guest
             setIsGuestSameAsBooker(true);
         }
-    }, [booking]);
+    }, [booking, hydratedBookingId, navigate]);
 
-    // Automatically set checkOutDate to checkInDate + 1 when check-in date is changed
+    // Keep checkOutDate = checkInDate + 1 when user modifies checkIn
     useEffect(() => {
         if (!booking || !newCheckInDate) return;
         const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
@@ -193,21 +192,7 @@ export default function ReschedulePage() {
         }
     }, [newCheckInDate, booking]);
 
-    // ── Sync selected rooms when roomType dropdown selection changes ───────────
-    useEffect(() => {
-        if (!booking || booking.isGroupBooking) return;
-        const originalRoomTypeId = booking.roomTypeId || booking.roomType?.id || (booking.bookingRooms?.[0]?.room?.roomType as any)?.id;
-        
-        if (rescheduleRoomTypeId === originalRoomTypeId) {
-            // Restore original room selections if switching back to original room type
-            setSelectedRoomIds(booking.bookingRooms?.map((br: any) => br.roomId) || []);
-        } else {
-            // Reset selected rooms to prevent cross-category room selections
-            setSelectedRoomIds([]);
-        }
-    }, [rescheduleRoomTypeId, booking]);
-
-    // ── Sync guest same as booker ─────────────────────────────────────────────
+    // Sync guest same as booker
     useEffect(() => {
         if (isGuestSameAsBooker) {
             setGuestFirstName(bookerFirstName);
@@ -218,7 +203,194 @@ export default function ReschedulePage() {
         }
     }, [isGuestSameAsBooker, bookerFirstName, bookerLastName, bookerEmail, bookerPhone, bookerWhatsapp]);
 
-    // ── Derived values ────────────────────────────────────────────────────────
+    // ── Search Accommodation Solutions (Solver Integration) ───────────────────
+    useEffect(() => {
+        if (!propertyId || !newCheckInDate || !newCheckOutDate) {
+            setAccommodationSolutions(null);
+            setSelectedSolution(null);
+            return;
+        }
+
+        const checkIn = new Date(newCheckInDate);
+        const checkOut = new Date(newCheckOutDate);
+        if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+            setAccommodationSolutions(null);
+            setSelectedSolution(null);
+            return;
+        }
+
+        const currentSearch = ++searchRequestId.current;
+
+        const timer = setTimeout(async () => {
+            try {
+                setIsSearchingSolutions(true);
+                const parsedAdults = Math.max(1, Number(adultsCount) || 1);
+                const parsedChildren = Math.max(0, Number(childrenCount) || 0);
+
+                const searchRes = await bookingsService.searchRooms({
+                    propertyId,
+                    checkInDate: newCheckInDate,
+                    checkOutDate: newCheckOutDate,
+                    adults: parsedAdults,
+                    children: parsedChildren,
+                    childAges: childAges.length > 0 ? childAges : undefined,
+                    infants: Number(infantsCount) > 0 ? Number(infantsCount) : undefined,
+                    includeSoldOut: true,
+                    isGroupBooking: booking?.isGroupBooking,
+                    groupSize: booking?.isGroupBooking ? (parsedAdults + parsedChildren) : undefined,
+                });
+
+                if (currentSearch !== searchRequestId.current) return;
+
+                if (searchRes.accommodationSolutions && searchRes.accommodationSolutions.length > 0) {
+                    setAccommodationSolutions(searchRes.accommodationSolutions);
+                    
+                    // Maintain current selected solution if possible, else pick top recommended
+                    setSelectedSolution((prev: any) => {
+                        if (prev) {
+                            const matching = searchRes.accommodationSolutions?.find((s: any) => s.id === prev.id);
+                            if (matching) return matching;
+                        }
+                        return searchRes.accommodationSolutions![0];
+                    });
+                } else {
+                    setAccommodationSolutions(null);
+                    setSelectedSolution(null);
+                }
+            } catch (err: any) {
+                console.error('[ReschedulePage] Failed to search accommodation solutions:', err);
+                setAccommodationSolutions(null);
+                setSelectedSolution(null);
+            } finally {
+                if (currentSearch === searchRequestId.current) {
+                    setIsSearchingSolutions(false);
+                }
+            }
+        }, 350);
+
+        return () => clearTimeout(timer);
+    }, [propertyId, newCheckInDate, newCheckOutDate, adultsCount, childrenCount, childAges, infantsCount, booking?.isGroupBooking]);
+
+    // Pre-populate physical room assignments when solution is selected
+    useEffect(() => {
+        if (!selectedSolution || !booking) return;
+
+        const allocatedRooms = selectedSolution.rooms || selectedSolution.allocatedRooms || [];
+        const originalRooms = booking.bookingRooms || [];
+
+        setSolutionRoomAssignments(prev => {
+            const updated: Record<number, string> = { ...prev };
+            allocatedRooms.forEach((ar: any, idx: number) => {
+                // If room assignment not already selected, try to match original room of same roomTypeId
+                if (!updated[idx]) {
+                    const match = originalRooms.find((obr: any) => obr.room?.roomTypeId === ar.roomTypeId || obr.roomTypeId === ar.roomTypeId);
+                    if (match && match.roomId) {
+                        const backendAvailableRooms = ar.availableRooms || selectedSolution.availableRoomsByRoomType?.[ar.roomTypeId] || [];
+                        const isStillAvail = backendAvailableRooms.length > 0
+                            ? backendAvailableRooms.some((r: any) => r.id === match.roomId)
+                            : true;
+                        if (isStillAvail) {
+                            updated[idx] = match.roomId;
+                        }
+                    }
+                }
+            });
+            return updated;
+        });
+    }, [selectedSolution, booking]);
+
+    // ── Build roomAllocations Payload ─────────────────────────────────────────
+    const activePlanDetails = selectedSolution?.ratesByMealPlan?.[selectedMealPlan || 'EP'];
+    const activeRatePlanId = activePlanDetails?.ratePlanId || selectedSolution?.ratePlanId || undefined;
+
+    const allocatedRooms = selectedSolution?.rooms || selectedSolution?.allocatedRooms || [];
+
+    const roomAllocationsPayload = useMemo(() => {
+        if (!selectedSolution || allocatedRooms.length === 0) return undefined;
+
+        return allocatedRooms.map((ar: any, idx: number) => {
+            const assignedRoomId = solutionRoomAssignments[idx];
+            const isAc = roomAcSelections[idx] !== undefined ? roomAcSelections[idx] : (ar.isAcSelected ?? (ar.acOption !== 'NON_AC_ONLY'));
+
+            return {
+                roomTypeId: ar.roomTypeId,
+                roomId: assignedRoomId || undefined,
+                adults: ar.adults,
+                children: ar.children,
+                childAges: ar.childAges || (ar.children > 0 ? childAges.slice(0, ar.children) : []),
+                infants: ar.infants || 0,
+                extraAdults: ar.extraAdults || 0,
+                extraChildren: ar.extraChildren || 0,
+                ratePlanId: ar.ratePlanId || activeRatePlanId,
+                mealPlan: selectedMealPlan || 'EP',
+                isAcSelected: isAc,
+            };
+        });
+    }, [selectedSolution, allocatedRooms, solutionRoomAssignments, roomAcSelections, childAges, activeRatePlanId, selectedMealPlan]);
+
+    // ── Price preview calculation ─────────────────────────────────────────────
+    useEffect(() => {
+        const parsedAdults = Math.max(1, Number(adultsCount) || 1);
+        const parsedChildren = Math.max(0, Number(childrenCount) || 0);
+
+        if (!booking || !newCheckInDate || !newCheckOutDate) {
+            setNewPricePreview(null);
+            return;
+        }
+
+        const fetchPreview = async () => {
+            try {
+                setIsCalculatingPreview(true);
+                const roomCount = allocatedRooms.length > 0 ? allocatedRooms.length : (booking.bookingRooms?.length || 1);
+                const preview = await bookingsService.calculatePrice({
+                    roomTypeId: allocatedRooms[0]?.roomTypeId || booking.roomTypeId || undefined,
+                    checkInDate: newCheckInDate,
+                    checkOutDate: newCheckOutDate,
+                    adultsCount: parsedAdults,
+                    childrenCount: parsedChildren,
+                    childAges: childAges.length > 0 ? childAges : undefined,
+                    infantsCount: Number(infantsCount) > 0 ? Number(infantsCount) : undefined,
+                    couponCode: booking.couponCode || undefined,
+                    referralCode: booking.channelPartner?.referralCode || undefined,
+                    currency: booking.bookingCurrency || 'INR',
+                    isGroupBooking: booking.isGroupBooking,
+                    groupSize: booking.isGroupBooking ? (parsedAdults + parsedChildren) : undefined,
+                    roomCount,
+                    ratePlanId: activeRatePlanId,
+                    mealPlan: selectedMealPlan || 'EP',
+                    isAcSelected: roomAllocationsPayload?.[0]?.isAcSelected ?? true,
+                    roomAllocations: roomAllocationsPayload,
+                    overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
+                    isOverrideInclusive: true,
+                });
+                setNewPricePreview(preview);
+            } catch (err) {
+                console.error('[ReschedulePage] Failed to calculate price preview:', err);
+                setNewPricePreview(null);
+            } finally {
+                setIsCalculatingPreview(false);
+            }
+        };
+
+        const timer = setTimeout(fetchPreview, 350);
+        return () => clearTimeout(timer);
+    }, [
+        booking,
+        newCheckInDate,
+        newCheckOutDate,
+        adultsCount,
+        childrenCount,
+        childAges,
+        infantsCount,
+        activeRatePlanId,
+        selectedMealPlan,
+        roomAllocationsPayload,
+        allocatedRooms,
+        useRescheduleOverride,
+        rescheduleOverrideTotal,
+    ]);
+
+    // ── Derived Financial Metrics ─────────────────────────────────────────────
     const originalTotal = Number(booking?.totalAmount || 0);
     const calculatedNewTotal = newPricePreview?.totalAmount ?? originalTotal;
     const calculatedRateDiff = calculatedNewTotal - originalTotal;
@@ -233,210 +405,14 @@ export default function ReschedulePage() {
         }
     }, [showKeepOriginalOption, keepOriginalAmount]);
 
-    // ── Price preview ─────────────────────────────────────────────────────────
-    useEffect(() => {
-        const parsedAdults = Number(adultsCount);
-        const parsedChildren = Number(childrenCount);
-        const parsedExtraAdults = Number(extraAdultsCount);
-        const parsedExtraChildren = Number(extraChildrenCount);
+    const paidAmount = Number(booking?.paidAmount || 0);
+    const activeNewTotal = useRescheduleOverride && rescheduleOverrideTotal
+        ? Number(rescheduleOverrideTotal)
+        : (newPricePreview?.totalAmount ?? originalTotal);
+    const newBalanceDue = activeNewTotal - paidAmount;
+    const rateDiff = activeNewTotal - originalTotal;
 
-        if (!booking || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId) || isNaN(parsedAdults) || parsedAdults < 1) {
-            setNewPricePreview(null);
-            return;
-        }
-
-        const fetchPreview = async () => {
-            try {
-                setIsCalculatingPreview(true);
-                const roomCount = selectedRoomIds.length > 0 ? selectedRoomIds.length : (booking.bookingRooms?.length || 1);
-                const preview = await bookingsService.calculatePrice({
-                    roomTypeId: rescheduleRoomTypeId || undefined,
-                    checkInDate: newCheckInDate,
-                    checkOutDate: newCheckOutDate,
-                    adultsCount: Math.max(1, parsedAdults || 1),
-                    childrenCount: Math.max(0, parsedChildren || 0),
-                    extraAdultsCount: Math.max(0, parsedExtraAdults || 0),
-                    extraChildrenCount: Math.max(0, parsedExtraChildren || 0),
-                    couponCode: booking.couponCode || undefined,
-                    referralCode: booking.channelPartner?.referralCode || undefined,
-                    currency: booking.bookingCurrency || 'INR',
-                    isGroupBooking: booking.isGroupBooking,
-                    groupSize: booking.isGroupBooking ? (Math.max(1, parsedAdults || 1) + Math.max(0, parsedChildren || 0)) : undefined,
-                    roomCount,
-                    overrideTotal:
-                        useRescheduleOverride && rescheduleOverrideTotal
-                            ? Number(rescheduleOverrideTotal)
-                            : undefined,
-                });
-                setNewPricePreview(preview);
-            } catch (err) {
-                console.error('Failed to calculate price preview', err);
-                setNewPricePreview(null);
-            } finally {
-                setIsCalculatingPreview(false);
-            }
-        };
-
-        const timer = setTimeout(fetchPreview, 400);
-        return () => clearTimeout(timer);
-    }, [booking, newCheckInDate, newCheckOutDate, useRescheduleOverride, rescheduleOverrideTotal, rescheduleRoomTypeId, adultsCount, childrenCount, extraAdultsCount, extraChildrenCount, selectedRoomIds]);
-
-    // ── Available rooms ───────────────────────────────────────────────────────
-    useEffect(() => {
-        const parsedAdults = Number(adultsCount);
-        const parsedChildren = Number(childrenCount);
-
-        if (!booking || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !rescheduleRoomTypeId) || isNaN(parsedAdults) || parsedAdults < 1) {
-            setAvailableRooms([]);
-            return;
-        }
-
-        const fetchAvailableRooms = async () => {
-            try {
-                setIsLoadingRooms(true);
-                setGroupUnavailableReason(null);
-                const checkRes = await bookingsService.checkAvailability({
-                    roomTypeId: booking.isGroupBooking ? undefined : (rescheduleRoomTypeId || undefined),
-                    checkInDate: newCheckInDate,
-                    checkOutDate: newCheckOutDate,
-                    propertyId,
-                    isGroupBooking: booking.isGroupBooking,
-                    groupSize: booking.isGroupBooking ? (Math.max(1, parsedAdults || 1) + Math.max(0, parsedChildren || 0)) : undefined,
-                    isAdmin: true,
-                    excludeBookingId: booking.id,
-                });
-                setAvailableRooms(checkRes.roomList || []);
-                if (booking.isGroupBooking && !checkRes.available && checkRes.groupUnavailableReason) {
-                    setGroupUnavailableReason(checkRes.groupUnavailableReason);
-                }
-            } catch (err: any) {
-                setAvailableRooms([]);
-                const msg = err.response?.data?.message || 'Failed to check availability';
-                toast.error(msg);
-            } finally {
-                setIsLoadingRooms(false);
-            }
-        };
-
-        const timer = setTimeout(fetchAvailableRooms, 500);
-        return () => clearTimeout(timer);
-    }, [booking, newCheckInDate, newCheckOutDate, propertyId, rescheduleRoomTypeId, adultsCount, childrenCount]);
-
-    // ── Helpers to resolve selected rooms ─────────────────────────────────────
-    const getRoomNumber = (roomId: string) => {
-        const roomInAvailable = availableRooms.find(r => r.id === roomId);
-        if (roomInAvailable) return roomInAvailable.roomNumber;
-
-        if (booking?.bookingRooms) {
-            const br = booking.bookingRooms.find((br: any) => br.roomId === roomId);
-            if (br?.room) return br.room.roomNumber;
-        }
-
-        return null;
-    };
-
-    const displayRooms = useMemo(() => {
-        const list = [...availableRooms];
-        if (!booking) return list;
-        
-        booking.bookingRooms?.forEach((br: any) => {
-            const originalRoomTypeId = booking.roomTypeId || booking.roomType?.id || (booking.bookingRooms?.[0]?.room?.roomType as any)?.id;
-            
-            // Only display original rooms if their room category matches the currently selected category
-            if (
-                selectedRoomIds.includes(br.roomId) && 
-                !list.some(r => r.id === br.roomId) &&
-                (booking.isGroupBooking || originalRoomTypeId === rescheduleRoomTypeId)
-            ) {
-                list.push({
-                    id: br.roomId,
-                    name: `Unit ${br.room?.roomNumber}`,
-                    roomNumber: br.room?.roomNumber,
-                    roomType: br.room?.roomType?.name || 'Standard',
-                    capacity: br.room?.roomType
-                        ? (br.room.roomType.groupMaxOccupancy || (br.room.roomType as any).totalMaxOccupancy || (br.room.roomType.maxAdults + (br.room.roomType.maxChildren || 0)))
-                        : 2,
-                });
-            }
-        });
-
-        return list;
-    }, [availableRooms, selectedRoomIds, booking, rescheduleRoomTypeId]);
-    const selectedRoomTypesString = useMemo(() => {
-        if (!booking) return 'No Room Type';
-        
-        const roomsToUse = selectedRoomIds.length > 0 
-            ? displayRooms.filter(r => selectedRoomIds.includes(r.id))
-            : (booking.bookingRooms || []);
-
-        const types = roomsToUse.map((r: any) => {
-            if (r.roomType) return r.roomType;
-            if (r.room?.roomType?.name) return r.room.roomType.name;
-            return null;
-        }).filter(Boolean);
-
-        const uniqueTypes = Array.from(new Set(types));
-        if (uniqueTypes.length === 0) return 'No Room Type';
-        return uniqueTypes.join(', ');
-    }, [displayRooms, selectedRoomIds, booking]);
-
-    // ── Auto-select rooms when list loads ─────────────────────────────────────
-    useEffect(() => {
-        if (!booking || availableRooms.length === 0) return;
-        
-        // If dates are unchanged from the original booking, keep the original rooms selected
-        const originalRoomIds = booking.bookingRooms?.map((br: any) => br.roomId) || [];
-        const originalCheckIn = format(new Date(booking.checkInDate), 'yyyy-MM-dd');
-        const originalCheckOut = format(new Date(booking.checkOutDate), 'yyyy-MM-dd');
-        const isSameDates = newCheckInDate === originalCheckIn && newCheckOutDate === originalCheckOut;
-
-        // Filter current selection to only keep rooms that are still available OR are original rooms on same dates
-        const validSelectedRoomIds = selectedRoomIds.filter(id =>
-            availableRooms.some(r => r.id === id) || (isSameDates && originalRoomIds.includes(id))
-        );
-
-        if (booking.isGroupBooking) {
-            // For group bookings, make sure we select defaultCount rooms if possible
-            const defaultCount = booking.bookingRooms?.length || 1;
-            if (validSelectedRoomIds.length < defaultCount) {
-                const additionalNeeded = defaultCount - validSelectedRoomIds.length;
-                const unselectedAvailable = availableRooms
-                    .filter(r => !validSelectedRoomIds.includes(r.id))
-                    .map(r => r.id);
-                setSelectedRoomIds([
-                    ...validSelectedRoomIds,
-                    ...unselectedAvailable.slice(0, additionalNeeded)
-                ]);
-            } else {
-                setSelectedRoomIds(validSelectedRoomIds);
-            }
-        } else {
-            // For standard bookings, make sure we select up to requiredRooms
-            if (validSelectedRoomIds.length < requiredRooms) {
-                const additionalNeeded = requiredRooms - validSelectedRoomIds.length;
-                const unselectedAvailable = availableRooms
-                    .filter(r => !validSelectedRoomIds.includes(r.id))
-                    .map(r => r.id);
-                setSelectedRoomIds([
-                    ...validSelectedRoomIds,
-                    ...unselectedAvailable.slice(0, additionalNeeded)
-                ]);
-            } else {
-                setSelectedRoomIds(validSelectedRoomIds);
-            }
-        }
-    }, [availableRooms, booking, requiredRooms, newCheckInDate, newCheckOutDate]);
-
-    const toggleRoomSelection = (roomId: string) => {
-        setSelectedRoomIds((prev) => {
-            if (prev.includes(roomId)) {
-                return prev.filter((id) => id !== roomId);
-            }
-            return [...prev, roomId];
-        });
-    };
-
-    // ── Mutation ──────────────────────────────────────────────────────────────
+    // ── Reschedule Mutation ───────────────────────────────────────────────────
     const rescheduleMutation = useMutation({
         mutationFn: bookingsService.reschedule,
         onSuccess: () => {
@@ -462,6 +438,7 @@ export default function ReschedulePage() {
             toast.error('Rescheduling is only allowed within 3 months (90 days) of the original check-in date.');
             return;
         }
+
         const finalGuestFirstName = isGuestSameAsBooker ? bookerFirstName : guestFirstName;
         const finalGuestLastName = isGuestSameAsBooker ? bookerLastName : guestLastName;
         const finalGuestEmail = isGuestSameAsBooker ? bookerEmail : guestEmail;
@@ -472,36 +449,43 @@ export default function ReschedulePage() {
         if (!bookerPhone.trim()) { toast.error('Booker Phone Number is required.'); return; }
         if (!finalGuestFirstName.trim()) { toast.error('Guest First Name is required.'); return; }
 
-        if (!booking.isGroupBooking && selectedRoomIds.length < requiredRooms) {
-            toast.error(`Please select at least ${requiredRooms} room(s) to accommodate all guests.`);
+        if (!booking.isGroupBooking && (!selectedSolution || allocatedRooms.length === 0)) {
+            toast.error('Please select an accommodation solution to host your party.');
             return;
         }
-        if (selectedRoomIds.length === 0) {
-            toast.error('Please select at least one room.');
+
+        if (useRescheduleOverride && !rescheduleOverrideTotal) {
+            toast.error('Please specify the override total price.');
             return;
         }
-        if (useRescheduleOverride) {
-            if (!rescheduleOverrideTotal) { toast.error('Please specify the override total price.'); return; }
-        }
+
+        const selectedRoomIds = Object.values(solutionRoomAssignments).filter(Boolean);
 
         rescheduleMutation.mutate({
             id: booking.id,
             data: {
                 checkInDate: newCheckInDate,
                 checkOutDate: newCheckOutDate,
-                selectedRoomIds,
+                roomAllocations: roomAllocationsPayload,
+                selectedRoomIds: selectedRoomIds.length > 0 ? selectedRoomIds : undefined,
                 adultsCount: Number(adultsCount),
                 childrenCount: Number(childrenCount),
-                extraAdultsCount: Number(extraAdultsCount || 0),
-                extraChildrenCount: Number(extraChildrenCount || 0),
+                childAges: childAges.length > 0 ? childAges : undefined,
+                infantsCount: Number(infantsCount) || undefined,
+                extraAdultsCount: roomAllocationsPayload ? roomAllocationsPayload.reduce((sum: number, a: any) => sum + (a.extraAdults || 0), 0) : undefined,
+                extraChildrenCount: roomAllocationsPayload ? roomAllocationsPayload.reduce((sum: number, a: any) => sum + (a.extraChildren || 0), 0) : undefined,
+                ratePlanId: activeRatePlanId,
+                mealPlan: selectedMealPlan || 'EP',
+                isAcSelected: roomAllocationsPayload?.[0]?.isAcSelected ?? true,
                 overrideTotal: useRescheduleOverride && rescheduleOverrideTotal ? Number(rescheduleOverrideTotal) : undefined,
                 overrideReason: useRescheduleOverride ? (rescheduleOverrideReason || undefined) : undefined,
-                roomTypeId: booking.isGroupBooking ? undefined : (rescheduleRoomTypeId || undefined),
+                isOverrideInclusive: true,
+                roomTypeId: allocatedRooms[0]?.roomTypeId || booking.roomTypeId || undefined,
                 guestName: `${bookerFirstName} ${bookerLastName || ''}`.trim(),
                 guestEmail: bookerEmail || undefined,
                 guestPhone: bookerPhone,
                 whatsappNumber: bookerWhatsapp || undefined,
-                specialRequests: specialRequests,
+                specialRequests: specialRequests || undefined,
                 guests: [
                     {
                         id: booking.guests?.[0]?.id,
@@ -517,37 +501,11 @@ export default function ReschedulePage() {
     };
 
     // ── Loading / Error states ────────────────────────────────────────────────
-    if (isLoadingBooking || (!rescheduleRoomTypeId && !hasResolutionError)) {
+    if (isLoadingBooking) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">Resolving stay details...</p>
-            </div>
-        );
-    }
-
-    if (hasResolutionError) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 max-w-md mx-auto text-center space-y-4">
-                <AlertCircle className="h-12 w-12 text-amber-500" />
-                <h3 className="text-lg font-bold text-foreground">Unable to Resolve Room Type</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                    We couldn't verify the room category linked to this booking. This can happen if the room type is inactive or belongs to a different configuration.
-                </p>
-                <div className="flex gap-3 pt-2">
-                    <button 
-                        onClick={() => navigate('/bookings')} 
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-bold text-sm"
-                    >
-                        Go to Bookings
-                    </button>
-                    <button 
-                        onClick={() => window.location.reload()} 
-                        className="px-4 py-2 border border-border rounded-xl font-bold text-sm hover:bg-muted"
-                    >
-                        Retry Loading
-                    </button>
-                </div>
             </div>
         );
     }
@@ -557,39 +515,30 @@ export default function ReschedulePage() {
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
                 <AlertCircle className="h-10 w-10 text-destructive" />
                 <p className="text-sm font-bold text-destructive">Booking not found or failed to load.</p>
-                <button onClick={() => navigate('/bookings')} className="text-primary underline text-sm font-bold">
+                <button onClick={() => navigate('/bookings')} className="text-primary underline text-sm font-bold cursor-pointer">
                     Back to Bookings
                 </button>
             </div>
         );
     }
 
-    // ── Price helper ──────────────────────────────────────────────────────────
-    const paidAmount = Number(booking.paidAmount || 0);
-    const activeNewTotal =
-        useRescheduleOverride && rescheduleOverrideTotal
-            ? Number(rescheduleOverrideTotal)
-            : (newPricePreview?.totalAmount ?? originalTotal);
-    const newBalanceDue = activeNewTotal - paidAmount;
-    const rateDiff = activeNewTotal - originalTotal;
-
     return (
         <>
-            {/* Full Page Loader Overlay */}
+            {/* Full Page Loader Overlay during submit */}
             {rescheduleMutation.isPending && (
                 <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <h2 className="text-xl font-black text-foreground uppercase tracking-widest">Processing Reschedule...</h2>
-                    <p className="text-sm font-bold text-muted-foreground mt-2">Please wait, do not close or refresh this page.</p>
+                    <p className="text-sm font-bold text-muted-foreground mt-2">Please wait, updating dates and room assignments.</p>
                 </div>
             )}
-            
-            {/* ── Calendar Modal ── */}
+
+            {/* Calendar Modal */}
             {showCalendarModal && (
                 <RescheduleCalendarModal
                     booking={booking}
-                    roomTypeId={rescheduleRoomTypeId || ''}
-                    roomTypeName={roomTypes?.find((rt) => rt.id === rescheduleRoomTypeId)?.name || 'Selected Room Type'}
+                    roomTypeId={allocatedRooms[0]?.roomTypeId || booking.roomTypeId || ''}
+                    roomTypeName={allocatedRooms[0]?.roomTypeName || booking.roomType?.name || 'Selected Room Type'}
                     propertyId={propertyId}
                     roomTypes={roomTypes}
                     onClose={() => setShowCalendarModal(false)}
@@ -601,51 +550,108 @@ export default function ReschedulePage() {
                 />
             )}
 
-            {/* ── Page ── */}
+            {/* Full Accommodation Solutions Modal */}
+            {showFullSolutionsModal && accommodationSolutions && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-card w-full max-w-4xl max-h-[85vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden">
+                        <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between">
+                            <div>
+                                <span className="text-[10px] font-black text-primary uppercase tracking-widest block">Accommodation Solutions</span>
+                                <h3 className="text-lg font-black text-foreground">
+                                    All Accommodation Solutions ({accommodationSolutions.length} Available)
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowFullSolutionsModal(false)}
+                                className="p-2 rounded-xl text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                            {accommodationSolutions.map((sol: any) => (
+                                <AccommodationPackageCard
+                                    key={sol.id}
+                                    solution={sol}
+                                    isSelected={selectedSolution?.id === sol.id}
+                                    adultsCount={Number(adultsCount)}
+                                    childrenCount={Number(childrenCount)}
+                                    selectedMealPlan={selectedMealPlan}
+                                    onMealPlanChange={(mp) => setSelectedMealPlan(mp as any)}
+                                    roomAcSelections={roomAcSelections}
+                                    onRoomAcToggle={(idx, isAc) => setRoomAcSelections(prev => ({ ...prev, [idx]: isAc }))}
+                                    onSelect={(selected) => {
+                                        setSelectedSolution(selected);
+                                        setShowFullSolutionsModal(false);
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Accommodation Solver Modal */}
+            <CustomAccommodationModal
+                isOpen={showCustomSolutionModal}
+                onClose={() => setShowCustomSolutionModal(false)}
+                roomTypes={roomTypes || []}
+                checkInDate={newCheckInDate}
+                checkOutDate={newCheckOutDate}
+                requiredAdults={Number(adultsCount) || 1}
+                requiredChildren={Number(childrenCount) || 0}
+                requiredInfants={Number(infantsCount) || 0}
+                requiredChildAges={childAges}
+                onApplyCustomSolution={(customSolution: any, customAssignments?: Record<number, string>) => {
+                    setSelectedSolution(customSolution);
+                    if (customAssignments) {
+                        setSolutionRoomAssignments(customAssignments);
+                    }
+                    setShowCustomSolutionModal(false);
+                    toast.success('Custom accommodation package configured!');
+                }}
+            />
+
+            {/* ── Page Layout ── */}
             <div className="flex flex-col h-full min-h-screen bg-background">
-                {/* Header */}
+                {/* Sticky Header */}
                 <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-md border-b border-border/50 px-4 sm:px-6 py-4 flex-shrink-0">
                     <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
-                        {/* Left: breadcrumb + title */}
+                        {/* Breadcrumbs */}
                         <div className="flex items-center gap-3 min-w-0">
                             <button
                                 onClick={() => navigate(-1)}
-                                className="p-2 rounded-xl hover:bg-muted transition-all shrink-0 text-muted-foreground hover:text-foreground"
+                                className="p-2 rounded-xl hover:bg-muted transition-all shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
                                 aria-label="Go back"
                             >
                                 <ArrowLeft className="h-5 w-5" />
                             </button>
                             <div className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase tracking-wider truncate">
-                                <span
-                                    className="cursor-pointer hover:text-foreground transition-colors"
-                                    onClick={() => navigate('/bookings')}
-                                >
+                                <span className="cursor-pointer hover:text-foreground transition-colors" onClick={() => navigate('/bookings')}>
                                     Bookings
                                 </span>
                                 <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                                <span
-                                    className="cursor-pointer hover:text-foreground transition-colors truncate max-w-[120px]"
-                                    onClick={() => navigate(`/bookings/${booking.id}`)}
-                                >
+                                <span className="cursor-pointer hover:text-foreground transition-colors truncate max-w-[120px]" onClick={() => navigate(`/bookings/${booking.id}`)}>
                                     {booking.bookingNumber}
                                 </span>
                                 <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                                <span className="text-primary">Reschedule</span>
+                                <span className="text-primary font-bold">Reschedule</span>
                             </div>
                         </div>
 
-                        {/* Right: action buttons */}
+                        {/* Action buttons */}
                         <div className="flex items-center gap-3 shrink-0">
                             <button
                                 onClick={() => navigate(-1)}
-                                className="px-4 py-2 rounded-xl border border-border font-bold text-sm hover:bg-muted transition-colors text-foreground"
+                                className="px-4 py-2 rounded-xl border border-border font-bold text-sm hover:bg-muted transition-colors text-foreground cursor-pointer"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSubmit}
                                 disabled={rescheduleMutation.isPending || !newCheckInDate || !newCheckOutDate}
-                                className="inline-flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-xl font-black text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground rounded-xl font-black text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 {rescheduleMutation.isPending ? (
                                     <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
@@ -657,21 +663,18 @@ export default function ReschedulePage() {
                     </div>
                 </div>
 
-                {/* Page heading */}
+                {/* Banner */}
                 <div className="bg-gradient-to-br from-primary/8 via-transparent to-transparent border-b border-border/30 px-4 sm:px-6 py-6">
                     <div className="max-w-screen-2xl mx-auto flex items-center gap-5">
                         <div className="p-4 bg-primary text-primary-foreground rounded-2xl shadow-lg shadow-primary/20 rotate-3 shrink-0">
                             <Calendar className="h-7 w-7" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black tracking-tight text-foreground">Update Booking</h1>
+                            <h1 className="text-2xl font-black tracking-tight text-foreground">Reschedule Booking</h1>
                             <p className="text-sm text-muted-foreground font-medium mt-0.5 flex items-center gap-2 flex-wrap">
                                 <span>Booking: <span className="text-primary font-bold">{booking.bookingNumber}</span></span>
-                                {/* Booking type badge */}
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-black uppercase tracking-wider ${
-                                    booking.isGroupBooking
-                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                                        : 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                                    booking.isGroupBooking ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
                                 }`}>
                                     {booking.isGroupBooking ? '🏨 Group Booking' : '🛏 Standard Booking'}
                                 </span>
@@ -687,641 +690,446 @@ export default function ReschedulePage() {
 
                 {/* Content Grid */}
                 <div className="flex-1 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 py-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8">
-                        {/* ── LEFT COLUMN ── */}
-                        <div className="space-y-6">
-                            {/* 1. Guest & Room Details Card */}
-                            <div className="bg-card border border-border/60 rounded-2xl p-5 space-y-4 shadow-sm">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">
-                                        Booking Details
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsEditingGuestDetails(!isEditingGuestDetails)}
-                                        className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-black uppercase tracking-wider transition-all"
-                                    >
-                                        {isEditingGuestDetails ? 'View Stay Details' : 'Edit Guest Details'}
-                                    </button>
-                                </div>
-
-                                {!isEditingGuestDetails ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-200">
-                                        <div className="bg-muted/30 p-4 rounded-xl border border-border/30 space-y-2">
-                                            <div className="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-wider">
-                                                <User className="h-4 w-4" />
-                                                <span>Guest & Booker Info</span>
-                                            </div>
-                                            <div className="space-y-1 pl-6">
-                                                <p className="text-sm font-bold text-foreground">{bookerFirstName} {bookerLastName}</p>
-                                                {bookerPhone && <p className="text-xs text-muted-foreground">Phone: {bookerPhone}</p>}
-                                                {bookerEmail && <p className="text-xs text-muted-foreground">Email: {bookerEmail}</p>}
-                                                {bookerWhatsapp && <p className="text-xs text-muted-foreground">WhatsApp: {bookerWhatsapp}</p>}
-                                                {!isGuestSameAsBooker && (
-                                                    <div className="pt-2 mt-2 border-t border-border/30 space-y-1">
-                                                        <p className="text-[10px] font-black text-primary uppercase tracking-wider">Primary Guest</p>
-                                                        <p className="text-xs font-bold text-foreground">{guestFirstName} {guestLastName}</p>
-                                                        {guestPhone && <p className="text-[10px] text-muted-foreground">Phone: {guestPhone}</p>}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-muted/30 p-4 rounded-xl border border-border/30 space-y-2">
-                                            <div className="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-wider">
-                                                <House className="h-4 w-4" />
-                                                <span>Room & Stay Info</span>
-                                            </div>
-                                            <div className="space-y-1 pl-6 text-xs text-muted-foreground">
-                                                <p className="font-bold text-foreground">
-                                                    {selectedRoomTypesString}
-                                                </p>
-                                                <p>
-                                                    Unit:{' '}
-                                                    <span className="font-semibold text-foreground">
-                                                        {selectedRoomIds.length > 0
-                                                            ? selectedRoomIds.map(id => getRoomNumber(id)).filter(Boolean).join(', ')
-                                                            : (booking.bookingRooms?.map((br: any) => br.room?.roomNumber).filter(Boolean).join(', ') || 'Unassigned')}
-                                                    </span>
-                                                </p>
-                                                <p>
-                                                    Stay:{' '}
-                                                    <span className="font-semibold text-foreground">
-                                                        {newCheckInDate && newCheckOutDate
-                                                            ? `${format(new Date(newCheckInDate), 'MMM d')} – ${format(new Date(newCheckOutDate), 'MMM d, yyyy')}`
-                                                            : 'N/A'}
-                                                    </span>
-                                                </p>
-                                                <p>
-                                                    Guests:{' '}
-                                                    <span className="font-semibold text-foreground">{adultsCount} Adults, {childrenCount} Children</span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="sm:col-span-2 bg-muted/20 p-4 rounded-xl border border-border/30 space-y-1">
-                                            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                                                Special Notes / Requests
-                                            </div>
-                                            {specialRequests ? (
-                                                <p className="text-xs text-muted-foreground italic pl-1 leading-relaxed">
-                                                    "{specialRequests}"
-                                                </p>
-                                            ) : (
-                                                <p className="text-xs text-muted-foreground/60 italic pl-1 leading-relaxed">
-                                                    No special requests or notes recorded.
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-5 animate-in fade-in duration-200">
-                                        {/* Booker Form */}
-                                        <div className="bg-muted/20 border border-border/30 rounded-xl p-4 space-y-4">
-                                            <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
-                                                <User className="h-3.5 w-3.5" /> Booker / Primary Contact
-                                            </h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {[
-                                                    { label: 'First Name *', value: bookerFirstName, set: setBookerFirstName, type: 'text' },
-                                                    { label: 'Last Name (Optional)', value: bookerLastName, set: setBookerLastName, type: 'text' },
-                                                    { label: 'Email', value: bookerEmail, set: setBookerEmail, type: 'email' },
-                                                    { label: 'Phone *', value: bookerPhone, set: setBookerPhone, type: 'text' },
-                                                ].map((f) => (
-                                                    <div key={f.label}>
-                                                        <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">{f.label}</label>
-                                                        <input
-                                                            type={f.type}
-                                                            value={f.value}
-                                                            onChange={(e) => f.set(e.target.value)}
-                                                            className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                                        />
-                                                    </div>
-                                                ))}
-                                                <div className="sm:col-span-2">
-                                                    <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">WhatsApp</label>
-                                                    <input type="text" value={bookerWhatsapp} onChange={(e) => setBookerWhatsapp(e.target.value)} className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none" />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Guest Form */}
-                                        <div className="bg-muted/20 border border-border/30 rounded-xl p-4 space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
-                                                    <Users className="h-3.5 w-3.5" /> Guest Details (Guest 1)
-                                                </h4>
-                                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isGuestSameAsBooker}
-                                                        onChange={(e) => setIsGuestSameAsBooker(e.target.checked)}
-                                                        className="rounded border-border/50 text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer"
-                                                    />
-                                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Same as Booker</span>
-                                                </label>
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {[
-                                                    { label: 'First Name *', value: guestFirstName, set: setGuestFirstName, type: 'text' },
-                                                    { label: 'Last Name (Optional)', value: guestLastName, set: setGuestLastName, type: 'text' },
-                                                    { label: 'Email', value: guestEmail, set: setGuestEmail, type: 'email' },
-                                                    { label: 'Phone', value: guestPhone, set: setGuestPhone, type: 'text' },
-                                                ].map((f) => (
-                                                    <div key={f.label}>
-                                                        <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">{f.label}</label>
-                                                        <input
-                                                            type={f.type}
-                                                            value={f.value}
-                                                            onChange={(e) => f.set(e.target.value)}
-                                                            disabled={isGuestSameAsBooker}
-                                                            className={`w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none ${isGuestSameAsBooker ? 'opacity-60 cursor-not-allowed bg-muted/50' : ''}`}
-                                                        />
-                                                    </div>
-                                                ))}
-                                                <div className="sm:col-span-2">
-                                                    <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 pl-1">WhatsApp</label>
-                                                    <input
-                                                        type="text"
-                                                        value={guestWhatsapp}
-                                                        onChange={(e) => setGuestWhatsapp(e.target.value)}
-                                                        disabled={isGuestSameAsBooker}
-                                                        className={`w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none ${isGuestSameAsBooker ? 'opacity-60 cursor-not-allowed bg-muted/50' : ''}`}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {/* Special Requests Form */}
-                                        <div className="bg-muted/20 border border-border/30 rounded-xl p-4 space-y-2">
-                                            <label className="block text-[10px] font-black text-primary uppercase tracking-widest pl-1">
-                                                Special Requests / Notes (Optional)
-                                            </label>
-                                            <textarea
-                                                value={specialRequests}
-                                                onChange={(e) => setSpecialRequests(e.target.value)}
-                                                placeholder="Enter any special requests or notes from the guest..."
-                                                rows={3}
-                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* 2. 90-day alert */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8">
+                        {/* ── LEFT COLUMN (7 COLS) ── */}
+                        <div className="lg:col-span-7 space-y-6">
+                            {/* 1. 90-Day Policy Alert */}
                             <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-3">
                                 <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                                 <p className="text-sm text-primary font-medium leading-relaxed">
-                                    Rescheduling must be within 3 months (90 days) of the original check-in:{' '}
+                                    Rescheduling is valid within 3 months (90 days) of the original check-in date:{' '}
                                     <span className="font-bold underline">{format(new Date(booking.checkInDate), 'MMM d, yyyy')}</span>.
                                 </p>
                             </div>
 
-                            {/* 3. Room Type + Dates */}
+                            {/* 2. Stay Dates & Guest Composition Card */}
                             <div className="bg-card border border-border/60 rounded-2xl p-5 space-y-5 shadow-sm">
-                                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">New Stay Dates</h3>
-                                <div className={booking.isGroupBooking ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'grid grid-cols-1 sm:grid-cols-3 gap-4'}>
-                                    {!booking.isGroupBooking && (
-                                        <div>
-                                            <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Room Type</label>
-                                            <select
-                                                value={rescheduleRoomTypeId || ''}
-                                                onChange={(e) => setRescheduleRoomTypeId(e.target.value)}
-                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
-                                            >
-                                                {roomTypes?.map((rt) => (
-                                                    <option key={rt.id} value={rt.id}>{rt.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">
+                                        1. Stay Dates & Guest Composition
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCalendarModal(true)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline cursor-pointer"
+                                    >
+                                        <Calendar className="h-3.5 w-3.5" /> Calendar View
+                                    </button>
+                                </div>
+
+                                {/* Check-In & Check-Out Pickers */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Check-In</label>
+                                        <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Check-In Date</label>
                                         <input
                                             type="text"
                                             value={newCheckInDate ? newCheckInDate.split('-').reverse().join('/') : ''}
                                             onClick={() => setShowCalendarModal(true)}
                                             readOnly
-                                            placeholder="Select date"
+                                            placeholder="Select check-in"
                                             className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none cursor-pointer"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Check-Out</label>
+                                        <label className="block text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 pl-1">Check-Out Date</label>
                                         <input
                                             type="text"
                                             value={newCheckOutDate ? newCheckOutDate.split('-').reverse().join('/') : ''}
                                             onClick={() => setShowCalendarModal(true)}
                                             readOnly
-                                            placeholder="Select date"
+                                            placeholder="Select check-out"
                                             className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none cursor-pointer"
                                         />
                                     </div>
                                 </div>
 
-                                {/* Guests & Capacity Sub-Cards */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Guests & Capacity</label>
-                                        {selectedRoomType && !booking.isGroupBooking && (
-                                            <span className="text-[10px] font-extrabold text-primary/80 bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-                                                Base Rate Covers: {selectedRoomType.baseAdults ?? 2} Adults, {selectedRoomType.baseChildren ?? 1} Children
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Standard Base Included Guests Card */}
-                                        <div className="p-4 bg-muted/20 border border-border/60 rounded-2xl space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-foreground">
-                                                    <Users className="h-4 w-4 text-primary" />
-                                                    <span>Standard Included Guests</span>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Adults</label>
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        value={adultsCount}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value;
-                                                            if (val === '') {
-                                                                setAdultsCount('');
-                                                            } else {
-                                                                const num = parseInt(val, 10);
-                                                                setAdultsCount(isNaN(num) ? 1 : Math.max(1, num));
-                                                            }
-                                                        }}
-                                                        onBlur={() => {
-                                                            if (adultsCount === '' || Number(adultsCount) < 1) setAdultsCount(1);
-                                                        }}
-                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all outline-none"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Children</label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={childrenCount}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value;
-                                                            if (val === '') {
-                                                                setChildrenCount('');
-                                                            } else {
-                                                                const num = parseInt(val, 10);
-                                                                setChildrenCount(isNaN(num) ? 0 : Math.max(0, num));
-                                                            }
-                                                        }}
-                                                        onBlur={() => {
-                                                            if (childrenCount === '' || isNaN(Number(childrenCount))) setChildrenCount(0);
-                                                        }}
-                                                        className="w-full border border-input bg-background text-foreground rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary hover:border-primary/50 transition-all outline-none"
-                                                    />
-                                                </div>
-                                            </div>
+                                {/* Guest Composition (V2 Occupancy Parity) */}
+                                <div className="space-y-4 pt-2 border-t border-border/40">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {/* Adults */}
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+                                                <Users className="h-3.5 w-3.5 text-primary" /> Adults (12+ yrs)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={adultsCount}
+                                                onChange={(e) => setAdultsCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-black focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                            />
                                         </div>
 
-                                        {/* Extra Guests Card (Optional Paid Bedding) */}
-                                        {!booking.isGroupBooking && (() => {
-                                            const allowsExtraAdults = !selectedRoomType || Number(selectedRoomType.extraAdultPrice || 0) > 0;
-                                            const allowsExtraChildren = !selectedRoomType || Number(selectedRoomType.extraChildPrice || 0) > 0;
+                                        {/* Children */}
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                                                Children (3–12 yrs)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={childrenCount}
+                                                onChange={(e) => {
+                                                    const newCount = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                                    setChildrenCount(newCount);
+                                                    setChildAges(prev => {
+                                                        if (newCount > prev.length) {
+                                                            return [...prev, ...Array(newCount - prev.length).fill(5)];
+                                                        }
+                                                        return prev.slice(0, newCount);
+                                                    });
+                                                }}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-black focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                            />
+                                        </div>
 
-                                            const roomCount = Math.max(selectedRoomIds.length, 1);
-                                            const baseAdultsCap = (selectedRoomType?.baseAdults ?? selectedRoomType?.maxAdults ?? 2) * roomCount;
-                                            const baseChildrenCap = (selectedRoomType?.baseChildren ?? selectedRoomType?.maxChildren ?? 1) * roomCount;
-                                            const maxPhysAdultsCap = (selectedRoomType?.maxPhysicalAdults ?? selectedRoomType?.maxAdults ?? 4) * roomCount;
-                                            const maxPhysChildrenCap = (selectedRoomType?.maxPhysicalChildren ?? selectedRoomType?.maxChildren ?? 2) * roomCount;
-
-                                            const curAdults = Number(adultsCount) || 0;
-                                            const curChildren = Number(childrenCount) || 0;
-
-                                            const isBaseAdultsFilled = curAdults >= baseAdultsCap;
-                                            const isBaseChildrenFilled = curChildren >= baseChildrenCap;
-
-                                            const maxExtraAdultsAllowed = selectedRoomType ? Math.max(0, maxPhysAdultsCap - curAdults) : undefined;
-                                            const maxExtraChildrenAllowed = selectedRoomType ? Math.max(0, maxPhysChildrenCap - curChildren) : undefined;
-
-                                            if (!allowsExtraAdults && !allowsExtraChildren && selectedRoomType) {
-                                                return (
-                                                    <div className="flex items-center gap-2 py-3 px-4 bg-muted/30 rounded-2xl border border-border/50 self-center">
-                                                        <Info className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                        <span className="text-xs font-semibold text-muted-foreground">Extra guests are not allowed for this room type.</span>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return (
-                                                <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
-                                                    <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <UserPlus className="h-4 w-4 text-amber-500" />
-                                                            <span>Extra Guests (Optional)</span>
-                                                        </div>
-                                                        <span className="text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 lowercase">Extra charge applies</span>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        {allowsExtraAdults && (
-                                                            <div>
-                                                                <div className="flex items-center justify-between mb-1.5">
-                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Adults</label>
-                                                                    {maxExtraAdultsAllowed !== undefined && (
-                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraAdultsAllowed}</span>
-                                                                    )}
-                                                                </div>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    max={maxExtraAdultsAllowed}
-                                                                    disabled={!isBaseAdultsFilled}
-                                                                    placeholder="0"
-                                                                    value={extraAdultsCount}
-                                                                    onChange={(e) => {
-                                                                        const valStr = e.target.value;
-                                                                        if (valStr === '') {
-                                                                            setExtraAdultsCount('');
-                                                                            return;
-                                                                        }
-                                                                        let val = parseInt(valStr, 10) || 0;
-                                                                        if (maxExtraAdultsAllowed !== undefined && val > maxExtraAdultsAllowed) {
-                                                                            val = maxExtraAdultsAllowed;
-                                                                            toast.error(`Maximum extra adults allowed for this room capacity is ${maxExtraAdultsAllowed}`);
-                                                                        }
-                                                                        setExtraAdultsCount(Math.max(0, val));
-                                                                    }}
-                                                                    onBlur={() => {
-                                                                        if (extraAdultsCount === '' || isNaN(Number(extraAdultsCount))) setExtraAdultsCount(0);
-                                                                    }}
-                                                                    className={clsx(
-                                                                        "w-full border rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm transition-all outline-none",
-                                                                        !isBaseAdultsFilled
-                                                                            ? "bg-muted/40 text-muted-foreground border-border cursor-not-allowed opacity-60"
-                                                                            : "border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                                                                    )}
-                                                                />
-                                                            </div>
-                                                        )}
-                                                        {allowsExtraChildren && (
-                                                            <div>
-                                                                <div className="flex items-center justify-between mb-1.5">
-                                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Extra Children</label>
-                                                                    {maxExtraChildrenAllowed !== undefined && (
-                                                                        <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded">Max {maxExtraChildrenAllowed}</span>
-                                                                    )}
-                                                                </div>
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    max={maxExtraChildrenAllowed}
-                                                                    disabled={!isBaseChildrenFilled}
-                                                                    placeholder="0"
-                                                                    value={extraChildrenCount}
-                                                                    onChange={(e) => {
-                                                                        const valStr = e.target.value;
-                                                                        if (valStr === '') {
-                                                                            setExtraChildrenCount('');
-                                                                            return;
-                                                                        }
-                                                                        let val = parseInt(valStr, 10) || 0;
-                                                                        if (maxExtraChildrenAllowed !== undefined && val > maxExtraChildrenAllowed) {
-                                                                            val = maxExtraChildrenAllowed;
-                                                                            toast.error(`Maximum extra children allowed for this room capacity is ${maxExtraChildrenAllowed}`);
-                                                                        }
-                                                                        setExtraChildrenCount(Math.max(0, val));
-                                                                    }}
-                                                                    onBlur={() => {
-                                                                        if (extraChildrenCount === '' || isNaN(Number(extraChildrenCount))) setExtraChildrenCount(0);
-                                                                    }}
-                                                                    className={clsx(
-                                                                        "w-full border rounded-xl shadow-sm h-11 px-4 font-extrabold text-sm transition-all outline-none",
-                                                                        !isBaseChildrenFilled
-                                                                            ? "bg-muted/40 text-muted-foreground border-border cursor-not-allowed opacity-60"
-                                                                            : "border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/20 text-foreground focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                                                                    )}
-                                                                />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
+                                        {/* Infants */}
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                                                Infants (0–2 yrs)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={infantsCount}
+                                                onChange={(e) => setInfantsCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                                className="w-full border border-input bg-background text-foreground rounded-xl shadow-xs h-11 px-3 text-sm font-black focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground mt-1">Stays free</p>
+                                        </div>
                                     </div>
 
-                                    {/* Smart Allocation Assistant Banner (Standard Bookings Only) */}
-                                    {(() => {
-                                        if (booking.isGroupBooking || !selectedRoomType) return null;
-
-                                        const roomCount = selectedRoomIds.length || 1;
-                                        const baseA = (selectedRoomType.baseAdults ?? selectedRoomType.maxAdults ?? 2) * roomCount;
-                                        const baseC = (selectedRoomType.baseChildren ?? selectedRoomType.maxChildren ?? 1) * roomCount;
-                                        const maxPhysA = (selectedRoomType.maxPhysicalAdults ?? selectedRoomType.maxAdults ?? 4) * roomCount;
-                                        const maxPhysC = (selectedRoomType.maxPhysicalChildren ?? selectedRoomType.maxChildren ?? 2) * roomCount;
-
-                                        const stdAdults = Number(adultsCount) || 0;
-                                        const extraAdults = Number(extraAdultsCount) || 0;
-                                        const totalAdults = stdAdults + extraAdults;
-
-                                        const stdChildren = Number(childrenCount) || 0;
-                                        const extraChildren = Number(extraChildrenCount) || 0;
-                                        const totalChildren = stdChildren + extraChildren;
-
-                                        const excessA = Math.max(0, stdAdults - baseA);
-                                        const excessC = Math.max(0, stdChildren - baseC);
-
-                                        const isOverPhysicalLimit = totalAdults > maxPhysA || totalChildren > maxPhysC;
-
-                                        if (isOverPhysicalLimit) {
-                                            return (
-                                                <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300 space-y-2 animate-in fade-in zoom-in-95">
-                                                    <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                                                        <AlertCircle className="h-4 w-4 text-red-500" /> Physical Room Capacity Limit Exceeded
-                                                    </div>
-                                                    <p className="text-xs">
-                                                        The total guest count ({totalAdults} Adults, {totalChildren} Children) exceeds the physical capacity limit for {roomCount} room ({maxPhysA} Adults, {maxPhysC} Children max). Please reduce extra guests or select additional rooms.
-                                                    </p>
-                                                </div>
-                                            );
-                                        }
-
-                                        if (excessA > 0 || excessC > 0) {
-                                            return (
-                                                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800/40 space-y-3 animate-in fade-in zoom-in-95">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                                                            <Info className="h-4 w-4 text-amber-600" /> Base Occupancy Exceeded
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2.5 py-0.5 rounded-full">
-                                                            +{excessA} Extra Adult(s), +{excessC} Extra Child(ren)
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                                                        {selectedRoomType.name}'s base rate covers <strong>{baseA} Adults & {baseC} Children</strong>. You entered <strong>{stdAdults} Adults & {stdChildren} Children</strong>.
-                                                    </p>
-                                                    <div className="flex flex-wrap gap-2 pt-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const currentExtraA = Number(extraAdultsCount) || 0;
-                                                                const currentExtraC = Number(extraChildrenCount) || 0;
-                                                                setExtraAdultsCount(currentExtraA + excessA);
-                                                                setExtraChildrenCount(currentExtraC + excessC);
-                                                                setAdultsCount(Math.min(stdAdults, baseA));
-                                                                setChildrenCount(Math.min(stdChildren, baseC));
+                                    {/* Child Ages Selectors */}
+                                    {Number(childrenCount) > 0 && (
+                                        <div className="p-3.5 bg-muted/30 rounded-xl border border-border space-y-2">
+                                            <label className="block text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                                                Child Ages at Stay Date
+                                            </label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {Array.from({ length: Number(childrenCount) }).map((_, idx) => (
+                                                    <div key={idx} className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1.5 rounded-lg shadow-2xs">
+                                                        <span className="text-[11px] font-bold text-muted-foreground">Child {idx + 1}:</span>
+                                                        <select
+                                                            value={childAges[idx] !== undefined ? childAges[idx] : 5}
+                                                            onChange={(e) => {
+                                                                const val = Number(e.target.value) || 5;
+                                                                setChildAges(prev => {
+                                                                    const updated = [...prev];
+                                                                    updated[idx] = val;
+                                                                    return updated;
+                                                                });
                                                             }}
-                                                            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                                            className="h-7 text-xs font-black border border-input bg-background rounded px-1.5 focus:ring-1 focus:ring-primary cursor-pointer outline-none"
                                                         >
-                                                            ⚡ Auto-Fill Extra Guests (+{excessA}A, +{excessC}C)
-                                                        </button>
+                                                            {Array.from({ length: 10 }, (_, i) => i + 3).map(age => (
+                                                                <option key={age} value={age}>{age} yrs</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
-                                                </div>
-                                            );
-                                        }
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
-                                        return null;
-                                    })()}
+                                    {/* Meal Plan Pill Selector */}
+                                    {activeMealPlans.length > 0 && (
+                                        <div className="space-y-2 pt-2 border-t border-border/40">
+                                            <div className="flex items-center justify-between">
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                    Meal Plan & Dining Plan
+                                                </label>
+                                                <span className="text-[10px] text-muted-foreground font-medium">Per-guest dining supplement</span>
+                                            </div>
+                                            <div className={clsx(
+                                                "grid gap-2",
+                                                activeMealPlans.length === 1 ? "grid-cols-1" :
+                                                activeMealPlans.length === 2 ? "grid-cols-2" :
+                                                activeMealPlans.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+                                            )}>
+                                                {activeMealPlans.map(mp => {
+                                                    const isSelected = selectedMealPlan === mp.code;
+                                                    const adultRate = mp.adultRate;
+                                                    const childRate = mp.childRate;
+                                                    const subText = mp.code === 'EP'
+                                                        ? 'Base room tariff'
+                                                        : `+₹${adultRate.toLocaleString('en-IN')}/ad${childRate > 0 ? `, +₹${childRate.toLocaleString('en-IN')}/ch` : ''}`;
+
+                                                    return (
+                                                        <button
+                                                            key={mp.code}
+                                                            type="button"
+                                                            onClick={() => setSelectedMealPlan(mp.code)}
+                                                            className={clsx(
+                                                                "p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                                                                isSelected
+                                                                    ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
+                                                                    : "bg-background border-border hover:border-primary/40 text-foreground"
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                                                {isSelected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
+                                                            </div>
+                                                            <div className="text-[11px] font-bold text-foreground mt-0.5">{mp.label}</div>
+                                                            <div className="text-[10px] text-muted-foreground font-medium mt-0.5 leading-tight">{subText}</div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-
-                                {/* Calendar button */}
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCalendarModal(true)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 border-2 border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
-                                >
-                                    <Calendar className="h-4 w-4" />
-                                    Check Room Availability Calendar
-                                </button>
                             </div>
 
-                            {/* 4. Room Selection */}
-                            <div className="bg-card border border-border/60 rounded-2xl p-5 space-y-4 shadow-sm">
+                            {/* 3. Accommodation Solutions Section */}
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Select Room(s)</h3>
-                                    <span className="text-xs font-black text-muted-foreground uppercase tracking-wide">
-                                        {booking.isGroupBooking 
-                                            ? `Select Unit(s) (Selected: ${selectedRoomIds.length})` 
-                                            : `Select at least ${requiredRooms} Unit(s) (Selected: ${selectedRoomIds.length})`}
-                                    </span>
+                                    <div>
+                                        <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">
+                                            2. Accommodation Solutions
+                                        </h3>
+                                        <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                                            {isSearchingSolutions
+                                                ? 'Searching optimal accommodation packages...'
+                                                : accommodationSolutions && accommodationSolutions.length > 0
+                                                    ? `Showing optimal packages for ${adultsCount} Adults${Number(childrenCount) > 0 ? `, ${childrenCount} Children` : ''}.`
+                                                    : 'No valid solution packages found for these dates.'}
+                                        </p>
+                                    </div>
+                                    {accommodationSolutions && accommodationSolutions.length > 2 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowFullSolutionsModal(true)}
+                                            className="text-xs font-bold text-primary hover:underline cursor-pointer"
+                                        >
+                                            View All ({accommodationSolutions.length})
+                                        </button>
+                                    )}
                                 </div>
 
-                                {!booking.isGroupBooking && selectedRoomIds.length < requiredRooms && (
-                                    <div className="flex gap-3 bg-red-500/5 dark:bg-red-950/20 border border-red-500/25 dark:border-red-950/40 rounded-2xl p-4">
-                                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                                        <div className="text-xs text-red-700 dark:text-red-400 font-semibold leading-relaxed">
-                                            Guest count ({adultsCount} Adults, {childrenCount} Children) requires at least <strong>{requiredRooms} rooms</strong>. You have selected only <strong>{selectedRoomIds.length} rooms</strong>.
-                                        </div>
+                                {isSearchingSolutions ? (
+                                    <div className="flex flex-col items-center justify-center py-10 gap-3 bg-muted/20 rounded-2xl border border-border/50">
+                                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                                        <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">Searching packages...</span>
                                     </div>
-                                )}
+                                ) : accommodationSolutions && accommodationSolutions.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {accommodationSolutions.slice(0, 3).map((sol: any) => (
+                                            <AccommodationPackageCard
+                                                key={sol.id}
+                                                solution={sol}
+                                                isSelected={selectedSolution?.id === sol.id}
+                                                adultsCount={Number(adultsCount)}
+                                                childrenCount={Number(childrenCount)}
+                                                selectedMealPlan={selectedMealPlan}
+                                                onMealPlanChange={(mp) => setSelectedMealPlan(mp as any)}
+                                                roomAcSelections={roomAcSelections}
+                                                onRoomAcToggle={(idx, isAc) => setRoomAcSelections(prev => ({ ...prev, [idx]: isAc }))}
+                                                onSelect={(selected) => setSelectedSolution(selected)}
+                                            />
+                                        ))}
 
-                                {booking.isGroupBooking && isGroupCapacityExceeded && !isLoadingRooms && (
-                                    <div className="flex gap-3 bg-red-500/5 dark:bg-red-950/20 border border-red-500/25 dark:border-red-950/40 rounded-2xl p-4">
-                                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                                        <div className="text-xs text-red-700 dark:text-red-400 font-semibold leading-relaxed">
-                                            <strong>Guest count exceeds total room capacity.</strong>{' '}
-                                            {Number(adultsCount) + Number(childrenCount)} guests ({Number(adultsCount)} Adults{Number(childrenCount) > 0 ? `, ${Number(childrenCount)} Children` : ''}) exceeds the combined capacity of all {availableRooms.length} rooms in the group pool (<strong>{totalPoolCapacity} guests max</strong>). Please reduce the guest count.
-                                        </div>
-                                    </div>
-                                )}
-
-                                {isLoadingRooms ? (
-                                    <div className="flex flex-col items-center justify-center py-12 gap-4 bg-muted/20 rounded-2xl">
-                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                        <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Checking availability...</p>
-                                    </div>
-                                ) : displayRooms.length > 0 ? (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                        {displayRooms.map((room) => {
-                                            const isSelected = selectedRoomIds.includes(room.id);
-                                            return (
-                                                <button
-                                                    key={room.id}
-                                                    type="button"
-                                                    onClick={() => toggleRoomSelection(room.id)}
-                                                    className={`relative overflow-hidden p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                                                        isSelected
-                                                            ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
-                                                            : 'bg-muted/30 text-foreground border-border/50 hover:bg-muted/60'
-                                                    }`}
-                                                >
-                                                    {isSelected && (
-                                                        <div className="absolute top-2.5 right-2.5 z-20">
-                                                            <CheckCircle className="h-3.5 w-3.5 text-primary-foreground" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex flex-col relative z-10 space-y-1.5">
-                                                        {/* 1. Capacity */}
-                                                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md w-fit tracking-wide ${
-                                                            isSelected ? 'bg-white/20 text-primary-foreground' : 'bg-primary/10 text-primary border border-primary/20'
-                                                        }`}>
-                                                            Cap: {room.baseAdults !== undefined ? `${room.baseAdults}A, ${room.baseChildren || 0}C${room.maxPhysicalAdults ? ` (Max: ${room.maxPhysicalAdults}A)` : ''}` : (room.capacity || 'N/A')}
-                                                        </span>
-                                                        
-                                                        {/* 2. Room Number */}
-                                                        <span className={`text-base font-black uppercase tracking-tight block ${isSelected ? 'text-primary-foreground' : 'text-foreground'}`}>
-                                                            {room.roomNumber || room.name}
-                                                        </span>
-                                                        
-                                                        {/* 3. Room Type Name */}
-                                                        <span className={`text-[10px] truncate font-semibold block ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                                                            {room.roomType || 'Standard'}
-                                                        </span>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
+                                        {accommodationSolutions.length > 3 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowFullSolutionsModal(true)}
+                                                className="w-full py-2.5 bg-muted/40 hover:bg-muted/70 border border-border/60 text-primary font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                            >
+                                                View All {accommodationSolutions.length} Available Solutions
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
-                                    <div className="p-8 border border-dashed border-destructive/30 bg-destructive/5 rounded-2xl text-center space-y-2">
+                                    <div className="p-8 border border-dashed border-destructive/30 bg-destructive/5 rounded-2xl text-center space-y-3">
+                                        <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
                                         <p className="text-sm font-bold text-destructive">
-                                            {booking.isGroupBooking && groupUnavailableReason === 'CAPACITY_EXCEEDED'
-                                                ? 'Guest count exceeds total room capacity'
-                                                : booking.isGroupBooking && groupUnavailableReason === 'NO_POOL_CONFIGURED'
-                                                ? 'No group pool configured for this property'
-                                                : 'No rooms available for the selected dates.'}
+                                            No automated accommodation solutions match this party size on the selected dates.
                                         </p>
-                                        {booking.isGroupBooking && groupUnavailableReason === 'CAPACITY_EXCEEDED' && (
-                                            <p className="text-xs text-destructive/80 font-medium">
-                                                The total of {Number(adultsCount) + Number(childrenCount)} guests ({Number(adultsCount)} Adults{Number(childrenCount) > 0 ? `, ${Number(childrenCount)} Children` : ''}) exceeds the maximum capacity of all available rooms in the group pool. Please reduce the guest count.
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCustomSolutionModal(true)}
+                                            className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl hover:bg-primary/90 transition-all cursor-pointer shadow-sm"
+                                        >
+                                            Configure Custom Room Solution
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 4. Physical Room Assignment Section */}
+                            {selectedSolution && (
+                                <RoomAssignmentSection
+                                    selectedSolution={selectedSolution}
+                                    roomTypes={roomTypes}
+                                    solutionRoomAssignments={solutionRoomAssignments}
+                                    onAssignRoom={(idx, roomId) => {
+                                        setSolutionRoomAssignments(prev => ({
+                                            ...prev,
+                                            [idx]: roomId,
+                                        }));
+                                    }}
+                                />
+                            )}
+
+                            {/* 5. Booker & Guest Details Accordion */}
+                            <div className="bg-card border border-border/60 rounded-2xl p-5 space-y-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">
+                                        4. Guest & Booker Information
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditingGuestDetails(!isEditingGuestDetails)}
+                                        className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                    >
+                                        {isEditingGuestDetails ? 'View Summary' : 'Edit Contacts'}
+                                    </button>
+                                </div>
+
+                                {!isEditingGuestDetails ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="bg-muted/30 p-4 rounded-xl border border-border/30 space-y-1 text-xs">
+                                            <div className="flex items-center gap-1.5 font-black text-primary uppercase tracking-wider mb-1">
+                                                <User className="h-4 w-4" /> Booker Contact
+                                            </div>
+                                            <p className="font-bold text-foreground text-sm">{bookerFirstName} {bookerLastName}</p>
+                                            {bookerPhone && <p className="text-muted-foreground">Phone: {bookerPhone}</p>}
+                                            {bookerEmail && <p className="text-muted-foreground">Email: {bookerEmail}</p>}
+                                        </div>
+                                        <div className="bg-muted/30 p-4 rounded-xl border border-border/30 space-y-1 text-xs">
+                                            <div className="flex items-center gap-1.5 font-black text-primary uppercase tracking-wider mb-1">
+                                                <House className="h-4 w-4" /> Primary Guest
+                                            </div>
+                                            <p className="font-bold text-foreground text-sm">
+                                                {isGuestSameAsBooker ? `${bookerFirstName} ${bookerLastName} (Same as booker)` : `${guestFirstName} ${guestLastName}`}
                                             </p>
+                                            {guestPhone && <p className="text-muted-foreground">Phone: {guestPhone}</p>}
+                                            {specialRequests && (
+                                                <p className="text-muted-foreground italic truncate">Note: {specialRequests}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 pt-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Booker First Name *</label>
+                                                <input
+                                                    type="text"
+                                                    value={bookerFirstName}
+                                                    onChange={(e) => setBookerFirstName(e.target.value)}
+                                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Booker Last Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={bookerLastName}
+                                                    onChange={(e) => setBookerLastName(e.target.value)}
+                                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Booker Phone *</label>
+                                                <input
+                                                    type="text"
+                                                    value={bookerPhone}
+                                                    onChange={(e) => setBookerPhone(e.target.value)}
+                                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Booker Email</label>
+                                                <input
+                                                    type="email"
+                                                    value={bookerEmail}
+                                                    onChange={(e) => setBookerEmail(e.target.value)}
+                                                    className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={isGuestSameAsBooker}
+                                                onChange={(e) => setIsGuestSameAsBooker(e.target.checked)}
+                                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                                            />
+                                            <span className="text-xs font-bold text-foreground">Primary guest is the same person as booker</span>
+                                        </label>
+
+                                        {!isGuestSameAsBooker && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-muted/20 border border-border/40 rounded-xl">
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Guest First Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={guestFirstName}
+                                                        onChange={(e) => setGuestFirstName(e.target.value)}
+                                                        className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Guest Phone</label>
+                                                    <input
+                                                        type="text"
+                                                        value={guestPhone}
+                                                        onChange={(e) => setGuestPhone(e.target.value)}
+                                                        className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                                    />
+                                                </div>
+                                            </div>
                                         )}
+
+                                        <div>
+                                            <label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Special Requests / Notes</label>
+                                            <textarea
+                                                value={specialRequests}
+                                                onChange={(e) => setSpecialRequests(e.target.value)}
+                                                rows={2}
+                                                placeholder="Enter any guest notes or requests..."
+                                                className="w-full border border-border/50 bg-background text-foreground rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* ── RIGHT COLUMN ── */}
-                        <div className="space-y-6">
-                            {/* Price Comparison */}
+                        {/* ── RIGHT COLUMN (5 COLS: FINANCIALS & ACTIONS) ── */}
+                        <div className="lg:col-span-5 space-y-6">
+                            {/* Pricing Comparison Card */}
                             <div className="bg-card border border-border/60 rounded-2xl p-5 space-y-5 shadow-sm">
-                                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Pricing Comparison</h3>
+                                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">
+                                    Financial Reconciliation
+                                </h3>
 
                                 {isCalculatingPreview ? (
                                     <div className="flex flex-col items-center justify-center py-10 gap-3 bg-muted/20 rounded-2xl">
                                         <Loader2 className="h-7 w-7 animate-spin text-primary" />
                                         <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">Recalculating rates...</span>
                                     </div>
-                                ) : !newCheckInDate || !newCheckOutDate || new Date(newCheckInDate) >= new Date(newCheckOutDate) ? (
-                                    <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-4 text-sm text-destructive font-bold text-center">
-                                        Please select valid check-in and check-out dates.
-                                    </div>
                                 ) : (
                                     <>
-                                        {/* Metrics */}
+                                        {/* Primary Metrics */}
                                         <div className="grid grid-cols-3 gap-3">
-                                            {[
-                                                { label: 'Original Total', value: `₹${originalTotal.toLocaleString('en-IN')}`, color: 'text-foreground' },
-                                                { label: 'Amount Paid', value: `₹${paidAmount.toLocaleString('en-IN')}`, color: 'text-emerald-600 dark:text-emerald-400' },
-                                                { label: 'New Total', value: `₹${activeNewTotal.toLocaleString('en-IN')}`, color: 'text-foreground' },
-                                            ].map((m) => (
-                                                <div key={m.label} className="bg-muted/40 p-3 rounded-xl border border-border/30 space-y-1">
-                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">{m.label}</span>
-                                                    <span className={`font-black text-base ${m.color}`}>{m.value}</span>
-                                                </div>
-                                            ))}
+                                            <div className="bg-muted/40 p-3 rounded-xl border border-border/30 space-y-1">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Original Total</span>
+                                                <span className="font-black text-base text-foreground">₹{originalTotal.toLocaleString('en-IN')}</span>
+                                            </div>
+                                            <div className="bg-muted/40 p-3 rounded-xl border border-border/30 space-y-1">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Amount Paid</span>
+                                                <span className="font-black text-base text-emerald-600 dark:text-emerald-400">₹{paidAmount.toLocaleString('en-IN')}</span>
+                                            </div>
+                                            <div className="bg-muted/40 p-3 rounded-xl border border-border/30 space-y-1">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">New Total</span>
+                                                <span className="font-black text-base text-foreground">₹{activeNewTotal.toLocaleString('en-IN')}</span>
+                                            </div>
                                         </div>
 
+                                        {/* Rate Diff & Balance Due */}
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="bg-muted/40 p-3 rounded-xl border border-border/30 space-y-1">
                                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Rate Adjustment</span>
@@ -1330,19 +1138,33 @@ export default function ReschedulePage() {
                                                 </span>
                                             </div>
                                             <div className="bg-primary/5 p-3 rounded-xl border border-primary/20 space-y-1">
-                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest block">New Balance</span>
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest block">Revised Balance</span>
                                                 <span className={`font-black text-base ${newBalanceDue > 0 ? 'text-orange-600 dark:text-orange-400' : newBalanceDue < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
                                                     {newBalanceDue > 0 ? `₹${newBalanceDue.toLocaleString('en-IN')} Due` : newBalanceDue < 0 ? `-₹${Math.abs(newBalanceDue).toLocaleString('en-IN')} Credit` : '₹0 (Fully Paid)'}
                                                 </span>
                                             </div>
                                         </div>
+
+                                        {/* Selected Solution Summary Line */}
+                                        {selectedSolution && (
+                                            <div className="p-3 bg-muted/20 border border-border/40 rounded-xl space-y-1 text-xs">
+                                                <div className="flex items-center justify-between font-bold text-foreground">
+                                                    <span>Selected Package:</span>
+                                                    <span className="text-primary truncate max-w-[180px]">{selectedSolution.solutionName || `${allocatedRooms.length}-Room Package`}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                                                    <span>Meal Plan:</span>
+                                                    <span>{selectedMealPlan} ({activeMealPlans.find(p => p.code === selectedMealPlan)?.label || 'Room Only'})</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>
 
-                            {/* Price Override */}
+                            {/* Price Override Card */}
                             <div className="bg-card border border-border/60 rounded-2xl p-5 space-y-4 shadow-sm">
-                                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Price Override</h3>
+                                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">Pricing Adjustments</h3>
 
                                 {showKeepOriginalOption && (
                                     <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
@@ -1368,7 +1190,7 @@ export default function ReschedulePage() {
                                             <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wide block">
                                                 Keep Original Amount (₹{originalTotal.toLocaleString('en-IN')})
                                             </span>
-                                            <span className="text-[10px] text-emerald-600/80 font-medium">Prevent price reduction and retain the original stay price.</span>
+                                            <span className="text-[10px] text-emerald-600/80 font-medium">Prevent rate reduction and retain the original total price.</span>
                                         </div>
                                     </label>
                                 )}
@@ -1379,12 +1201,11 @@ export default function ReschedulePage() {
                                             type="checkbox"
                                             checked={useRescheduleOverride}
                                             onChange={(e) => setUseRescheduleOverride(e.target.checked)}
-                                            disabled={booking.isPriceOverridden}
-                                            className="h-5 w-5 rounded border-border/50 text-primary focus:ring-primary/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="h-5 w-5 rounded border-border/50 text-primary focus:ring-primary/20 cursor-pointer"
                                         />
                                         <div>
-                                            <span className="text-xs font-black text-foreground uppercase tracking-wide block">Override Total Price</span>
-                                            <span className="text-[10px] text-muted-foreground font-medium">Manually set a custom total amount for this reschedule.</span>
+                                            <span className="text-xs font-black text-foreground uppercase tracking-wide block">Manual Price Override</span>
+                                            <span className="text-[10px] text-muted-foreground font-medium">Manually set a fixed total amount for this reschedule.</span>
                                         </div>
                                     </label>
                                 )}
@@ -1397,7 +1218,7 @@ export default function ReschedulePage() {
                                                 type="number"
                                                 value={rescheduleOverrideTotal}
                                                 onChange={(e) => setRescheduleOverrideTotal(e.target.value)}
-                                                placeholder="Enter total amount"
+                                                placeholder="Enter custom total"
                                                 className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
                                             />
                                         </div>
@@ -1407,7 +1228,7 @@ export default function ReschedulePage() {
                                                 type="text"
                                                 value={rescheduleOverrideReason}
                                                 onChange={(e) => setRescheduleOverrideReason(e.target.value)}
-                                                placeholder="Reason for price override"
+                                                placeholder="Reason for price override..."
                                                 className="w-full border border-border/50 bg-background text-foreground rounded-xl px-4 py-2.5 font-semibold focus:outline-none focus:ring-2 focus:ring-primary outline-none"
                                             />
                                         </div>
@@ -1415,12 +1236,12 @@ export default function ReschedulePage() {
                                 )}
                             </div>
 
-                            {/* Submit CTA (visible on desktop bottom of right col) */}
-                            <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+                            {/* Submit Button */}
+                            <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm space-y-3">
                                 <button
                                     onClick={handleSubmit}
-                                    disabled={rescheduleMutation.isPending || !newCheckInDate || !newCheckOutDate}
-                                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-primary-foreground rounded-xl font-black text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={rescheduleMutation.isPending || !newCheckInDate || !newCheckOutDate || (!booking.isGroupBooking && !selectedSolution)}
+                                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-primary-foreground rounded-xl font-black text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                 >
                                     {rescheduleMutation.isPending ? (
                                         <><Loader2 className="h-4 w-4 animate-spin" /> Saving Changes...</>
@@ -1428,8 +1249,8 @@ export default function ReschedulePage() {
                                         <><Calendar className="h-4 w-4" /> Confirm Reschedule</>
                                     )}
                                 </button>
-                                <p className="text-center text-[10px] text-muted-foreground font-medium mt-3">
-                                    This will update the booking dates and pricing accordingly.
+                                <p className="text-center text-[10px] text-muted-foreground font-medium">
+                                    Rescheduling updates stay dates, room allocations, meal plan rates, and audit logs.
                                 </p>
                             </div>
                         </div>
