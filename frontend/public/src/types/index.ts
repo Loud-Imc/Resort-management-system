@@ -120,10 +120,10 @@ export interface AccommodationSolution {
     };
     rooms: AllocatedRoomItem[];
     ratesByMealPlan?: {
-        EP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
-        CP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
-        MAP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
-        AP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        EP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean };
+        CP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean };
+        MAP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean };
+        AP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean };
     };
     availableAcOptions?: string[];
     hasAc?: boolean;

@@ -36,6 +36,10 @@ export const otaService = {
   },
 
   // Room Types
+  getPropertyRatePlans: async (propertyId: string) => {
+    const { data } = await api.get(`/rate-plans/property/${propertyId}`);
+    return data;
+  },
   getRoomTypes: async () => {
     const { data } = await api.get<any[]>('/ota-portal/room-types');
     return data;

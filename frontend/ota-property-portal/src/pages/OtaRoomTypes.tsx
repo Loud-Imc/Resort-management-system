@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { otaService } from '../services/otaService';
-import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star, Baby, Info } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Users, Sliders, ArrowLeft, Save, Image as ImageIcon, Check, ShieldCheck, Building2, Star, Baby, Info, Utensils } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -12,8 +12,7 @@ const FALLBACK_HIGHLIGHTS = [
 ];
 
 const FALLBACK_INCLUSIONS = [
-  'Breakfast Included', 'Lunch Included', 'Dinner Included',
-  'All Meals Included (MAP)', 'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
+  'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
   'Airport Transfer', 'Railway Station Pickup', 'Evening Snacks',
   'Tea/Coffee Maker', 'Nature Walk', 'Yoga Session', 'Trekking',
   'Plantation Tour', 'Campfire', 'Bird Watching', 'Indoor Games'
@@ -61,6 +60,9 @@ export default function OtaRoomTypes() {
   const [isAvailableForGroupBooking, setIsAvailableForGroupBooking] = useState(false);
   const [allowPayAtProperty, setAllowPayAtProperty] = useState(false);
   const [groupMaxOccupancy, setGroupMaxOccupancy] = useState('0');
+  const [baseMealPlan, setBaseMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('EP');
+  const [baseRatePlanId, setBaseRatePlanId] = useState<string>('');
+  const [propertyRatePlans, setPropertyRatePlans] = useState<any[]>([]);
 
   // Master Options
   const [masterHighlights, setMasterHighlights] = useState<string[]>(FALLBACK_HIGHLIGHTS);
@@ -128,8 +130,16 @@ export default function OtaRoomTypes() {
       setProperty(propRes);
       if (optionsRes) {
         if (optionsRes.highlights) setMasterHighlights(optionsRes.highlights);
-        if (optionsRes.inclusions) setMasterInclusions(optionsRes.inclusions);
+        if (optionsRes.inclusions) setMasterInclusions(optionsRes.inclusions.filter((inc: string) => !['breakfast included', 'lunch included', 'dinner included', 'all meals included (map)'].includes(inc.toLowerCase())));
         if (optionsRes.amenities) setMasterAmenities(optionsRes.amenities);
+      }
+      if (propRes?.id) {
+        try {
+          const plans = await otaService.getPropertyRatePlans(propRes.id);
+          setPropertyRatePlans(plans || []);
+        } catch {
+          // ignore
+        }
       }
     } catch (e) {
       toast.error('Failed to retrieve room categories catalog');
@@ -163,6 +173,8 @@ export default function OtaRoomTypes() {
       setSelectedAmenities(rt.amenities || []);
       setSelectedHighlights(rt.highlights || []);
       setSelectedInclusions(rt.inclusions || []);
+      setBaseMealPlan(rt.baseMealPlan || 'EP');
+      setBaseRatePlanId(rt.baseRatePlanId || '');
       setImages(rt.images || []);
     } else {
       setName('');
@@ -187,6 +199,8 @@ export default function OtaRoomTypes() {
       setSelectedAmenities([]);
       setSelectedHighlights([]);
       setSelectedInclusions([]);
+      setBaseMealPlan('EP');
+      setBaseRatePlanId('');
       setImages([]);
     }
     setIsEditViewOpen(true);
@@ -239,6 +253,8 @@ export default function OtaRoomTypes() {
         amenities: selectedAmenities,
         highlights: selectedHighlights,
         inclusions: selectedInclusions,
+        baseMealPlan,
+        baseRatePlanId: baseRatePlanId || null,
         images,
       };
 
@@ -438,6 +454,86 @@ export default function OtaRoomTypes() {
                   onChange={(e) => setSize(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Base Rate Meal Plan Inclusion Selector (Dynamic from Property Rate Plans) */}
+            <div className="p-5 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/70 dark:border-amber-900/50 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Utensils className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                      Base Rate Meal Plan Inclusion
+                    </h4>
+                    <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 font-medium">
+                      Select which active property meal plan is included in this room type's base price.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                  Plan: {baseMealPlan}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                {(propertyRatePlans && propertyRatePlans.length > 0 ? propertyRatePlans : [
+                  { id: '', name: 'Room Only (EP)', code: 'EP', mealPlan: 'EP', extraAdultPrice: 0, extraChildPrice: 0 },
+                  { id: '', name: 'Bed & Breakfast (CP)', code: 'CP', mealPlan: 'CP', extraAdultPrice: 250, extraChildPrice: 150 },
+                  { id: '', name: 'Half Board (MAP)', code: 'MAP', mealPlan: 'MAP', extraAdultPrice: 700, extraChildPrice: 400 },
+                  { id: '', name: 'Full Board (AP)', code: 'AP', mealPlan: 'AP', extraAdultPrice: 1200, extraChildPrice: 700 },
+                ]).map((rp: any) => {
+                  const mCode = (rp.mealPlan || rp.code || 'EP').toUpperCase();
+                  const isSelected = baseMealPlan === mCode;
+                  const icon = mCode === 'EP' ? '☕' : mCode === 'CP' ? '🍳' : mCode === 'MAP' ? '🍽️' : '👑';
+
+                  return (
+                    <button
+                      key={rp.id || mCode}
+                      type="button"
+                      onClick={() => {
+                        setBaseMealPlan(mCode as any);
+                        setBaseRatePlanId(rp.id || '');
+                      }}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                        isSelected
+                          ? 'border-amber-500 bg-card text-foreground ring-2 ring-amber-500/30 shadow-sm'
+                          : 'border-amber-200/60 dark:border-amber-900/40 hover:border-amber-300 bg-card/70 text-foreground/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black flex items-center gap-1.5">
+                          <span>{icon}</span> {rp.name}
+                        </span>
+                        {isSelected && <Check className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-medium">
+                        {mCode === 'EP'
+                          ? 'Room Only. Guests pay extra if selecting breakfast or meals.'
+                          : mCode === 'CP'
+                          ? 'Breakfast included in base rate & extra guest charges.'
+                          : mCode === 'MAP'
+                          ? 'Breakfast & Dinner included in base rate.'
+                          : 'All meals (Breakfast, Lunch & Dinner) included in base rate.'}
+                      </div>
+                      <div className="pt-1.5 border-t border-border text-[9px] font-bold text-muted-foreground flex items-center justify-between">
+                        <span>Code: {mCode}</span>
+                        {Number(rp.extraAdultPrice || 0) > 0 && (
+                          <span>Adult: ₹{Number(rp.extraAdultPrice)}</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="text-[10px] text-amber-800 dark:text-amber-300/80 font-medium flex items-center gap-1.5 pt-1">
+                <Info className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span>
+                  {baseMealPlan === 'EP'
+                    ? 'Guests will see Room Only (EP) at this base price and can optionally add breakfast or meals during booking.'
+                    : `Guests will receive ${baseMealPlan} with this room automatically. Lower meal plans (like EP) will be hidden on OTA/CP portals, and higher plans will only charge the difference.`}
+                </span>
+              </p>
             </div>
 
             <div className="space-y-1.5">

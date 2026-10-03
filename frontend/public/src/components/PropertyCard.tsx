@@ -137,11 +137,15 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                                     </span>
                                 ) : null}
 
-                                {property.bestSolution.ratesByMealPlan && Object.keys(property.bestSolution.ratesByMealPlan).map((mp) => (
-                                    <span key={mp} className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200/70">
-                                        {mp === 'EP' ? '☕ EP' : mp === 'CP' ? '🍳 CP (Breakfast)' : mp === 'MAP' ? '🍽️ MAP' : '👑 AP'}
-                                    </span>
-                                ))}
+                                {property.bestSolution.ratesByMealPlan && Object.entries(property.bestSolution.ratesByMealPlan).map(([mp, rateInfo]) => {
+                                    const isBase = Boolean((rateInfo as any)?.isBaseInclusion);
+                                    return (
+                                        <span key={mp} className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${isBase ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-amber-50 text-amber-800 border-amber-200/70'}`}>
+                                            {mp === 'EP' ? '☕ EP' : mp === 'CP' ? '🍳 CP' : mp === 'MAP' ? '🍽️ MAP' : '👑 AP'}
+                                            {isBase ? ' (Included)' : ''}
+                                        </span>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

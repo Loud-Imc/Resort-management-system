@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { roomTypesService } from '../../../services/roomTypes';
 import propertyService from '../../../services/properties';
 import ImageUpload from '../../../components/ImageUpload';
-import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby, ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Plus, X, Check, Users, Info, Tag, Baby, ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, AlertTriangle, Utensils } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import type { RoomType } from '../../../types/room';
@@ -20,8 +20,7 @@ const FALLBACK_HIGHLIGHTS = [
 ];
 
 const FALLBACK_INCLUSIONS = [
-    'Breakfast Included', 'Lunch Included', 'Dinner Included',
-    'All Meals Included (MAP)', 'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
+    'Welcome Drink', 'Fruit Basket', 'Free Wi-Fi',
     'Airport Transfer', 'Railway Station Pickup', 'Evening Snacks',
     'Tea/Coffee Maker', 'Nature Walk', 'Yoga Session', 'Trekking',
     'Plantation Tour', 'Campfire', 'Bird Watching', 'Indoor Games'
@@ -83,6 +82,8 @@ const roomTypeSchema = z.object({
     groupMaxOccupancy: z.number().min(0).nullable().optional(),
     isGstInclusive: z.boolean(),
     allowPayAtProperty: z.boolean(),
+    baseMealPlan: z.enum(['EP', 'CP', 'MAP', 'AP']).default('EP'),
+    baseRatePlanId: z.string().nullable().optional(),
     size: z.preprocess(
         (val) => (val === '' || val === undefined || val === null || (typeof val === 'number' && Number.isNaN(val)) ? null : Number(val)),
         z.number().min(0, 'Room size must be positive').nullable().optional()
@@ -504,8 +505,17 @@ export default function AdminCreateRoomType({
         staleTime: 1000 * 60 * 60,
     });
 
+    const effectivePropertyId = propertyId || existingRoomType?.propertyId;
+    const { data: propertyRatePlans = [] } = useQuery({
+        queryKey: ['propertyRatePlans', effectivePropertyId],
+        queryFn: () => roomTypesService.getPropertyRatePlans(effectivePropertyId!),
+        enabled: !!effectivePropertyId,
+    });
+
     const commonHighlights = masterOptions?.highlights || FALLBACK_HIGHLIGHTS;
-    const commonInclusions = masterOptions?.inclusions || FALLBACK_INCLUSIONS;
+    const commonInclusions = (masterOptions?.inclusions || FALLBACK_INCLUSIONS).filter(
+        (inc: string) => !['breakfast included', 'lunch included', 'dinner included', 'all meals included (map)'].includes(inc.toLowerCase())
+    );
     const commonAmenities = masterOptions?.amenities || FALLBACK_AMENITIES;
 
     const {
@@ -541,6 +551,8 @@ export default function AdminCreateRoomType({
             isAvailableForGroupBooking: false,
             isGstInclusive: false,
             allowPayAtProperty: false,
+            baseMealPlan: 'EP',
+            baseRatePlanId: null,
             size: undefined,
         },
     });
@@ -591,6 +603,8 @@ export default function AdminCreateRoomType({
                 groupMaxOccupancy: existingRoomType.groupMaxOccupancy || 0,
                 isGstInclusive: existingRoomType.isGstInclusive || false,
                 allowPayAtProperty: existingRoomType.allowPayAtProperty || false,
+                baseMealPlan: existingRoomType.baseMealPlan || 'EP',
+                baseRatePlanId: existingRoomType.baseRatePlanId || null,
                 size: existingRoomType.size !== null && existingRoomType.size !== undefined ? Number(existingRoomType.size) : null,
             });
 
@@ -799,6 +813,8 @@ export default function AdminCreateRoomType({
                 amenities: data.amenities.map((a: any) => a.value).filter((v: any) => v),
                 highlights: data.highlights.map((h: any) => h.value).filter((v: any) => v),
                 inclusions: data.inclusions.map((i: any) => i.value).filter((v: any) => v),
+                baseMealPlan: data.baseMealPlan || 'EP',
+                baseRatePlanId: (data.baseRatePlanId && data.baseRatePlanId.trim() !== '') ? data.baseRatePlanId.trim() : null,
                 propertyId,
             };
             return isEdit ? roomTypesService.update(roomTypeId!, payload as any) : roomTypesService.create(payload as any);
@@ -1130,6 +1146,86 @@ export default function AdminCreateRoomType({
                                 className={`w-full px-4 py-2 bg-background text-foreground border ${errors.description ? 'border-red-500' : 'border-border'} rounded-xl focus:ring-2 focus:ring-primary transition-all min-h-[100px]`}
                             />
                             {errors.description?.message && <p className="text-red-500 text-xs mt-1 font-bold">{String(errors.description.message)}</p>}
+                        </div>
+
+                        {/* Base Rate Meal Plan Inclusion Selector (Dynamic from Property Rate Plans) */}
+                        <div className="md:col-span-2 p-5 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/70 dark:border-amber-900/50 space-y-3 shadow-xs">
+                            <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                    <Utensils className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                            Base Rate Meal Plan Inclusion
+                                        </h4>
+                                        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 font-medium">
+                                            Select which active property meal plan is included in this room type's base price.
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                    Plan: {watch('baseMealPlan') || 'EP'}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                                {(propertyRatePlans && propertyRatePlans.length > 0 ? propertyRatePlans : [
+                                    { id: '', name: 'Room Only (EP)', code: 'EP', mealPlan: 'EP', extraAdultPrice: 0, extraChildPrice: 0 },
+                                    { id: '', name: 'Bed & Breakfast (CP)', code: 'CP', mealPlan: 'CP', extraAdultPrice: 250, extraChildPrice: 150 },
+                                    { id: '', name: 'Half Board (MAP)', code: 'MAP', mealPlan: 'MAP', extraAdultPrice: 700, extraChildPrice: 400 },
+                                    { id: '', name: 'Full Board (AP)', code: 'AP', mealPlan: 'AP', extraAdultPrice: 1200, extraChildPrice: 700 },
+                                ]).map((rp: any) => {
+                                    const mCode = (rp.mealPlan || rp.code || 'EP').toUpperCase();
+                                    const isSelected = watch('baseMealPlan') === mCode;
+                                    const icon = mCode === 'EP' ? '☕' : mCode === 'CP' ? '🍳' : mCode === 'MAP' ? '🍽️' : '👑';
+
+                                    return (
+                                        <button
+                                            key={rp.id || mCode}
+                                            type="button"
+                                            onClick={() => {
+                                                setValue('baseMealPlan', mCode, { shouldValidate: true, shouldDirty: true });
+                                                setValue('baseRatePlanId', rp.id || null, { shouldValidate: true, shouldDirty: true });
+                                            }}
+                                            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                                                isSelected
+                                                    ? 'border-amber-500 bg-card text-foreground ring-2 ring-amber-500/30 shadow-sm'
+                                                    : 'border-amber-200/60 dark:border-amber-900/40 hover:border-amber-300 bg-card/70 text-foreground/80'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-black flex items-center gap-1.5">
+                                                    <span>{icon}</span> {rp.name}
+                                                </span>
+                                                {isSelected && <Check className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />}
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground font-medium">
+                                                {mCode === 'EP'
+                                                    ? 'Room Only. Guests pay extra if selecting breakfast or meals.'
+                                                    : mCode === 'CP'
+                                                    ? 'Breakfast included in base rate & extra guest charges.'
+                                                    : mCode === 'MAP'
+                                                    ? 'Breakfast & Dinner included in base rate.'
+                                                    : 'All meals (Breakfast, Lunch & Dinner) included in base rate.'}
+                                            </div>
+                                            <div className="pt-1.5 border-t border-border text-[9px] font-bold text-muted-foreground flex items-center justify-between">
+                                                <span>Code: {mCode}</span>
+                                                {Number(rp.extraAdultPrice || 0) > 0 && (
+                                                    <span>Adult: ₹{Number(rp.extraAdultPrice)}</span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <p className="text-[10px] text-amber-800 dark:text-amber-300/80 font-medium flex items-center gap-1.5 pt-1">
+                                <Info className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                <span>
+                                    {watch('baseMealPlan') === 'EP'
+                                        ? 'Guests will see Room Only (EP) at this base price and can optionally add breakfast or meals during booking.'
+                                        : `Guests will receive ${watch('baseMealPlan')} with this room automatically. Lower meal plans (like EP) will be hidden on OTA/CP portals, and higher plans will only charge the difference.`}
+                                </span>
+                            </p>
                         </div>
 
                         {/* CARD 1: BASE RATE OCCUPANCY */}

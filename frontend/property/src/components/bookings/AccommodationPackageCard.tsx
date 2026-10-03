@@ -340,7 +340,14 @@ export const AccommodationPackageCard: React.FC<AccommodationPackageCardProps> =
                                         )}
                                     >
                                         <div className="flex items-center justify-between gap-1">
-                                            <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                            <span className="text-xs font-black flex items-center gap-1">
+                                                <span>{mp.icon}</span> {mp.code}
+                                                {mp.rate?.isBaseInclusion && (
+                                                    <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                                                        Included
+                                                    </span>
+                                                )}
+                                            </span>
                                             {isMpActive && <CheckCircle className="h-3 w-3 text-primary shrink-0" />}
                                         </div>
                                         <div className="text-[10px] text-muted-foreground font-medium truncate">{mp.label}</div>

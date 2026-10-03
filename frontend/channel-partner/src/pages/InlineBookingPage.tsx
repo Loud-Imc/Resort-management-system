@@ -88,10 +88,10 @@ export interface AccommodationSolution {
     rooms: AccommodationSolutionRoom[];
     isRecommended?: boolean;
     ratesByMealPlan?: {
-        EP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
-        CP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
-        MAP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
-        AP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number };
+        EP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean; mealSupplementPerNight?: number };
+        CP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean; mealSupplementPerNight?: number };
+        MAP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean; mealSupplementPerNight?: number };
+        AP?: { ratePlanId?: string; mealPlan: string; name: string; totalPrice: number; pricePerNight: number; isBaseInclusion?: boolean; mealSupplementPerNight?: number };
     };
     availableAcOptions?: string[];
     hasAc?: boolean;
@@ -1602,10 +1602,13 @@ const InlineBookingPage: React.FC = () => {
                                                     }, new Map()).values()
                                                 ).map((item: any) => `${item.count}× ${item.name}`).join(' + ');
 
-                                                const defaultCommPct = cpStats?.commissionRate || 15;
-                                                const solMealPricing = sol.ratesByMealPlan?.[selectedMealPlan];
+                                                const activeSolMeal = (sol.ratesByMealPlan && sol.ratesByMealPlan[selectedMealPlan])
+                                                    ? selectedMealPlan
+                                                    : ((sol.ratesByMealPlan && sol.ratesByMealPlan['EP']) ? 'EP' : (sol.ratesByMealPlan ? (Object.keys(sol.ratesByMealPlan)[0] as any) : selectedMealPlan));
+                                                const solMealPricing = sol.ratesByMealPlan?.[activeSolMeal];
                                                 const solPricePerNight = solMealPricing?.pricePerNight ?? sol.pricing.pricePerNight;
                                                 const solTotalPrice = solMealPricing?.totalPrice ?? sol.pricing.totalPrice;
+                                                const defaultCommPct = cpStats?.commissionRate || 15;
                                                 const estCommission = Math.round((solTotalPrice * defaultCommPct) / 100);
 
                                                 return (
@@ -1740,7 +1743,14 @@ const InlineBookingPage: React.FC = () => {
                                                                                         cursor: 'pointer'
                                                                                     }}
                                                                                 >
-                                                                                    <div>{mp.icon} {mp.code}</div>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                                        <span>{mp.icon} {mp.code}</span>
+                                                                                        {mpData?.isBaseInclusion && (
+                                                                                            <span style={{ fontSize: '0.6rem', background: '#dcfce7', color: '#15803d', padding: '1px 4px', borderRadius: '4px', fontWeight: 800 }}>
+                                                                                                Included
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
                                                                                     <div style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 500 }}>{mp.label}</div>
                                                                                     {mpData && (
                                                                                         <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#111827', marginTop: '0.15rem' }}>

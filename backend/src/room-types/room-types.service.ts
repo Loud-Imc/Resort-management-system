@@ -487,6 +487,8 @@ export class RoomTypesService {
                 groupMaxOccupancy: computedGroupMax,
                 cancellationPolicyText: cancellationPolicy,
                 cancellationPolicyId: (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId : null,
+                baseMealPlan: rest.baseMealPlan || 'EP',
+                baseRatePlanId: (rest.baseRatePlanId && rest.baseRatePlanId.trim() !== '') ? rest.baseRatePlanId.trim() : null,
             };
 
             // Remove any undefined keys to ensure clean Prisma payload
@@ -534,6 +536,7 @@ export class RoomTypesService {
                     where: { isEnabled: true },
                 },
                 cancellationPolicy: true,
+                baseRatePlan: true,
                 ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
         });
@@ -560,6 +563,7 @@ export class RoomTypesService {
                 property: { select: { name: true, city: true, defaultCancellationPolicyId: true } },
                 rooms: true,
                 cancellationPolicy: true,
+                baseRatePlan: true,
                 ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
             orderBy: { createdAt: 'asc' },
@@ -583,6 +587,7 @@ export class RoomTypesService {
                 },
                 rooms: true,
                 cancellationPolicy: true,
+                baseRatePlan: true,
                 ratePlanPrices: { include: { ratePlan: true }, orderBy: { createdAt: 'asc' } },
             },
         });
@@ -741,6 +746,14 @@ export class RoomTypesService {
 
             if (cancellationPolicyId !== undefined) {
                 data.cancellationPolicyId = (cancellationPolicyId && cancellationPolicyId.trim() !== '') ? cancellationPolicyId.trim() : null;
+            }
+
+            if (updateRoomTypeDto.baseRatePlanId !== undefined) {
+                data.baseRatePlanId = (updateRoomTypeDto.baseRatePlanId && updateRoomTypeDto.baseRatePlanId.trim() !== '') ? updateRoomTypeDto.baseRatePlanId.trim() : null;
+            }
+
+            if (updateRoomTypeDto.baseMealPlan !== undefined) {
+                data.baseMealPlan = updateRoomTypeDto.baseMealPlan;
             }
 
             // Remove any undefined keys, but KEEP null values so Prisma sets them to NULL

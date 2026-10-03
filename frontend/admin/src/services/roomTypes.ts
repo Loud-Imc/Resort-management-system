@@ -62,6 +62,11 @@ export const roomTypesService = {
         }>('/room-types/master-options');
         return data;
     },
+
+    getPropertyRatePlans: async (propertyId: string) => {
+        const { data } = await api.get<any[]>(`/rate-plans/property/${propertyId}`);
+        return data;
+    },
 };
 
 export default roomTypesService;

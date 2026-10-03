@@ -51,6 +51,9 @@ export interface RoomType {
     groupMaxOccupancy?: number | null;
     isGstInclusive: boolean;
     allowPayAtProperty: boolean;
+    baseMealPlan?: 'EP' | 'CP' | 'MAP' | 'AP';
+    baseRatePlanId?: string | null;
+    baseRatePlan?: any;
     propertyId: string;
     property?: {
         id: string;
@@ -111,6 +114,8 @@ export interface CreateRoomTypeDto {
     groupMaxOccupancy?: number | null;
     isGstInclusive?: boolean;
     allowPayAtProperty?: boolean;
+    baseMealPlan?: 'EP' | 'CP' | 'MAP' | 'AP';
+    baseRatePlanId?: string | null;
     propertyId?: string;
 }
 
