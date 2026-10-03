@@ -255,24 +255,49 @@ export default function DashboardHome() {
 
     if (selectedProperty && selectedProperty.status !== 'APPROVED') {
         const propDetails = (selectedProperty as any)?.details || (selectedProperty as any)?.documentDetails || {};
+        const isRejected = selectedProperty.status === 'REJECTED';
+        const isPending = selectedProperty.status === 'PENDING';
+        const rejectionReason = (selectedProperty as any)?.reason;
+
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
                 <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 max-w-xl w-full">
-                    <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                        <Clock className="h-10 w-10 text-amber-500" />
+                    <div className={clsx(
+                        "w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6",
+                        isRejected ? "bg-rose-50 dark:bg-rose-900/20 text-rose-500" :
+                        isPending ? "bg-amber-50 dark:bg-amber-900/20 text-amber-500" :
+                        "bg-gray-100 dark:bg-gray-800 text-gray-500"
+                    )}>
+                        {isRejected ? (
+                            <ShieldAlert className="h-10 w-10 text-rose-500" />
+                        ) : (
+                            <Clock className="h-10 w-10 text-amber-500" />
+                        )}
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                        {selectedProperty.status === 'PENDING' ? 'Registration Pending' : 'Property Inactive'}
+                        {isRejected ? 'Registration Rejected' : isPending ? 'Registration Pending' : 'Property Inactive'}
                     </h2>
                     <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base leading-relaxed mb-6">
-                        {selectedProperty.status === 'PENDING'
+                        {isRejected
+                            ? (rejectionReason 
+                                ? `Reason: ${rejectionReason}` 
+                                : "Your property onboarding request was rejected by the administration team. Please update your details and contact support.")
+                            : isPending
                             ? "Your property registration is currently under review by our admin team. You'll be able to manage your rooms and bookings once it's approved."
                             : "This property is currently inactive. Please contact the administrator to re-enable it."}
                     </p>
 
                     <div className="flex flex-wrap items-center justify-center gap-3">
-                        <div className="inline-flex items-center gap-3 px-6 py-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-200 dark:border-amber-800 font-bold text-sm">
-                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        <div className={clsx(
+                            "inline-flex items-center gap-3 px-6 py-2.5 rounded-2xl border font-bold text-sm",
+                            isRejected 
+                                ? "bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800"
+                                : "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                        )}>
+                            <span className={clsx(
+                                "w-2 h-2 rounded-full",
+                                isRejected ? "bg-rose-500" : "bg-amber-500 animate-pulse"
+                            )} />
                             Status: {selectedProperty.status}
                         </div>
                         <button
@@ -281,7 +306,7 @@ export default function DashboardHome() {
                             className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary-600/10 hover:bg-primary-600/20 text-primary-600 dark:text-primary-400 font-bold text-sm rounded-2xl transition-all border border-primary-600/20 cursor-pointer"
                         >
                             <Building2 className="h-4 w-4" />
-                            Add / Edit Property Details
+                            {isRejected ? 'Review & Edit Property Details' : 'Add / Edit Property Details'}
                         </button>
                     </div>
 

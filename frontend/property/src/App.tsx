@@ -58,7 +58,7 @@ function App() {
                 <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
                 <Routes>
                   <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-                  <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+                  <Route path="/register" element={<Register />} />
                   <Route path="/delete-account" element={<DeleteAccount />} />
 
                   <Route path="/" element={<DashboardLayout />}>

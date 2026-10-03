@@ -63,7 +63,7 @@ const initialFormData = {
 };
 
 export default function Register() {
-    const { registerProperty } = useAuth();
+    const { registerProperty, isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState(1);
@@ -179,6 +179,23 @@ export default function Register() {
         }
         setIsDraftInitialized(true);
     }, []);
+
+    // Prefill authenticated owner details when registering an additional property
+    useEffect(() => {
+        if (user && isDraftInitialized && !formData.ownerEmail && !formData.ownerPhone) {
+            setFormData(prev => ({
+                ...prev,
+                ownerFirstName: prev.ownerFirstName || user.firstName || '',
+                ownerLastName: prev.ownerLastName || user.lastName || '',
+                ownerEmail: prev.ownerEmail || user.email || '',
+                ownerPhone: prev.ownerPhone || user.phone || '',
+            }));
+            if (user.phone) {
+                setIsPhoneVerified(true);
+                setVerifiedPhone(user.phone);
+            }
+        }
+    }, [user, isDraftInitialized]);
 
     // Debounced Auto-Save Draft to LocalStorage
     useEffect(() => {
@@ -871,11 +888,15 @@ export default function Register() {
                 toast.success('Registration submitted! Note: Agreement must be accepted in PMS for admin approval.');
             }
 
-            navigate('/login', {
-                state: {
-                    message: 'Registration successful! Your property is being reviewed by our team. Please sign in to manage your details.'
-                }
-            });
+            if (isAuthenticated) {
+                navigate('/');
+            } else {
+                navigate('/login', {
+                    state: {
+                        message: 'Registration successful! Your property is being reviewed by our team. Please sign in to manage your details.'
+                    }
+                });
+            }
         } catch (error: any) {
             console.error('Agreement submission error:', error);
             toast.error(error?.response?.data?.message || 'Failed to record agreement acceptance');
