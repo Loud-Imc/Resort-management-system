@@ -1168,6 +1168,7 @@ export default function CreateBooking() {
                         isBestValue: true,
                         totalRooms: preview.length,
                         totalGuestsServed: totalGroupSize,
+                        property: selectedProperty,
                         allocatedRooms: preview.map((r: any) => ({
                             roomTypeId: r.roomTypeId,
                             roomTypeName: r.roomType || r.roomTypeName || 'Group Room',
@@ -2535,7 +2536,7 @@ export default function CreateBooking() {
                                                     adultsCount={Number(watch('adultsCount')) || 1}
                                                     childrenCount={Number(watch('childrenCount')) || 0}
                                                     onSelect={(s) => handleSelectSolution(s)}
-                                                    selectedMealPlan={solutionMealPlans[sol.id] || (selectedSolution?.id === sol.id ? selectedMealPlan : 'EP')}
+                                                    selectedMealPlan={solutionMealPlans[sol.id] || (selectedSolution?.id === sol.id ? selectedMealPlan : (sol.ratesByMealPlan?.['EP'] ? 'EP' : (Object.keys(sol.ratesByMealPlan || {})[0] || 'EP')))}
                                                     onMealPlanChange={(plan) => handleSolutionMealPlanChange(sol, plan)}
                                                     roomAcSelections={selectedSolution?.id === sol.id ? roomAcSelections : undefined}
                                                     onRoomAcToggle={handleRoomAcToggle}
@@ -3269,6 +3270,10 @@ export default function CreateBooking() {
                 <div className="hidden lg:block lg:col-span-5 xl:col-span-4 h-fit sticky top-20">
                     <BookingSummarySidebar
                         propertyName={selectedProperty?.name}
+                        property={selectedProperty}
+                        groupPriceAdult={selectedProperty?.groupPriceAdult}
+                        groupPriceChild={selectedProperty?.groupPriceChild}
+                        groupPricePerHead={selectedProperty?.groupPricePerHead}
                         checkInDate={watchedCheckInDate}
                         checkOutDate={watchedCheckOutDate}
                         adultsCount={Number(watchedAdults) || 1}
@@ -3345,6 +3350,10 @@ export default function CreateBooking() {
                         </div>
                         <BookingSummarySidebar
                             propertyName={selectedProperty?.name}
+                            property={selectedProperty}
+                            groupPriceAdult={selectedProperty?.groupPriceAdult}
+                            groupPriceChild={selectedProperty?.groupPriceChild}
+                            groupPricePerHead={selectedProperty?.groupPricePerHead}
                             checkInDate={watchedCheckInDate}
                             checkOutDate={watchedCheckOutDate}
                             adultsCount={Number(watchedAdults) || 1}
@@ -3410,7 +3419,7 @@ export default function CreateBooking() {
                                         handleSelectSolution(s);
                                         setShowFullSolutionsModal(false);
                                     }}
-                                    selectedMealPlan={solutionMealPlans[sol.id] || (selectedSolution?.id === sol.id ? selectedMealPlan : 'EP')}
+                                    selectedMealPlan={solutionMealPlans[sol.id] || (selectedSolution?.id === sol.id ? selectedMealPlan : (sol.ratesByMealPlan?.['EP'] ? 'EP' : (Object.keys(sol.ratesByMealPlan || {})[0] || 'EP')))}
                                     onMealPlanChange={(plan) => handleSolutionMealPlanChange(sol, plan)}
                                     roomAcSelections={selectedSolution?.id === sol.id ? roomAcSelections : undefined}
                                     onRoomAcToggle={handleRoomAcToggle}

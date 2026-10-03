@@ -16,6 +16,10 @@ interface BookingSummarySidebarProps {
     selectedSolution: any;
     solutionRoomAssignments: Record<number, string>;
     roomTypes: RoomType[] | undefined;
+    property?: any;
+    groupPriceAdult?: number;
+    groupPriceChild?: number;
+    groupPricePerHead?: number;
     priceDetails: PriceCalculationResult | null;
     originalPriceDetails: PriceCalculationResult | null;
     overrideTotal?: number;
@@ -48,6 +52,10 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
     groupSize,
     selectedSolution,
     roomTypes,
+    property,
+    groupPriceAdult,
+    groupPriceChild,
+    groupPricePerHead,
     priceDetails,
     originalPriceDetails,
     overrideTotal,
@@ -164,13 +172,19 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                         
                         {isGroupBooking && (() => {
                             const adultRate = Number(
+                                groupPriceAdult ??
+                                property?.groupPriceAdult ??
                                 (selectedSolution as any)?.property?.groupPriceAdult ?? 
                                 (roomTypes?.[0]?.property as any)?.groupPriceAdult ?? 
+                                groupPricePerHead ??
+                                property?.groupPricePerHead ??
                                 (selectedSolution as any)?.property?.groupPricePerHead ?? 
                                 (roomTypes?.[0]?.property as any)?.groupPricePerHead ?? 
                                 0
                             );
                             const childRate = Number(
+                                groupPriceChild ??
+                                property?.groupPriceChild ??
                                 (selectedSolution as any)?.property?.groupPriceChild ?? 
                                 (roomTypes?.[0]?.property as any)?.groupPriceChild ?? 
                                 0
@@ -188,7 +202,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                         </span>
                                         <span className="font-bold text-foreground">
                                             {adultRate > 0 ? (
-                                                `₹${adultRate.toLocaleString()} × ${adultsCount} Adults = ₹${(adultRate * adultsCount * nights).toLocaleString()}`
+                                                `₹${adultRate.toLocaleString()} × ${adultsCount} Adults${nights > 1 ? ` × ${nights} Nts` : ''} = ₹${(adultRate * adultsCount * nights).toLocaleString()}`
                                             ) : (
                                                 `₹${Math.round(details ? (details.baseAmount / (Math.max(1, adultsCount + childrenCount) * nights)) : 0).toLocaleString()} × ${adultsCount} Adults`
                                             )}
@@ -201,7 +215,7 @@ export const BookingSummarySidebar: React.FC<BookingSummarySidebarProps> = ({
                                             </span>
                                             <span className="font-bold text-foreground">
                                                 {childRate > 0 ? (
-                                                    `₹${childRate.toLocaleString()} × ${childrenCount} Children = ₹${(childRate * childrenCount * nights).toLocaleString()}`
+                                                    `₹${childRate.toLocaleString()} × ${childrenCount} Children${nights > 1 ? ` × ${nights} Nts` : ''} = ₹${(childRate * childrenCount * nights).toLocaleString()}`
                                                 ) : (
                                                     `₹0`
                                                 )}

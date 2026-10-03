@@ -53,6 +53,8 @@ export interface PricingBreakdown {
     // Rate Plan & AC
     ratePlanId?: string;
     mealPlan?: string;
+    baseMealPlan?: string;
+    isMealIncludedInBase?: boolean;
     mealSupplementAmount?: number;
     adultMealRate?: number;
     childMealRate?: number;
@@ -274,10 +276,37 @@ export class PricingService {
                 rawExtraAdultPrice = Number(roomTypeRatePrice.extraAdultPrice);
                 rawExtraChildPrice = Number(roomTypeRatePrice.extraChildPrice);
             }
-        } else if (targetRatePlan && targetRatePlan.mealPlan !== 'EP') {
-            const adultMealRate = Number(targetRatePlan.extraAdultPrice || 0);
-            const childMealRate = Number(targetRatePlan.extraChildPrice || 0);
-            mealSupplementPerNight = (adultsCount * adultMealRate) + (childrenCount * childMealRate);
+        } else if (targetRatePlan) {
+            const rtBaseMealPlan = ((roomType as any).baseMealPlan || 'EP').toUpperCase();
+            const targetMealPlanCode = (targetRatePlan.mealPlan || mealPlan || 'EP').toUpperCase();
+
+            if (targetMealPlanCode === rtBaseMealPlan) {
+                // Base meal plan is included in base rate & extra guest charges (Model A)
+                mealSupplementPerNight = 0;
+            } else if (targetMealPlanCode !== 'EP') {
+                // Upgrading beyond base meal plan: calculate incremental supplement delta
+                let baseAdultMealRate = 0;
+                let baseChildMealRate = 0;
+
+                if (rtBaseMealPlan !== 'EP') {
+                    const baseRatePlan = (roomType as any).baseRatePlan
+                        || ((roomType as any).baseRatePlanId
+                            ? await this.prisma.ratePlan.findUnique({ where: { id: (roomType as any).baseRatePlanId } })
+                            : await this.prisma.ratePlan.findFirst({
+                                where: { propertyId: roomType.propertyId, mealPlan: rtBaseMealPlan as any, isActive: true },
+                            }));
+                    baseAdultMealRate = Number(baseRatePlan?.extraAdultPrice || 0);
+                    baseChildMealRate = Number(baseRatePlan?.extraChildPrice || 0);
+                }
+
+                const adultMealRate = Number(targetRatePlan.extraAdultPrice || 0);
+                const childMealRate = Number(targetRatePlan.extraChildPrice || 0);
+
+                const adultDelta = Math.max(0, adultMealRate - baseAdultMealRate);
+                const childDelta = Math.max(0, childMealRate - baseChildMealRate);
+
+                mealSupplementPerNight = (adultsCount * adultDelta) + (childrenCount * childDelta);
+            }
         }
 
         // 4. Normalize prices if room type is GST inclusive (Only if property is GST registered)
@@ -488,43 +517,45 @@ export class PricingService {
             }
         }
 
-        // 6. Calculate Stay Base Amount Night-by-Night using platform-specific pricing rules
-        let nightlyBaseSum = 0;
-        const currentNight = new Date(checkInDate);
-        currentNight.setHours(0, 0, 0, 0);
+        // 6. Calculate Stay Base Amount Night-by-Night using platform-specific pricing rules (Standard bookings only)
+        if (!isGroupBooking) {
+            let nightlyBaseSum = 0;
+            const currentNight = new Date(checkInDate);
+            currentNight.setHours(0, 0, 0, 0);
 
-        for (let i = 0; i < numberOfNights; i++) {
-            const nextNight = new Date(currentNight);
-            nextNight.setDate(nextNight.getDate() + 1);
+            for (let i = 0; i < numberOfNights; i++) {
+                const nextNight = new Date(currentNight);
+                nextNight.setDate(nextNight.getDate() + 1);
 
-            const ruleThisNight = preloadedContext?.pricingRules
-                ? preloadedContext.pricingRules.find((r: any) =>
-                    r.roomTypeId === roomTypeId &&
-                    r.isActive &&
-                    r.channelTarget === platform &&
-                    (r.isAc === null || r.isAc === undefined || r.isAc === authoritativeIsAc) &&
-                    DateUtils.areNightIntervalsOverlapping(currentNight, nextNight, r.startDate, r.endDate) &&
-                    (!targetRatePlan?.id || r.ratePlanId === targetRatePlan.id || !r.ratePlanId)
-                  )
-                : await this.getApplicablePricingRule(roomTypeId, currentNight, nextNight, targetRatePlan?.id || ratePlanId, platform, authoritativeIsAc);
+                const ruleThisNight = preloadedContext?.pricingRules
+                    ? preloadedContext.pricingRules.find((r: any) =>
+                        r.roomTypeId === roomTypeId &&
+                        r.isActive &&
+                        r.channelTarget === platform &&
+                        (r.isAc === null || r.isAc === undefined || r.isAc === authoritativeIsAc) &&
+                        DateUtils.areNightIntervalsOverlapping(currentNight, nextNight, r.startDate, r.endDate) &&
+                        (!targetRatePlan?.id || r.ratePlanId === targetRatePlan.id || !r.ratePlanId)
+                      )
+                    : await this.getApplicablePricingRule(roomTypeId, currentNight, nextNight, targetRatePlan?.id || ratePlanId, platform, authoritativeIsAc);
 
-            let nightBase = effectiveBasePrice;
-            if (ruleThisNight) {
-                if (ruleThisNight.adjustmentType === 'PERCENTAGE') {
-                    nightBase += (nightBase * Number(ruleThisNight.adjustmentValue)) / 100;
-                } else if (ruleThisNight.adjustmentType === 'SET_FIXED_PRICE') {
-                    nightBase = Number(ruleThisNight.adjustmentValue);
-                } else {
-                    nightBase += Number(ruleThisNight.adjustmentValue);
+                let nightBase = effectiveBasePrice;
+                if (ruleThisNight) {
+                    if (ruleThisNight.adjustmentType === 'PERCENTAGE') {
+                        nightBase += (nightBase * Number(ruleThisNight.adjustmentValue)) / 100;
+                    } else if (ruleThisNight.adjustmentType === 'SET_FIXED_PRICE') {
+                        nightBase = Number(ruleThisNight.adjustmentValue);
+                    } else {
+                        nightBase += Number(ruleThisNight.adjustmentValue);
+                    }
                 }
+
+                nightlyBaseSum += nightBase * finalRoomCount;
+                currentNight.setDate(currentNight.getDate() + 1);
             }
 
-            nightlyBaseSum += nightBase * finalRoomCount;
-            currentNight.setDate(currentNight.getDate() + 1);
+            baseAmount = nightlyBaseSum + (mealSupplementPerNight * numberOfNights);
+            basePricePerNight = numberOfNights > 0 ? (baseAmount / numberOfNights) : effectiveBasePrice * finalRoomCount;
         }
-
-        baseAmount = nightlyBaseSum + (mealSupplementPerNight * numberOfNights);
-        basePricePerNight = numberOfNights > 0 ? (baseAmount / numberOfNights) : effectiveBasePrice * finalRoomCount;
 
         let subtotal = baseAmount + extraAdultAmount + extraChildAmount;
 
@@ -716,6 +747,8 @@ export class PricingService {
             offerDiscountValue: activeOffer?.discountValue ? Number(activeOffer.discountValue) : undefined,
             ratePlanId: targetRatePlan?.id || ratePlanId,
             mealPlan: targetRatePlan?.mealPlan || mealPlan || 'EP',
+            baseMealPlan: ((roomType as any).baseMealPlan || 'EP').toUpperCase(),
+            isMealIncludedInBase: ((roomType as any).baseMealPlan || 'EP').toUpperCase() !== 'EP',
             mealSupplementAmount: isGroupBooking ? (groupMealSupplement * numberOfNights) : (mealSupplementPerNight * numberOfNights),
             adultMealRate: targetRatePlan ? Number(targetRatePlan.extraAdultPrice || 0) : 0,
             childMealRate: targetRatePlan ? Number(targetRatePlan.extraChildPrice || 0) : 0,

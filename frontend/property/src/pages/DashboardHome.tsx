@@ -622,7 +622,7 @@ export default function DashboardHome() {
                                         )}
                                     >
                                         <CheckSquare className="h-3.5 w-3.5" />
-                                        {isSelectionMode ? 'Cancel Selection' : 'Select Multiple Rooms'}
+                                        {isSelectionMode ? 'Cancel Selection' : 'Select Rooms'}
                                     </button>
                                 )}
 
