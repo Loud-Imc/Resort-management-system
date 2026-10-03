@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     Building2, MapPin, Star, CheckCircle, XCircle, Loader2, LayoutDashboard,
     Edit, ShieldCheck, Zap, User, Key, X, ChevronLeft, ChevronRight,
-    Sparkles, AlertTriangle, Search, RotateCcw, Eye, EyeOff
+    Sparkles, AlertTriangle, Search, RotateCcw, Eye, EyeOff, Plus, ExternalLink
 } from 'lucide-react';
 import propertyService from '../../services/properties';
 import { Property, PropertyType, PropertyQueryParams } from '../../types/property';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import OccupancyMigrationModal from '../../components/OccupancyMigrationModal';
 
 const ITEMS_PER_PAGE = 20;
@@ -57,6 +57,7 @@ type FlagFilter =
     | ''
     | 'APPROVED'
     | 'PENDING'
+    | 'DRAFT'
     | 'REJECTED'
     | 'DISABLED'
     | 'FEATURED'
@@ -67,6 +68,7 @@ const FLAG_OPTIONS: { value: FlagFilter; label: string }[] = [
     { value: '',         label: 'All Statuses' },
     { value: 'APPROVED', label: '✅ Approved' },
     { value: 'PENDING',  label: '🕒 Pending' },
+    { value: 'DRAFT',    label: '📝 Draft / Incomplete' },
     { value: 'REJECTED', label: '❌ Rejected' },
     { value: 'DISABLED', label: '🚫 Disabled' },
     { value: 'FEATURED', label: '⭐ Featured' },
@@ -79,6 +81,7 @@ function flagToParams(flag: FlagFilter): Partial<PropertyQueryParams> {
     switch (flag) {
         case 'APPROVED':  return { status: 'APPROVED', isActive: true };
         case 'PENDING':   return { status: 'PENDING' };
+        case 'DRAFT':     return { status: 'INACTIVE', isVerified: false };
         case 'REJECTED':  return { status: 'REJECTED' };
         case 'DISABLED':  return { status: 'APPROVED', isActive: false };
         case 'FEATURED':  return { isFeatured: true };
@@ -91,7 +94,6 @@ function flagToParams(flag: FlagFilter): Partial<PropertyQueryParams> {
 export default function PropertiesList() {
 
     const { user } = useAuth();
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [properties, setProperties] = useState<Property[]>([]);
@@ -345,9 +347,18 @@ export default function PropertiesList() {
                     <h1 className="text-2xl font-bold text-foreground">All Properties</h1>
                     <p className="text-muted-foreground">Platform-wide overview of all properties</p>
                 </div>
-                <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg font-medium">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin inline" /> : `${totalCount} result${totalCount !== 1 ? 's' : ''}`}
-                </span>
+                <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg font-medium">
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin inline" /> : `${totalCount} result${totalCount !== 1 ? 's' : ''}`}
+                    </span>
+                    <Link
+                        to="/properties/new"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary text-primary-foreground font-semibold rounded-lg shadow-sm hover:opacity-90 transition-all text-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Onboard Property
+                    </Link>
+                </div>
             </div>
 
             {/* Filters */}
@@ -575,9 +586,10 @@ export default function PropertiesList() {
                                                 property.status === 'APPROVED' ? 'bg-green-500 text-white' :
                                                 property.status === 'PENDING'  ? 'bg-amber-500 text-white' :
                                                 property.status === 'REJECTED' ? 'bg-red-500 text-white' :
+                                                (property.status === 'INACTIVE' && !property.isVerified) ? 'bg-amber-600 text-white' :
                                                                                  'bg-gray-500 text-white'
                                             )}>
-                                                {property.status}
+                                                {(property.status === 'INACTIVE' && !property.isVerified) ? 'DRAFT' : property.status}
                                             </span>
                                             {property.status === 'APPROVED' && (
                                                 <span className={clsx(
@@ -597,7 +609,15 @@ export default function PropertiesList() {
 
                                     {/* Content */}
                                     <div className="p-4">
-                                        <h3 className="font-bold text-card-foreground truncate text-lg">{property.name}</h3>
+                                        <h3 className="font-bold text-card-foreground truncate text-lg">
+                                            <Link
+                                                to={`/properties/${property.id}/edit`}
+                                                className="hover:text-primary transition-colors cursor-pointer"
+                                                title="Open Property Details"
+                                            >
+                                                {property.name}
+                                            </Link>
+                                        </h3>
                                         <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
                                             <MapPin className="h-4 w-4 shrink-0" />
                                             <span className="truncate font-medium">{property.city}, {property.state}</span>
@@ -761,14 +781,23 @@ export default function PropertiesList() {
 
                                             {/* Secondary Actions */}
                                             <div className="flex gap-2.5">
-                                                <button
-                                                    onClick={() => navigate(`/properties/${property.id}/edit`)}
-                                                    title="Edit Property Details"
+                                                <Link
+                                                    to={`/properties/${property.id}/edit`}
+                                                    title="Edit Property (Click or Middle-Click to open in new tab)"
                                                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50 cursor-pointer"
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                     Edit
-                                                </button>
+                                                </Link>
+                                                <a
+                                                    href={`/properties/${property.id}/edit`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    title="Open Edit in New Tab"
+                                                    className="px-2.5 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-border/50 flex items-center justify-center cursor-pointer"
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                </a>
                                                 <button
                                                     onClick={() => handleResetOwnerPassword(property)}
                                                     title="Reset Owner Password"

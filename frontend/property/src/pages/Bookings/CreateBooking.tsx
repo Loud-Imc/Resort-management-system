@@ -335,6 +335,39 @@ export default function CreateBooking() {
         enabled: !!selectedProperty?.id,
     });
 
+    const activeMealPlans = useMemo(() => {
+        const plans = (propertyRatePlans || []).filter(p => p.isActive);
+        const meta: Record<string, { label: string; icon: string }> = {
+            EP: { label: 'Room Only', icon: '☕' },
+            CP: { label: 'Breakfast', icon: '🍳' },
+            MAP: { label: 'Half Board', icon: '🍽️' },
+            AP: { label: 'Full Board', icon: '👑' },
+        };
+        return plans.map(p => ({
+            code: p.mealPlan as 'EP' | 'CP' | 'MAP' | 'AP',
+            name: p.name || meta[p.mealPlan]?.label || p.mealPlan,
+            label: meta[p.mealPlan]?.label || p.name || p.mealPlan,
+            icon: meta[p.mealPlan]?.icon || '🍴',
+            adultRate: Number(p.extraAdultPrice || 0),
+            childRate: Number(p.extraChildPrice || 0),
+            isPrimary: p.isPrimary,
+            ratePlan: p,
+        }));
+    }, [propertyRatePlans]);
+
+    // Keep selectedMealPlan aligned with active plans for this property
+    useEffect(() => {
+        if (activeMealPlans.length > 0) {
+            const isCurrentPlanActive = activeMealPlans.some(p => p.code === selectedMealPlan);
+            if (!isCurrentPlanActive) {
+                const primary = activeMealPlans.find(p => p.isPrimary) || activeMealPlans[0];
+                if (primary) {
+                    setSelectedMealPlan(primary.code);
+                }
+            }
+        }
+    }, [activeMealPlans, selectedMealPlan]);
+
     // Automatically pre-fetch available rooms for the selected date range using dedicated API
     // so the Room Type & Room filter chips only display rooms that are actually free.
     useEffect(() => {
@@ -2002,53 +2035,58 @@ export default function CreateBooking() {
 
                                     {/* Group Summary Banner */}
                                     {/* Group Meal Plan Selector */}
-                                    <div className="space-y-2 p-3.5 bg-card border border-border rounded-xl">
-                                        <div className="flex items-center justify-between">
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                                Group Meal Plan & Dining Entitlement
-                                            </label>
-                                            <span className="text-[10px] text-muted-foreground font-medium">Per-head dining supplement</span>
-                                        </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                            {[
-                                                { code: 'EP', label: 'Room Only', defaultAdult: 0, defaultChild: 0, icon: '☕' },
-                                                { code: 'CP', label: 'Breakfast', defaultAdult: 250, defaultChild: 150, icon: '🍳' },
-                                                { code: 'MAP', label: 'Half Board', defaultAdult: 700, defaultChild: 400, icon: '🍽️' },
-                                                { code: 'AP', label: 'Full Board', defaultAdult: 1200, defaultChild: 700, icon: '👑' },
-                                            ].map(mp => {
-                                                const isSelected = selectedMealPlan === mp.code;
-                                                const configuredPlan = propertyRatePlans?.find(p => p.mealPlan === mp.code);
-                                                const adultRate = configuredPlan ? Number(configuredPlan.extraAdultPrice) : mp.defaultAdult;
-                                                const childRate = configuredPlan ? Number(configuredPlan.extraChildPrice) : mp.defaultChild;
-                                                const subText = mp.code === 'EP' 
-                                                    ? 'Base tariff only' 
-                                                    : `+₹${adultRate.toLocaleString()}/ad${childRate > 0 ? `, +₹${childRate.toLocaleString()}/ch` : ''}`;
+                                    {activeMealPlans.length > 0 ? (
+                                        <div className="space-y-2 p-3.5 bg-card border border-border rounded-xl">
+                                            <div className="flex items-center justify-between">
+                                                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                    Group Meal Plan & Dining Entitlement
+                                                </label>
+                                                <span className="text-[10px] text-muted-foreground font-medium">Per-head dining supplement</span>
+                                            </div>
+                                            <div className={clsx(
+                                                "grid gap-2",
+                                                activeMealPlans.length === 1 ? "grid-cols-1" :
+                                                activeMealPlans.length === 2 ? "grid-cols-2" :
+                                                activeMealPlans.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+                                            )}>
+                                                {activeMealPlans.map(mp => {
+                                                    const isSelected = selectedMealPlan === mp.code;
+                                                    const adultRate = mp.adultRate;
+                                                    const childRate = mp.childRate;
+                                                    const subText = mp.code === 'EP' 
+                                                        ? 'Base tariff only' 
+                                                        : `+₹${adultRate.toLocaleString()}/ad${childRate > 0 ? `, +₹${childRate.toLocaleString()}/ch` : ''}`;
 
-                                                return (
-                                                    <button
-                                                        key={mp.code}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            handleMealPlanChange(mp.code);
-                                                        }}
-                                                        className={clsx(
-                                                            "p-2.5 rounded-xl border text-left transition-all cursor-pointer",
-                                                            isSelected
-                                                                ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
-                                                                : "bg-background border-border hover:border-primary/40 text-foreground"
-                                                        )}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-black">{mp.icon} {mp.code}</span>
-                                                            {isSelected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
-                                                        </div>
-                                                        <div className="text-[11px] font-bold text-foreground mt-0.5">{mp.label}</div>
-                                                        <div className="text-[10px] text-muted-foreground font-medium mt-0.5 leading-tight">{subText}</div>
-                                                    </button>
-                                                );
-                                            })}
+                                                    return (
+                                                        <button
+                                                            key={mp.code}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                handleMealPlanChange(mp.code);
+                                                            }}
+                                                            className={clsx(
+                                                                "p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                                                                isSelected
+                                                                    ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
+                                                                    : "bg-background border-border hover:border-primary/40 text-foreground"
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-black">{mp.icon} {mp.code}</span>
+                                                                {isSelected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
+                                                            </div>
+                                                            <div className="text-[11px] font-bold text-foreground mt-0.5">{mp.label}</div>
+                                                            <div className="text-[10px] text-muted-foreground font-medium mt-0.5 leading-tight">{subText}</div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    </div>
+                                    ) : propertyRatePlans !== undefined ? (
+                                        <div className="p-3 bg-muted/40 border border-dashed border-border rounded-xl text-xs text-muted-foreground text-center">
+                                            No active meal plans configured for this property in Rate Plans Manager.
+                                        </div>
+                                    ) : null}
 
                                     <div className="flex items-center justify-between p-3.5 bg-primary/5 border border-primary/20 rounded-xl">
                                         <div>

@@ -30,4 +30,38 @@ export const roomTypesService = {
     delete: async (id: string) => {
         await api.delete(`/room-types/${id}`);
     },
+
+    previewOccupancy: async (params: {
+        baseAdults?: number;
+        baseChildren?: number;
+        maxPhysicalAdults?: number;
+        maxPhysicalChildren?: number;
+        maxPhysicalInfants?: number;
+        totalBaseOccupancy?: number;
+        totalMaxOccupancy?: number;
+        baseMaxAdults?: number;
+        baseMaxChildren?: number;
+    }) => {
+        const { data } = await api.post<{
+            baseAdults: number;
+            baseChildren: number;
+            maxPhysicalAdults: number;
+            maxPhysicalChildren: number;
+            maxPhysicalInfants: number;
+            baseCompositions: Array<{ adults: number; children: number; label: string }>;
+            maxPhysicalCompositions: Array<{ adults: number; children: number; label: string }>;
+        }>('/room-types/preview-occupancy', params);
+        return data;
+    },
+
+    getMasterOptions: async () => {
+        const { data } = await api.get<{
+            highlights: string[];
+            inclusions: string[];
+            amenities: string[];
+        }>('/room-types/master-options');
+        return data;
+    },
 };
+
+export default roomTypesService;

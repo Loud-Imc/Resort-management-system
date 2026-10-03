@@ -1,9 +1,9 @@
 import api from './api';
-import type { Room, CreateRoomDto, UpdateRoomDto, BlockRoomDto } from '../types/room';
+import type { Room, CreateRoomDto, UpdateRoomDto, BlockRoomDto, RoomBlock } from '../types/room';
 
 export const roomsService = {
     // Get all rooms
-    getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string }) => {
+    getAll: async (params?: { status?: string; roomTypeId?: string; propertyId?: string; date?: string; isEnabled?: boolean }) => {
         const { data } = await api.get<Room[]>('/rooms', { params });
         return data;
     },
@@ -28,7 +28,8 @@ export const roomsService = {
 
     // Delete room
     delete: async (id: string) => {
-        await api.delete(`/rooms/${id}`);
+        const response = await api.delete<{ message: string }>(`/rooms/${id}`);
+        return response.data;
     },
 
     // Block room
@@ -38,8 +39,14 @@ export const roomsService = {
     },
 
     // Unblock room
-    unblock: async (id: string) => {
-        const response = await api.post(`/rooms/${id}/unblock`);
+    unblock: async (blockId: string) => {
+        const response = await api.delete(`/rooms/blocks/${blockId}`);
         return response.data;
+    },
+
+    // Get room blocks
+    getBlocks: async (roomId: string) => {
+        const { data } = await api.get<RoomBlock[]>(`/rooms/${roomId}/blocks`);
+        return data;
     }
 };

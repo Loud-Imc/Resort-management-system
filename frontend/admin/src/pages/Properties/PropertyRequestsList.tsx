@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Shield, CheckCircle, XCircle, Loader2, Building2, MapPin,
     Phone, Mail, Clock, ChevronDown, ChevronUp, User, FileText,
-    Image, Tag, Info, Search, Filter, ShieldCheck, ShieldAlert
+    Image, Tag, Info, Search, Filter, ShieldCheck, ShieldAlert,
+    Edit3, Trash2
 } from 'lucide-react';
 import propertyService from '../../services/properties';
 import toast from 'react-hot-toast';
@@ -17,7 +19,7 @@ export default function PropertyRequestsList() {
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+    const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'DRAFT' | 'APPROVED' | 'REJECTED'>('ALL');
     const [viewingAgreementData, setViewingAgreementData] = useState<any | null>(null);
 
     useEffect(() => {
@@ -85,6 +87,21 @@ export default function PropertyRequestsList() {
         }
     };
 
+    const handleDeleteDraft = async (id: string, name: string) => {
+        if (!confirm(`Are you sure you want to discard the draft for "${name}"? This cannot be undone.`)) return;
+
+        try {
+            setProcessingId(id);
+            await propertyService.deleteRequest(id);
+            toast.success('Registration draft discarded');
+            loadRequests();
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || err.message || 'Failed to delete draft');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
     const toggleExpand = (id: string) => {
         setExpandedId(prev => prev === id ? null : id);
     };
@@ -96,7 +113,12 @@ export default function PropertyRequestsList() {
             request.ownerPhone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             request.details?.propertyPhone?.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus = statusFilter === 'ALL' || request.status === statusFilter;
+        const isDraft = request.details?.isDraft === true;
+        const matchesStatus =
+            statusFilter === 'ALL' ? true :
+            statusFilter === 'DRAFT' ? isDraft :
+            statusFilter === 'PENDING' ? (request.status === 'PENDING' && !isDraft) :
+            request.status === statusFilter;
 
         return matchesSearch && matchesStatus;
     });
@@ -138,7 +160,8 @@ export default function PropertyRequestsList() {
                         className="border border-border bg-background text-foreground rounded-xl px-4 py-2 focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-sm min-w-[150px] font-medium"
                     >
                         <option value="ALL">All Status</option>
-                        <option value="PENDING">Pending</option>
+                        <option value="DRAFT">Drafts (Incomplete)</option>
+                        <option value="PENDING">Pending Review</option>
                         <option value="APPROVED">Approved</option>
                         <option value="REJECTED">Rejected</option>
                     </select>
@@ -171,6 +194,7 @@ export default function PropertyRequestsList() {
                             } : {})
                         };
                         const isExpanded = expandedId === request.id;
+                        const isDraft = request.details?.isDraft === true;
 
                         return (
                             <div key={request.id} className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -202,60 +226,69 @@ export default function PropertyRequestsList() {
                                     </div>
 
                                     <div className="flex items-center gap-3 shrink-0">
-                                        {/* Agreement Status Badge */}
-                                        {request.details?.agreementAccepted ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => setViewingAgreementData({
-                                                    propertyName: request.name,
-                                                    propertyType: details.propertyType,
-                                                    address: details.address || request.location,
-                                                    city: details.city || '',
-                                                    state: details.state || '',
-                                                    country: details.country || 'India',
-                                                    pincode: details.pincode || '',
-                                                    propertyEmail: details.propertyEmail || request.ownerEmail,
-                                                    propertyPhone: details.propertyPhone || request.ownerPhone,
-                                                    ownerFirstName: details.ownerFirstName || request.name,
-                                                    ownerLastName: details.ownerLastName || '',
-                                                    ownerEmail: request.ownerEmail,
-                                                    ownerPhone: request.ownerPhone,
-                                                    platformCommission: details.platformCommission || 10,
-                                                    gstNumber: details.gstNumber,
-                                                    isGstApplicable: details.isGstApplicable,
-                                                    ownerAadhaarNumber: details.ownerAadhaarNumber,
-                                                    requestId: request.id,
-                                                    agreementAccepted: details.agreementAccepted,
-                                                    agreementAcceptedAt: details.agreementAcceptedAt,
-                                                    agreementVersion: details.agreementVersion,
-                                                    agreementDesignation: details.agreementDesignation,
-                                                    agreementSignatureName: details.agreementSignatureName,
-                                                    agreementAuditId: details.agreementAuditId
-                                                })}
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors cursor-pointer"
-                                                title="View Signed Agreement"
-                                            >
-                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                                                <span>✓ Agreement Signed</span>
-                                            </button>
-                                        ) : (
-                                            <span 
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg"
-                                                title="Property owner has not yet electronically accepted the listing agreement"
-                                            >
-                                                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
-                                                <span>Agreement Pending</span>
-                                            </span>
+                                        {/* Agreement Status Badge (only for non-drafts) */}
+                                        {!isDraft && (
+                                            request.details?.agreementAccepted ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setViewingAgreementData({
+                                                        propertyName: request.name,
+                                                        propertyType: details.propertyType,
+                                                        address: details.address || request.location,
+                                                        city: details.city || '',
+                                                        state: details.state || '',
+                                                        country: details.country || 'India',
+                                                        pincode: details.pincode || '',
+                                                        propertyEmail: details.propertyEmail || request.ownerEmail,
+                                                        propertyPhone: details.propertyPhone || request.ownerPhone,
+                                                        ownerFirstName: details.ownerFirstName || request.name,
+                                                        ownerLastName: details.ownerLastName || '',
+                                                        ownerEmail: request.ownerEmail,
+                                                        ownerPhone: request.ownerPhone,
+                                                        platformCommission: details.platformCommission || 10,
+                                                        gstNumber: details.gstNumber,
+                                                        isGstApplicable: details.isGstApplicable,
+                                                        ownerAadhaarNumber: details.ownerAadhaarNumber,
+                                                        requestId: request.id,
+                                                        agreementAccepted: details.agreementAccepted,
+                                                        agreementAcceptedAt: details.agreementAcceptedAt,
+                                                        agreementVersion: details.agreementVersion,
+                                                        agreementDesignation: details.agreementDesignation,
+                                                        agreementSignatureName: details.agreementSignatureName,
+                                                        agreementAuditId: details.agreementAuditId
+                                                    })}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors cursor-pointer"
+                                                    title="View Signed Agreement"
+                                                >
+                                                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                                    <span>✓ Agreement Signed</span>
+                                                </button>
+                                            ) : (
+                                                <span 
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg"
+                                                    title="Property owner has not yet electronically accepted the listing agreement"
+                                                >
+                                                    <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                                                    <span>Agreement Pending</span>
+                                                </span>
+                                            )
                                         )}
 
-                                        <span className={clsx(
-                                            "px-2.5 py-1 text-xs font-bold rounded-lg shadow-sm uppercase tracking-wider",
-                                            request.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                                                request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-                                                    'bg-red-100 text-red-700'
-                                        )}>
-                                            {request.status}
-                                        </span>
+                                        {isDraft ? (
+                                            <span className="px-2.5 py-1 text-xs font-bold rounded-lg shadow-sm uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-300 flex items-center gap-1.5">
+                                                <FileText className="h-3.5 w-3.5 text-sky-600" />
+                                                <span>Draft (Step {request.details?.step || 1} of 2)</span>
+                                            </span>
+                                        ) : (
+                                            <span className={clsx(
+                                                "px-2.5 py-1 text-xs font-bold rounded-lg shadow-sm uppercase tracking-wider",
+                                                request.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                                                    request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                                                        'bg-red-100 text-red-700'
+                                            )}>
+                                                {request.status}
+                                            </span>
+                                        )}
 
                                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <Clock className="h-3 w-3" />
@@ -263,32 +296,54 @@ export default function PropertyRequestsList() {
                                         </div>
 
                                         {request.status === 'PENDING' && (
-                                            <div className="flex gap-1.5">
-                                                <button
-                                                    onClick={() => handleApprove(request)}
-                                                    disabled={processingId === request.id}
-                                                    className={`p-2 rounded-lg transition-colors shadow-sm ${
-                                                        (request.details?.agreementAccepted || (request.documentDetails as any)?.agreementAccepted)
-                                                            ? 'bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer' 
-                                                            : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
-                                                    }`}
-                                                    title={
-                                                        (request.details?.agreementAccepted || (request.documentDetails as any)?.agreementAccepted)
-                                                            ? 'Approve & Onboard' 
-                                                            : 'Approve & Onboard (Agreement Pending — Admin Override)'
-                                                    }
-                                                >
-                                                    {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                                </button>
-                                                <button
-                                                    onClick={() => handleReject(request.id)}
-                                                    disabled={processingId === request.id}
-                                                    className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                                                    title="Reject Request"
-                                                >
-                                                    {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                                                </button>
-                                            </div>
+                                            isDraft ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <Link
+                                                        to={`/properties/new?draftId=${request.id}`}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer"
+                                                        title="Resume registration for this drafted property"
+                                                    >
+                                                        <Edit3 className="h-3.5 w-3.5" />
+                                                        <span>Resume Registration</span>
+                                                    </Link>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteDraft(request.id, request.name)}
+                                                        disabled={processingId === request.id}
+                                                        className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                                                        title="Discard this draft"
+                                                    >
+                                                        {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex gap-1.5">
+                                                    <button
+                                                        onClick={() => handleApprove(request)}
+                                                        disabled={processingId === request.id}
+                                                        className={`p-2 rounded-lg transition-colors shadow-sm ${
+                                                            (request.details?.agreementAccepted || (request.documentDetails as any)?.agreementAccepted)
+                                                                ? 'bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer' 
+                                                                : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
+                                                        }`}
+                                                        title={
+                                                            (request.details?.agreementAccepted || (request.documentDetails as any)?.agreementAccepted)
+                                                                ? 'Approve & Onboard' 
+                                                                : 'Approve & Onboard (Agreement Pending — Admin Override)'
+                                                        }
+                                                    >
+                                                        {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleReject(request.id)}
+                                                        disabled={processingId === request.id}
+                                                        className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                                                        title="Reject Request"
+                                                    >
+                                                        {processingId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
+                                            )
                                         )}
 
                                         <button
